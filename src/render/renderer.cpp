@@ -115,11 +115,6 @@ VulkanRenderer::VulkanRenderer() {
 
     loadModelWithMaterials("../assets/example models/Sponza/Sponza.gltf");
 
-    // loadModel("../assets/example models/kettle/kettle.obj");
-    // loadBaseColorTexture("../assets/example models/kettle/kettle-albedo.png");
-    // loadNormalMap("../assets/example models/kettle/kettle-normal.png");
-    // loadOrmMap("../assets/example models/kettle/kettle-orm.png");
-
     loadEnvironmentMap("../assets/envmaps/vienna.hdr");
 
     createSyncObjects();
@@ -432,14 +427,8 @@ void VulkanRenderer::createLogicalDevice() {
         .samplerAnisotropy = vk::True,
     };
 
-    const vk::StructureChain<
-        vk::DeviceCreateInfo,
-        vk::PhysicalDeviceVulkan12Features,
-        vk::PhysicalDeviceSynchronization2FeaturesKHR,
-        vk::PhysicalDeviceDynamicRenderingFeatures,
-        vk::PhysicalDeviceMultiviewFeatures
-    > createInfo{
-        {
+    const vk::StructureChain createInfo{
+        vk::DeviceCreateInfo {
             .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
             .pQueueCreateInfos = queueCreateInfos.data(),
             .enabledLayerCount = static_cast<uint32_t>(enableValidationLayers ? validationLayers.size() : 0),
@@ -448,18 +437,24 @@ void VulkanRenderer::createLogicalDevice() {
             .ppEnabledExtensionNames = deviceExtensions.data(),
             .pEnabledFeatures = &deviceFeatures,
         },
-        {
+        vk::PhysicalDeviceVulkan12Features {
             .timelineSemaphore = vk::True,
         },
-        {
+        vk::PhysicalDeviceSynchronization2FeaturesKHR {
             .synchronization2 = vk::True,
         },
-        {
+        vk::PhysicalDeviceDynamicRenderingFeatures {
             .dynamicRendering = vk::True,
         },
-        {
+        vk::PhysicalDeviceMultiviewFeatures {
             .multiview = vk::True,
-        }
+        },
+        vk::PhysicalDeviceAccelerationStructureFeaturesKHR {
+            .accelerationStructure = vk::True,
+        },
+        vk::PhysicalDeviceRayTracingPipelineFeaturesKHR {
+            .rayTracingPipeline = vk::True,
+        },
     };
 
     ctx.device = make_unique<vk::raii::Device>(*ctx.physicalDevice, createInfo.get<vk::DeviceCreateInfo>());
