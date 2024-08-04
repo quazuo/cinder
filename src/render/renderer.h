@@ -24,6 +24,7 @@ class Pipeline;
 class DescriptorSet;
 class SwapChain;
 class GuiRenderer;
+class AccelerationStructure;
 
 static constexpr std::array validationLayers{
     "VK_LAYER_KHRONOS_validation"
@@ -214,11 +215,10 @@ class VulkanRenderer {
     unique_ptr<RenderInfo> cubemapCaptureRenderInfo;
     std::vector<RenderInfo> debugQuadRenderInfos;
 
-    unique_ptr<Buffer> vertexBuffer;
-    unique_ptr<Buffer> indexBuffer;
-    unique_ptr<Buffer> instanceDataBuffer;
     unique_ptr<Buffer> skyboxVertexBuffer;
     unique_ptr<Buffer> screenSpaceQuadVertexBuffer;
+
+    unique_ptr<AccelerationStructure> tlas;
 
     struct FrameResources {
         struct {
@@ -434,13 +434,9 @@ private:
 
     // ==================== buffers ====================
 
-    void createModelVertexBuffer();
-
     void createSkyboxVertexBuffer();
 
     void createScreenSpaceQuadVertexBuffer();
-
-    void createIndexBuffer();
 
     template<typename ElemType>
     unique_ptr<Buffer> createLocalBuffer(const std::vector<ElemType> &contents, vk::BufferUsageFlags usage);
@@ -458,6 +454,10 @@ private:
     // ==================== sync ====================
 
     void createSyncObjects();
+
+    // ==================== ray tracing ====================
+
+    void createTLAS();
 
     // ==================== gui ====================
 

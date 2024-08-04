@@ -12,11 +12,9 @@ Buffer::Buffer(const VmaAllocator _allocator, const vk::DeviceSize size, const v
         .sharingMode = vk::SharingMode::eExclusive,
     };
 
-    VmaAllocationCreateFlags flags;
-    if (properties & vk::MemoryPropertyFlagBits::eDeviceLocal) {
-        flags = 0;
-    } else {
-        flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+    VmaAllocationCreateFlags flags{};
+    if (properties & vk::MemoryPropertyFlagBits::eHostVisible) {
+        flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
     }
 
     const VmaAllocationCreateInfo allocInfo{
@@ -78,4 +76,44 @@ void Buffer::copyFromBuffer(const RendererContext &ctx, const Buffer &otherBuffe
     commandBuffer.copyBuffer(*otherBuffer, buffer, copyRegion);
 
     vkutils::cmd::endSingleTimeCommands(commandBuffer, *ctx.graphicsQueue);
+}
+
+namespace vkutils::buf {
+    template<typename ElemType>
+    unique_ptr<Buffer> createLocalBuffer(const RendererContext &ctx, const std::vector<ElemType> &contents,
+                                         const vk::BufferUsageFlags usage) {
+        const vk::DeviceSize bufferSize = sizeof(contents[0]) * contents.size();
+
+        Buffer stagingBuffer{
+            **ctx.allocator,
+            bufferSize,
+            vk::BufferUsageFlagBits::eTransferSrc,
+            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+        };
+
+        void *data = stagingBuffer.map();
+        memcpy(data, contents.data(), static_cast<size_t>(bufferSize));
+        stagingBuffer.unmap();
+
+        auto resultBuffer = make_unique<Buffer>(
+            **ctx.allocator,
+            bufferSize,
+            vk::BufferUsageFlagBits::eTransferDst | usage,
+            vk::MemoryPropertyFlagBits::eDeviceLocal
+        );
+
+        resultBuffer->copyFromBuffer(ctx, stagingBuffer, bufferSize);
+
+        return resultBuffer;
+    }
+
+#define CREATE_LOCAL_BUFFER_DECL(ELEM_TYPE) \
+    template unique_ptr<Buffer> \
+    createLocalBuffer<ELEM_TYPE>(const RendererContext &, const std::vector<ELEM_TYPE> &, vk::BufferUsageFlags);
+
+    CREATE_LOCAL_BUFFER_DECL(ModelVertex)
+    CREATE_LOCAL_BUFFER_DECL(SkyboxVertex)
+    CREATE_LOCAL_BUFFER_DECL(ScreenSpaceQuadVertex)
+    CREATE_LOCAL_BUFFER_DECL(uint32_t)
+    CREATE_LOCAL_BUFFER_DECL(glm::mat4)
 }

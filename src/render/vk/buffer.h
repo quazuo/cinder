@@ -3,6 +3,7 @@
 #include "deps/vma/vk_mem_alloc.h"
 
 #include "src/render/libs.h"
+#include "src/render/globals.h"
 
 struct RendererContext;
 
@@ -33,10 +34,10 @@ public:
     Buffer &operator=(Buffer &&other) = delete;
 
     /**
-     * Returns a raw handle to the actual Vulkan buffer.
-     *
-     * @return Handle to the buffer.
-     */
+         * Returns a raw handle to the actual Vulkan buffer.
+         *
+         * @return Handle to the buffer.
+         */
     [[nodiscard]] const vk::Buffer &operator*() const { return buffer; }
 
     /**
@@ -49,9 +50,9 @@ public:
     [[nodiscard]] void *map();
 
     /**
-     * Unmaps the memory, after which the pointer returned by `map()` becomes invalidated.
-     * Fails if `map()` wasn't called beforehand.
-     */
+         * Unmaps the memory, after which the pointer returned by `map()` becomes invalidated.
+         * Fails if `map()` wasn't called beforehand.
+         */
     void unmap();
 
     /**
@@ -66,3 +67,9 @@ public:
     void copyFromBuffer(const RendererContext &ctx, const Buffer &otherBuffer, vk::DeviceSize size,
                         vk::DeviceSize srcOffset = 0, vk::DeviceSize dstOffset = 0) const;
 };
+
+namespace vkutils::buf {
+    template<typename ElemType>
+    unique_ptr<Buffer> createLocalBuffer(const RendererContext &ctx, const std::vector<ElemType> &contents,
+                                         vk::BufferUsageFlags usage);
+}

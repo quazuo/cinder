@@ -6,7 +6,9 @@
 #include <assimp/postprocess.h>
 
 #include "vertex.h"
+#include "src/render/renderer.h"
 #include "src/render/vk/image.h"
+#include "src/render/vk/buffer.h"
 
 static glm::vec3 assimpVecToGlm(const aiVector3D &v) {
     return {v.x, v.y, v.z};
@@ -218,6 +220,9 @@ Model::Model(const RendererContext &ctx, const std::filesystem::path &path, cons
     addInstances(scene->mRootNode, glm::identity<glm::mat4>());
 
     normalizeScale();
+
+    createBuffers(ctx);
+    createBLAS(ctx);
 }
 
 void Model::addInstances(const aiNode *node, const glm::mat4 &baseTransform) {
@@ -281,6 +286,124 @@ std::vector<glm::mat4> Model::getInstanceTransforms() const {
     }
 
     return result;
+}
+
+void Model::bindBuffers(const vk::raii::CommandBuffer &commandBuffer) const {
+    commandBuffer.bindVertexBuffers(0, **vertexBuffer, {0});
+    commandBuffer.bindVertexBuffers(1, **instanceDataBuffer, {0});
+    commandBuffer.bindIndexBuffer(**indexBuffer, 0, vk::IndexType::eUint32);
+}
+
+void Model::createBuffers(const RendererContext &ctx) {
+    vertexBuffer = vkutils::buf::createLocalBuffer(
+        ctx,
+        getVertices(),
+        vk::BufferUsageFlagBits::eVertexBuffer
+        | vk::BufferUsageFlagBits::eShaderDeviceAddress
+        | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR
+    );
+
+    instanceDataBuffer = vkutils::buf::createLocalBuffer(
+        ctx,
+        getInstanceTransforms(),
+        vk::BufferUsageFlagBits::eVertexBuffer
+    );
+
+    indexBuffer = vkutils::buf::createLocalBuffer(
+        ctx,
+        getIndices(),
+        vk::BufferUsageFlagBits::eIndexBuffer
+        | vk::BufferUsageFlagBits::eShaderDeviceAddress
+        | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR
+    );
+}
+
+void Model::createBLAS(const RendererContext &ctx) {
+    const vk::DeviceAddress vertexAddress = ctx.device->getBufferAddress({.buffer = **vertexBuffer});
+    const vk::DeviceAddress indexAddress = ctx.device->getBufferAddress({.buffer = **indexBuffer});
+
+    const uint32_t maxPrimitiveCount = getIndices().size() / 3;
+
+    const vk::AccelerationStructureGeometryTrianglesDataKHR geometryTriangles{
+        .vertexFormat = vk::Format::eR32G32B32Sfloat,
+        .vertexData = vertexAddress,
+        .vertexStride = sizeof(ModelVertex),
+        .maxVertex = static_cast<uint32_t>(getVertices().size() - 1),
+        .indexType = vk::IndexType::eUint32,
+        .indexData = indexAddress,
+    };
+
+    const vk::AccelerationStructureGeometryKHR geometry{
+        .geometryType = vk::GeometryTypeKHR::eTriangles,
+        .geometry = geometryTriangles,
+        .flags = vk::GeometryFlagBitsKHR::eOpaque,
+    };
+
+    vk::AccelerationStructureBuildGeometryInfoKHR geometryInfo{
+        .type = vk::AccelerationStructureTypeKHR::eBottomLevel,
+        .flags = vk::BuildAccelerationStructureFlagBitsKHR::eAllowCompaction,
+        .mode = vk::BuildAccelerationStructureModeKHR::eBuild,
+        .geometryCount = 1u,
+        .pGeometries = &geometry,
+    };
+
+    const vk::AccelerationStructureBuildRangeInfoKHR rangeInfo{
+        .primitiveCount = maxPrimitiveCount,
+        .primitiveOffset = 0,
+        .firstVertex = 0,
+        .transformOffset = 0,
+    };
+
+    const auto buildSizes = ctx.device->getAccelerationStructureBuildSizesKHR(
+        vk::AccelerationStructureBuildTypeKHR::eDevice,
+        geometryInfo,
+        maxPrimitiveCount
+    );
+
+    // scratch buffer creation
+
+    const Buffer scratchBuffer{
+        **ctx.allocator,
+        buildSizes.buildScratchSize,
+        vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer,
+        vk::MemoryPropertyFlagBits::eDeviceLocal
+    };
+
+    geometryInfo.scratchData = ctx.device->getBufferAddress({.buffer = *scratchBuffer});
+
+    // acceleration structure creation
+
+    const uint32_t accelerationStructureSize = buildSizes.accelerationStructureSize;
+
+    auto blasBuffer = make_unique<Buffer>(
+        **ctx.allocator,
+        accelerationStructureSize,
+        vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR,
+        vk::MemoryPropertyFlagBits::eDeviceLocal
+    );
+
+    const vk::AccelerationStructureCreateInfoKHR asCreateInfo {
+        .buffer = **blasBuffer,
+        .size = accelerationStructureSize,
+        .type = vk::AccelerationStructureTypeKHR::eBottomLevel,
+    };
+
+    auto blasHandle = make_unique<vk::raii::AccelerationStructureKHR>(
+        ctx.device->createAccelerationStructureKHR(asCreateInfo)
+    );
+
+    geometryInfo.dstAccelerationStructure = **blasHandle;
+
+    blas = make_unique<AccelerationStructure>(
+        std::move(blasHandle),
+        std::move(blasBuffer)
+    );
+
+    // todo - compact
+
+    vkutils::cmd::doSingleTimeCommands(ctx, [&](const vk::raii::CommandBuffer &commandBuffer) {
+        commandBuffer.buildAccelerationStructuresKHR(geometryInfo, &rangeInfo);
+    });
 }
 
 void Model::normalizeScale() {

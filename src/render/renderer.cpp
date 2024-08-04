@@ -22,6 +22,7 @@
 #include "src/utils/glfw-statics.h"
 #include "vk/descriptor.h"
 #include "vk/pipeline.h"
+#include "vk/accel-struct.h"
 
 VmaAllocatorWrapper::VmaAllocatorWrapper(const vk::PhysicalDevice physicalDevice, const vk::Device device,
                                          const vk::Instance instance) {
@@ -31,6 +32,7 @@ VmaAllocatorWrapper::VmaAllocatorWrapper(const vk::PhysicalDevice physicalDevice
     };
 
     const VmaAllocatorCreateInfo allocatorCreateInfo{
+        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
         .physicalDevice = physicalDevice,
         .device = device,
         .pVulkanFunctions = &funcs,
@@ -114,6 +116,7 @@ VulkanRenderer::VulkanRenderer() {
     createGuiRenderInfos();
 
     loadModelWithMaterials("../assets/example models/Sponza/Sponza.gltf");
+    createTLAS();
 
     loadEnvironmentMap("../assets/envmaps/vienna.hdr");
 
@@ -335,10 +338,12 @@ bool VulkanRenderer::isDeviceSuitable(const vk::raii::PhysicalDevice &physicalDe
         vk::PhysicalDeviceVulkan12Features,
         vk::PhysicalDeviceSynchronization2FeaturesKHR,
         vk::PhysicalDeviceMultiviewFeatures,
-        vk::PhysicalDeviceDynamicRenderingFeatures>();
+        vk::PhysicalDeviceDynamicRenderingFeatures,
+        vk::PhysicalDeviceAccelerationStructureFeaturesKHR,
+        vk::PhysicalDeviceRayTracingPipelineFeaturesKHR>();
 
     const auto vulkan12Features = supportedFeatures2Chain.get<vk::PhysicalDeviceVulkan12Features>();
-    if (!vulkan12Features.timelineSemaphore) {
+    if (!vulkan12Features.timelineSemaphore || !vulkan12Features.bufferDeviceAddress) {
         return false;
     }
 
@@ -354,6 +359,16 @@ bool VulkanRenderer::isDeviceSuitable(const vk::raii::PhysicalDevice &physicalDe
 
     const auto dynamicRenderFeatures = supportedFeatures2Chain.get<vk::PhysicalDeviceDynamicRenderingFeatures>();
     if (!dynamicRenderFeatures.dynamicRendering) {
+        return false;
+    }
+
+    const auto accelFeatures = supportedFeatures2Chain.get<vk::PhysicalDeviceAccelerationStructureFeaturesKHR>();
+    if (!accelFeatures.accelerationStructure) {
+        return false;
+    }
+
+    const auto rtPipelineFeatures = supportedFeatures2Chain.get<vk::PhysicalDeviceRayTracingPipelineFeaturesKHR>();
+    if (!rtPipelineFeatures.rayTracingPipeline) {
         return false;
     }
 
@@ -428,7 +443,7 @@ void VulkanRenderer::createLogicalDevice() {
     };
 
     const vk::StructureChain createInfo{
-        vk::DeviceCreateInfo {
+        vk::DeviceCreateInfo{
             .queueCreateInfoCount = static_cast<uint32_t>(queueCreateInfos.size()),
             .pQueueCreateInfos = queueCreateInfos.data(),
             .enabledLayerCount = static_cast<uint32_t>(enableValidationLayers ? validationLayers.size() : 0),
@@ -437,22 +452,23 @@ void VulkanRenderer::createLogicalDevice() {
             .ppEnabledExtensionNames = deviceExtensions.data(),
             .pEnabledFeatures = &deviceFeatures,
         },
-        vk::PhysicalDeviceVulkan12Features {
+        vk::PhysicalDeviceVulkan12Features{
             .timelineSemaphore = vk::True,
+            .bufferDeviceAddress = vk::True,
         },
-        vk::PhysicalDeviceSynchronization2FeaturesKHR {
+        vk::PhysicalDeviceSynchronization2FeaturesKHR{
             .synchronization2 = vk::True,
         },
-        vk::PhysicalDeviceDynamicRenderingFeatures {
+        vk::PhysicalDeviceDynamicRenderingFeatures{
             .dynamicRendering = vk::True,
         },
-        vk::PhysicalDeviceMultiviewFeatures {
+        vk::PhysicalDeviceMultiviewFeatures{
             .multiview = vk::True,
         },
-        vk::PhysicalDeviceAccelerationStructureFeaturesKHR {
+        vk::PhysicalDeviceAccelerationStructureFeaturesKHR{
             .accelerationStructure = vk::True,
         },
-        vk::PhysicalDeviceRayTracingPipelineFeaturesKHR {
+        vk::PhysicalDeviceRayTracingPipelineFeaturesKHR{
             .rayTracingPipeline = vk::True,
         },
     };
@@ -485,12 +501,6 @@ void VulkanRenderer::loadModelWithMaterials(const std::filesystem::path &path) {
     model.reset();
     model = make_unique<Model>(ctx, path, true);
 
-    vertexBuffer.reset();
-    indexBuffer.reset();
-
-    createModelVertexBuffer();
-    createIndexBuffer();
-
     const auto &materials = model->getMaterials();
 
     for (uint32_t i = 0; i < materials.size(); i++) {
@@ -517,12 +527,6 @@ void VulkanRenderer::loadModel(const std::filesystem::path &path) {
 
     model.reset();
     model = make_unique<Model>(ctx, path, false);
-
-    vertexBuffer.reset();
-    indexBuffer.reset();
-
-    createModelVertexBuffer();
-    createIndexBuffer();
 }
 
 // ==================== assets ====================
@@ -1297,11 +1301,6 @@ vk::SampleCountFlagBits VulkanRenderer::getMaxUsableSampleCount() const {
 
 // ==================== buffers ====================
 
-void VulkanRenderer::createModelVertexBuffer() {
-    vertexBuffer = createLocalBuffer(model->getVertices(), vk::BufferUsageFlagBits::eVertexBuffer);
-    instanceDataBuffer = createLocalBuffer(model->getInstanceTransforms(), vk::BufferUsageFlagBits::eVertexBuffer);
-}
-
 void VulkanRenderer::createSkyboxVertexBuffer() {
     skyboxVertexBuffer = createLocalBuffer<SkyboxVertex>(skyboxVertices, vk::BufferUsageFlagBits::eVertexBuffer);
 }
@@ -1311,10 +1310,6 @@ void VulkanRenderer::createScreenSpaceQuadVertexBuffer() {
         screenSpaceQuadVertices,
         vk::BufferUsageFlagBits::eVertexBuffer
     );
-}
-
-void VulkanRenderer::createIndexBuffer() {
-    indexBuffer = createLocalBuffer(model->getIndices(), vk::BufferUsageFlagBits::eIndexBuffer);
 }
 
 template<typename ElemType>
@@ -1488,6 +1483,127 @@ void VulkanRenderer::createSyncObjects() {
             },
         };
     }
+}
+
+// ==================== ray tracing ====================
+
+void VulkanRenderer::createTLAS() {
+    const uint32_t instanceCount = 1; // todo
+    std::vector<vk::AccelerationStructureInstanceKHR> instances(instanceCount);
+
+    decltype(vk::TransformMatrixKHR::matrix) matrix;
+    matrix[0] = {{1.0f, 0.0f, 0.0f, 0.0f}};
+    matrix[1] = {{0.0f, 1.0f, 0.0f, 0.0f}};
+    matrix[2] = {{0.0f, 0.0f, 1.0f, 0.0f}};
+    const vk::TransformMatrixKHR transformMatrix{matrix};
+
+    const vk::AccelerationStructureDeviceAddressInfoKHR blasAddressInfo{.accelerationStructure = *model->getBLAS()};
+    const vk::DeviceAddress blasReference = ctx.device->getAccelerationStructureAddressKHR(blasAddressInfo);
+
+    constexpr auto flags = vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable;  // todo
+
+    instances.emplace_back(vk::AccelerationStructureInstanceKHR{
+        .transform = transformMatrix,
+        .instanceCustomIndex = 0, // todo
+        .mask = 0xFFu,
+        .instanceShaderBindingTableRecordOffset = 0,
+        .flags = static_cast<VkGeometryInstanceFlagsKHR>(flags),
+        .accelerationStructureReference = blasReference,
+    });
+
+    const size_t instancesBufferSize = instances.size() * sizeof(vk::AccelerationStructureInstanceKHR);
+
+    Buffer instancesBuffer {
+        **ctx.allocator,
+        instancesBufferSize,
+        vk::BufferUsageFlagBits::eShaderDeviceAddress
+        | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR
+        | vk::BufferUsageFlagBits::eTransferSrc
+        | vk::BufferUsageFlagBits::eTransferDst,
+        vk::MemoryPropertyFlagBits::eHostCoherent
+        | vk::MemoryPropertyFlagBits::eHostVisible
+    };
+
+    void *instancesBufferMapped = instancesBuffer.map();
+    memcpy(instancesBufferMapped, instances.data(), instancesBufferSize);
+    instancesBuffer.unmap();
+
+    const vk::AccelerationStructureGeometryInstancesDataKHR geometryInstancesData {
+        .data = ctx.device->getBufferAddress({.buffer = *instancesBuffer}),
+    };
+
+    const vk::AccelerationStructureGeometryKHR geometry {
+        .geometryType = vk::GeometryTypeKHR::eInstances,
+        .geometry = geometryInstancesData,
+    };
+
+    vk::AccelerationStructureBuildGeometryInfoKHR buildInfo {
+        .type = vk::AccelerationStructureTypeKHR::eTopLevel,
+        .flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace,
+        .mode = vk::BuildAccelerationStructureModeKHR::eBuild,
+        .geometryCount = 1u,
+        .pGeometries = &geometry,
+    };
+
+    const vk::AccelerationStructureBuildSizesInfoKHR sizeInfo = ctx.device->getAccelerationStructureBuildSizesKHR(
+        vk::AccelerationStructureBuildTypeKHR::eDevice,
+        buildInfo,
+        instanceCount
+    );
+
+    const vk::DeviceSize tlasSize = sizeInfo.accelerationStructureSize;
+
+    auto tlasBuffer = make_unique<Buffer>(
+        **ctx.allocator,
+        tlasSize,
+        vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR,
+        vk::MemoryPropertyFlagBits::eDeviceLocal
+    );
+
+    const vk::AccelerationStructureCreateInfoKHR createInfo {
+        .buffer = **tlasBuffer,
+        .size = tlasSize,
+        .type = vk::AccelerationStructureTypeKHR::eTopLevel,
+    };
+
+    tlas = make_unique<AccelerationStructure>(
+        make_unique<vk::raii::AccelerationStructureKHR>(*ctx.device, createInfo),
+        std::move(tlasBuffer)
+    );
+
+    const Buffer scratchBuffer {
+        **ctx.allocator,
+        sizeInfo.buildScratchSize,
+        vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
+        vk::MemoryPropertyFlagBits::eDeviceLocal
+    };
+
+    buildInfo.srcAccelerationStructure = nullptr;
+    buildInfo.dstAccelerationStructure = **tlas;
+    buildInfo.scratchData = ctx.device->getBufferAddress({.buffer = *scratchBuffer});
+
+    static constexpr vk::AccelerationStructureBuildRangeInfoKHR rangeInfo{
+        .primitiveCount = instanceCount,
+        .primitiveOffset = 0,
+        .firstVertex = 0,
+        .transformOffset = 0,
+    };
+
+    static constexpr vk::MemoryBarrier2 memoryBarrier {
+        .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+        .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+        .dstStageMask = vk::PipelineStageFlagBits2::eAccelerationStructureBuildKHR,
+        .dstAccessMask = vk::AccessFlagBits2::eAccelerationStructureWriteKHR
+    };
+
+    vkutils::cmd::doSingleTimeCommands(ctx, [&](const vk::raii::CommandBuffer& commandBuffer) {
+        commandBuffer.pipelineBarrier2({
+            .memoryBarrierCount = 1u,
+            .pMemoryBarriers = &memoryBarrier,
+        });
+
+        commandBuffer.buildAccelerationStructuresKHR(buildInfo, &rangeInfo);
+    });
 }
 
 // ==================== gui ====================
@@ -1813,10 +1929,6 @@ void VulkanRenderer::runPrepass() {
     auto &pipeline = prepassRenderInfo->getPipeline();
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
 
-    commandBuffer.bindVertexBuffers(0, **vertexBuffer, {0});
-    commandBuffer.bindVertexBuffers(1, **instanceDataBuffer, {0});
-    commandBuffer.bindIndexBuffer(**indexBuffer, 0, vk::IndexType::eUint32);
-
     commandBuffer.bindDescriptorSets(
         vk::PipelineBindPoint::eGraphics,
         *pipeline.getLayout(),
@@ -1922,10 +2034,6 @@ void VulkanRenderer::drawScene() {
     const auto &scenePipeline = sceneRenderInfos[swapChain->getCurrentImageIndex()].getPipeline();
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **scenePipeline);
 
-    commandBuffer.bindVertexBuffers(0, **vertexBuffer, {0});
-    commandBuffer.bindVertexBuffers(1, **instanceDataBuffer, {0});
-    commandBuffer.bindIndexBuffer(**indexBuffer, 0, vk::IndexType::eUint32);
-
     commandBuffer.bindDescriptorSets(
         vk::PipelineBindPoint::eGraphics,
         *scenePipeline.getLayout(),
@@ -1989,6 +2097,8 @@ void VulkanRenderer::drawModel(const vk::raii::CommandBuffer &commandBuffer, con
     uint32_t indexOffset = 0;
     std::int32_t vertexOffset = 0;
     uint32_t instanceOffset = 0;
+
+    model->bindBuffers(commandBuffer);
 
     for (const auto &mesh: model->getMeshes()) {
         // todo - make this a bit nicer (without the ugly bool)

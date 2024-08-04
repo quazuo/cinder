@@ -6,6 +6,7 @@
 #include "vertex.h"
 #include "src/render/libs.h"
 #include "src/render/globals.h"
+#include "src/render/vk/accel-struct.h"
 
 struct RendererContext;
 struct aiMaterial;
@@ -14,6 +15,7 @@ struct aiMesh;
 struct aiNode;
 class DescriptorSet;
 class Texture;
+class Buffer;
 
 struct Mesh {
     std::vector<ModelVertex> vertices;
@@ -39,6 +41,12 @@ class Model {
     std::vector<Mesh> meshes;
     std::vector<Material> materials;
 
+    unique_ptr<Buffer> vertexBuffer;
+    unique_ptr<Buffer> instanceDataBuffer;
+    unique_ptr<Buffer> indexBuffer;
+
+    unique_ptr<AccelerationStructure> blas;
+
 public:
     explicit Model(const RendererContext &ctx, const std::filesystem::path &path, bool loadMaterials);
 
@@ -54,8 +62,16 @@ public:
 
     [[nodiscard]] std::vector<glm::mat4> getInstanceTransforms() const;
 
+    [[nodiscard]] const vk::raii::AccelerationStructureKHR& getBLAS() const { return **blas; }
+
+    void bindBuffers(const vk::raii::CommandBuffer& commandBuffer) const;
+
 private:
     void normalizeScale();
+
+    void createBuffers(const RendererContext &ctx);
+
+    void createBLAS(const RendererContext &ctx);
 
     [[nodiscard]] float getMaxVertexDistance() const;
 };
