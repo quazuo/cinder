@@ -1,8 +1,8 @@
 #pragma once
 
-#include "libs.h"
-#include "src/utils/input-manager.h"
-#include "globals.h"
+#include "libs.hpp"
+#include "src/utils/input-manager.hpp"
+#include "globals.hpp"
 
 class Rotator {
     glm::vec2 rot = {0, 0};

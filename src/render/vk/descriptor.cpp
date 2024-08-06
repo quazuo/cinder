@@ -1,10 +1,10 @@
-#include "descriptor.h"
+#include "descriptor.hpp"
 
 #include <ranges>
 
-#include "src/render/renderer.h"
-#include "buffer.h"
-#include "image.h"
+#include "src/render/renderer.hpp"
+#include "buffer.hpp"
+#include "image.hpp"
 
 DescriptorLayoutBuilder &
 DescriptorLayoutBuilder::addBinding(const vk::DescriptorType type, const vk::ShaderStageFlags stages,

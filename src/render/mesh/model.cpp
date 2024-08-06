@@ -1,14 +1,14 @@
-#include "model.h"
+#include "model.hpp"
 
 #include <iostream>
 #include <assimp/Importer.hpp>
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-#include "vertex.h"
-#include "src/render/renderer.h"
-#include "src/render/vk/image.h"
-#include "src/render/vk/buffer.h"
+#include "vertex.hpp"
+#include "src/render/renderer.hpp"
+#include "src/render/vk/image.hpp"
+#include "src/render/vk/buffer.hpp"
 
 static glm::vec3 assimpVecToGlm(const aiVector3D &v) {
     return {v.x, v.y, v.z};

@@ -3,10 +3,10 @@
 #include <filesystem>
 #include <vector>
 
-#include "vertex.h"
-#include "src/render/libs.h"
-#include "src/render/globals.h"
-#include "src/render/vk/accel-struct.h"
+#include "vertex.hpp"
+#include "src/render/libs.hpp"
+#include "src/render/globals.hpp"
+#include "src/render/vk/accel-struct.hpp"
 
 struct RendererContext;
 struct aiMaterial;

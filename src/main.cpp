@@ -7,10 +7,10 @@
 #include <random>
 #include <GLFW/glfw3native.h>
 
-#include "render/renderer.h"
-#include "render/gui/gui.h"
-#include "utils/input-manager.h"
-#include "utils/file-type.h"
+#include "render/renderer.hpp"
+#include "render/gui/gui.hpp"
+#include "utils/input-manager.hpp"
+#include "utils/file-type.hpp"
 
 class Engine {
     GLFWwindow *window = nullptr;

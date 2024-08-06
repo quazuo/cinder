@@ -1,14 +1,14 @@
-#include "image.h"
+#include "image.hpp"
 
 #include <filesystem>
 #include <map>
 
-#include "deps/stb/stb_image.h"
-#include "deps/stb/stb_image_write.h"
+#include <stb/stb_image.h>
+#include <stb/stb_image_write.h>
 
-#include "buffer.h"
-#include "cmd.h"
-#include "src/render/renderer.h"
+#include "buffer.hpp"
+#include "cmd.hpp"
+#include "src/render/renderer.hpp"
 
 Image::Image(const RendererContext &ctx, const vk::ImageCreateInfo &imageInfo,
              const vk::MemoryPropertyFlags properties, const vk::ImageAspectFlags aspect)

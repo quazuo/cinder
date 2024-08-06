@@ -1,4 +1,4 @@
-#include "gui.h"
+#include "gui.hpp"
 
 GuiRenderer::GuiRenderer(GLFWwindow *w, ImGui_ImplVulkan_InitInfo &imguiInitInfo) : window(w) {
     IMGUI_CHECKVERSION();

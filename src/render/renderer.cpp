@@ -1,4 +1,4 @@
-#include "renderer.h"
+#include "renderer.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -12,17 +12,17 @@
 #include <array>
 #include <random>
 
-#include "gui/gui.h"
-#include "mesh/model.h"
-#include "mesh/vertex.h"
-#include "vk/buffer.h"
-#include "vk/swapchain.h"
-#include "camera.h"
-#include "vk/cmd.h"
-#include "src/utils/glfw-statics.h"
-#include "vk/descriptor.h"
-#include "vk/pipeline.h"
-#include "vk/accel-struct.h"
+#include "gui/gui.hpp"
+#include "mesh/model.hpp"
+#include "mesh/vertex.hpp"
+#include "vk/buffer.hpp"
+#include "vk/swapchain.hpp"
+#include "camera.hpp"
+#include "vk/cmd.hpp"
+#include "src/utils/glfw-statics.hpp"
+#include "vk/descriptor.hpp"
+#include "vk/pipeline.hpp"
+#include "vk/accel-struct.hpp"
 
 VmaAllocatorWrapper::VmaAllocatorWrapper(const vk::PhysicalDevice physicalDevice, const vk::Device device,
                                          const vk::Instance instance) {

@@ -2,9 +2,9 @@
 // Created by macie on 04.08.2024.
 //
 
-#include "accel-struct.h"
+#include "accel-struct.hpp"
 
-#include "buffer.h"
+#include "buffer.hpp"
 
 AccelerationStructure::AccelerationStructure(unique_ptr<vk::raii::AccelerationStructureKHR> &&handle,
                                              unique_ptr<Buffer> &&buffer)

@@ -13,6 +13,8 @@ include_directories(
         deps/glfw/include/
         deps/glm/
         deps/imGuIZMO.quat/
+        deps/stb/
+        deps/vma/
         deps/assimp/include/
         cmake-build-debug/deps/assimp/include/
         .

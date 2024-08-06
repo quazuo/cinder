@@ -1,7 +1,7 @@
 #pragma once
 
-#include "src/render/libs.h"
-#include "src/render/globals.h"
+#include "src/render/libs.hpp"
+#include "src/render/globals.hpp"
 
 #include <filesystem>
 
@@ -14,7 +14,7 @@ struct RendererContext;
 class Pipeline {
     unique_ptr<vk::raii::Pipeline> pipeline;
     unique_ptr<vk::raii::PipelineLayout> layout;
-    vk::SampleCountFlagBits rasterizationSamples;
+    vk::SampleCountFlagBits rasterizationSamples{};
 
     friend class PipelineBuilder;
 
@@ -80,7 +80,26 @@ public:
 
 private:
     void checkParams() const;
+};
 
-    [[nodiscard]] static vk::raii::ShaderModule
-    createShaderModule(const RendererContext &ctx, const std::filesystem::path &path);
+class RtPipelineBuilder {
+    std::filesystem::path raygenShaderPath;
+    std::filesystem::path anyhitShaderPath;
+    std::filesystem::path missShaderPath;
+
+public:
+    PipelineBuilder &withRayGenShader(const std::filesystem::path &path);
+
+    PipelineBuilder &withAnyHitShader(const std::filesystem::path &path);
+
+    PipelineBuilder &withMissShader(const std::filesystem::path &path);
+
+    PipelineBuilder &withDescriptorLayouts(const std::vector<vk::DescriptorSetLayout> &layouts);
+
+    PipelineBuilder &withPushConstants(const std::vector<vk::PushConstantRange> &ranges);
+
+    [[nodiscard]] Pipeline create(const RendererContext &ctx) const;
+
+private:
+    void checkParams() const;
 };

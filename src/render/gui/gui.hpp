@@ -3,7 +3,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
-#include "src/render/libs.h"
+#include "src/render/libs.hpp"
 
 #define IMGUI_DEFINE_MATH_OPERATORS
 #define NOMINMAX 1

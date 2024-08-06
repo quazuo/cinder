@@ -1,11 +1,11 @@
-#include "camera.h"
+#include "camera.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <iostream>
 #include <GLFW/glfw3.h>
 
-#include "gui/gui.h"
-#include "src/utils/glfw-statics.h"
+#include "gui/gui.hpp"
+#include "src/utils/glfw-statics.hpp"
 
 Rotator &Rotator::operator=(const glm::vec2 other) {
     rot = other;

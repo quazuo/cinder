@@ -1,9 +1,29 @@
-#include "pipeline.h"
+#include "pipeline.hpp"
 
 #include <fstream>
 
-#include "src/render/renderer.h"
-#include "src/render/mesh/vertex.h"
+#include "src/render/renderer.hpp"
+#include "src/render/mesh/vertex.hpp"
+
+static vk::raii::ShaderModule createShaderModule(const RendererContext &ctx, const std::filesystem::path &path) {
+    std::ifstream file(path, std::ios::ate | std::ios::binary);
+
+    if (!file.is_open()) {
+        throw std::runtime_error("failed to open file!");
+    }
+
+    const size_t fileSize = file.tellg();
+    std::vector<char> buffer(fileSize);
+    file.seekg(0);
+    file.read(buffer.data(), static_cast<std::streamsize>(fileSize));
+
+    const vk::ShaderModuleCreateInfo createInfo{
+        .codeSize = buffer.size(),
+        .pCode = reinterpret_cast<const uint32_t *>(buffer.data()),
+    };
+
+    return vk::raii::ShaderModule{*ctx.device, createInfo};
+}
 
 PipelineBuilder &PipelineBuilder::withVertexShader(const std::filesystem::path &path) {
     vertexShaderPath = path;
@@ -209,27 +229,6 @@ void PipelineBuilder::checkParams() const {
     if (vertexBindings.empty() && vertexAttributes.empty()) {
         throw std::invalid_argument("vertex descriptions must be specified during pipeline creation!");
     }
-}
-
-vk::raii::ShaderModule
-PipelineBuilder::createShaderModule(const RendererContext &ctx, const std::filesystem::path &path) {
-    std::ifstream file(path, std::ios::ate | std::ios::binary);
-
-    if (!file.is_open()) {
-        throw std::runtime_error("failed to open file!");
-    }
-
-    const size_t fileSize = file.tellg();
-    std::vector<char> buffer(fileSize);
-    file.seekg(0);
-    file.read(buffer.data(), static_cast<std::streamsize>(fileSize));
-
-    const vk::ShaderModuleCreateInfo createInfo{
-        .codeSize = buffer.size(),
-        .pCode = reinterpret_cast<const uint32_t *>(buffer.data()),
-    };
-
-    return vk::raii::ShaderModule{*ctx.device, createInfo};
 }
 
 template PipelineBuilder &PipelineBuilder::withVertices<ModelVertex>();

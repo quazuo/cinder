@@ -6,14 +6,14 @@
 #include <array>
 #include <queue>
 
-#include "deps/vma/vk_mem_alloc.h"
+#include <vma/vk_mem_alloc.h>
 
-#include "libs.h"
-#include "globals.h"
-#include "mesh/model.h"
-#include "vk/cmd.h"
-#include "vk/image.h"
-#include "vk/pipeline.h"
+#include "libs.hpp"
+#include "globals.hpp"
+#include "mesh/model.hpp"
+#include "vk/cmd.hpp"
+#include "vk/image.hpp"
+#include "vk/pipeline.hpp"
 
 class RenderTarget;
 class InputManager;

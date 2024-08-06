@@ -1,7 +1,7 @@
-#include "buffer.h"
+#include "buffer.hpp"
 
-#include "cmd.h"
-#include "src/render/renderer.h"
+#include "cmd.hpp"
+#include "src/render/renderer.hpp"
 
 Buffer::Buffer(const VmaAllocator _allocator, const vk::DeviceSize size, const vk::BufferUsageFlags usage,
                const vk::MemoryPropertyFlags properties)

@@ -1,4 +1,4 @@
-#include "input-manager.h"
+#include "input-manager.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>

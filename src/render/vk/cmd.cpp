@@ -1,6 +1,6 @@
-#include "cmd.h"
+#include "cmd.hpp"
 
-#include "src/render/renderer.h"
+#include "src/render/renderer.hpp"
 
 vk::raii::CommandBuffer
 vkutils::cmd::beginSingleTimeCommands(const RendererContext &ctx) {

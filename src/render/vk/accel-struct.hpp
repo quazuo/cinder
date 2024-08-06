@@ -1,7 +1,7 @@
 #pragma once
 
-#include "src/render/libs.h"
-#include "src/render/globals.h"
+#include "src/render/libs.hpp"
+#include "src/render/globals.hpp"
 
 class Buffer;
 

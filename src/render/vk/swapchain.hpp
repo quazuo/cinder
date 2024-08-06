@@ -1,7 +1,7 @@
 #pragma once
 
-#include "image.h"
-#include "src/render/libs.h"
+#include "image.hpp"
+#include "src/render/libs.hpp"
 
 /**
  * Helper structure holding details about supported features of the swap chain.

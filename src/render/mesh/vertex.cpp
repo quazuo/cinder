@@ -1,4 +1,4 @@
-#include "vertex.h"
+#include "vertex.hpp"
 
 std::vector<vk::VertexInputBindingDescription> ModelVertex::getBindingDescriptions() {
     return {

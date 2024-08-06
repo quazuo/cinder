@@ -1,9 +1,9 @@
 #pragma once
 
-#include "deps/vma/vk_mem_alloc.h"
+#include <vma/vk_mem_alloc.h>
 
-#include "src/render/libs.h"
-#include "src/render/globals.h"
+#include "src/render/libs.hpp"
+#include "src/render/globals.hpp"
 
 struct RendererContext;
 
