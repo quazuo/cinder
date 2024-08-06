@@ -206,6 +206,7 @@ class VulkanRenderer {
     unique_ptr<DescriptorSet> materialsDescriptorSet;
     unique_ptr<DescriptorSet> cubemapCaptureDescriptorSet;
     unique_ptr<DescriptorSet> debugQuadDescriptorSet;
+    std::vector<DescriptorSet> renderTargetDescriptorSets;
 
     std::vector<RenderInfo> sceneRenderInfos;
     std::vector<RenderInfo> skyboxRenderInfos;
@@ -248,6 +249,7 @@ class VulkanRenderer {
         unique_ptr<DescriptorSet> skyboxDescriptorSet;
         unique_ptr<DescriptorSet> prepassDescriptorSet;
         unique_ptr<DescriptorSet> ssaoDescriptorSet;
+        unique_ptr<DescriptorSet> rtDescriptorSet;
     };
 
     static constexpr size_t MAX_FRAMES_IN_FLIGHT = 3;
@@ -406,11 +408,15 @@ private:
 
     void createPrepassDescriptorSets();
 
+    void createRenderTargetDescriptorSets();
+
     void createSsaoDescriptorSets();
 
     void createCubemapCaptureDescriptorSet();
 
     void createDebugQuadDescriptorSet();
+
+    void createRtDescriptorSets();
 
     // ==================== render infos ====================
 

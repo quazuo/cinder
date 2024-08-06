@@ -309,6 +309,8 @@ public:
 
     RenderTarget(const RendererContext &ctx, const Texture &texture);
 
+    [[nodiscard]] const vk::raii::ImageView& operator*() const { return *view; }
+
     [[nodiscard]] vk::Format getFormat() const { return format; }
 
     [[nodiscard]] vk::RenderingAttachmentInfo getAttachmentInfo() const;

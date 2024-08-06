@@ -81,6 +81,8 @@ VulkanRenderer::VulkanRenderer() {
         getMsaaSampleCount()
     );
 
+    createRenderTargetDescriptorSets();
+
     createCommandPool();
     createCommandBuffers();
 
@@ -117,6 +119,8 @@ VulkanRenderer::VulkanRenderer() {
 
     loadModelWithMaterials("../assets/example models/Sponza/Sponza.gltf");
     createTLAS();
+
+    createRtDescriptorSets();
 
     loadEnvironmentMap("../assets/envmaps/vienna.hdr");
 
@@ -505,17 +509,18 @@ void VulkanRenderer::loadModelWithMaterials(const std::filesystem::path &path) {
 
     for (uint32_t i = 0; i < materials.size(); i++) {
         const auto &material = materials[i];
+        constexpr auto descType = vk::DescriptorType::eCombinedImageSampler;
 
         if (material.baseColor) {
-            materialsDescriptorSet->queueUpdate(ctx, 0, *material.baseColor, i);
+            materialsDescriptorSet->queueUpdate(ctx, 0, *material.baseColor, descType, i);
         }
 
         if (material.normal) {
-            materialsDescriptorSet->queueUpdate(ctx, 1, *material.normal, i);
+            materialsDescriptorSet->queueUpdate(ctx, 1, *material.normal, descType, i);
         }
 
         if (material.orm) {
-            materialsDescriptorSet->queueUpdate(ctx, 2, *material.orm, i);
+            materialsDescriptorSet->queueUpdate(ctx, 2, *material.orm, descType, i);
         }
     }
 
@@ -759,8 +764,11 @@ void VulkanRenderer::recreateSwapChain() {
 
     createPrepassTextures();
     createPrepassRenderInfo();
+
     createSsaoTextures();
     createSsaoRenderInfo();
+
+    createRenderTargetDescriptorSets();
 }
 
 // ==================== descriptors ====================
@@ -824,7 +832,7 @@ void VulkanRenderer::createMaterialsDescriptorSet() {
             .addRepeatedBindings(
                 3,
                 vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eFragment,
+                vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eClosestHitKHR,
                 MATERIAL_TEX_ARRAY_SIZE
             )
             .create(ctx);
@@ -887,6 +895,22 @@ void VulkanRenderer::createPrepassDescriptorSets() {
             vk::DescriptorType::eUniformBuffer,
             sizeof(GraphicsUBO)
         );
+    }
+}
+
+void VulkanRenderer::createRenderTargetDescriptorSets() {
+    const auto renderTargets = swapChain->getRenderTargets(ctx);
+
+    auto layout = DescriptorLayoutBuilder()
+            .addBinding(vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR)
+            .create(ctx);
+
+    const auto layoutPtr = make_shared<vk::raii::DescriptorSetLayout>(std::move(layout));
+    renderTargetDescriptorSets =
+            vkutils::desc::createDescriptorSets(ctx, *descriptorPool, layoutPtr, renderTargets.size());
+
+    for (uint32_t i = 0; i < renderTargets.size(); i++) {
+        renderTargetDescriptorSets[i].updateBinding(ctx, 0, *renderTargets[i].colorTarget);
     }
 }
 
@@ -953,6 +977,35 @@ void VulkanRenderer::createDebugQuadDescriptorSet() {
 
     if (ssaoTexture) {
         debugQuadDescriptorSet->updateBinding(ctx, 0, *ssaoTexture);
+    }
+}
+
+void VulkanRenderer::createRtDescriptorSets() {
+    auto layout = DescriptorLayoutBuilder()
+            .addBinding(
+                vk::DescriptorType::eUniformBuffer,
+                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eRaygenKHR) // uniforms
+            .addBinding(vk::DescriptorType::eAccelerationStructureKHR, vk::ShaderStageFlagBits::eRaygenKHR) // TLAS
+            .addBinding(vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // vertex buffer
+            .addBinding(vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // index buffer
+            .create(ctx);
+
+    const auto layoutPtr = make_shared<vk::raii::DescriptorSetLayout>(std::move(layout));
+    auto sets = vkutils::desc::createDescriptorSets(ctx, *descriptorPool, layoutPtr, MAX_FRAMES_IN_FLIGHT);
+
+    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
+        frameResources[i].rtDescriptorSet = make_unique<DescriptorSet>(std::move(sets[i]));
+    }
+
+    for (auto &res: frameResources) {
+        res.rtDescriptorSet->queueUpdate(
+                    0,
+                    *res.graphicsUniformBuffer,
+                    vk::DescriptorType::eUniformBuffer,
+                    sizeof(GraphicsUBO)
+                )
+                .queueUpdate(1, *tlas)
+                .commitUpdates(ctx);
     }
 }
 
@@ -1500,7 +1553,7 @@ void VulkanRenderer::createTLAS() {
     const vk::AccelerationStructureDeviceAddressInfoKHR blasAddressInfo{.accelerationStructure = *model->getBLAS()};
     const vk::DeviceAddress blasReference = ctx.device->getAccelerationStructureAddressKHR(blasAddressInfo);
 
-    constexpr auto flags = vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable;  // todo
+    constexpr auto flags = vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable; // todo
 
     instances.emplace_back(vk::AccelerationStructureInstanceKHR{
         .transform = transformMatrix,
@@ -1513,7 +1566,7 @@ void VulkanRenderer::createTLAS() {
 
     const size_t instancesBufferSize = instances.size() * sizeof(vk::AccelerationStructureInstanceKHR);
 
-    Buffer instancesBuffer {
+    Buffer instancesBuffer{
         **ctx.allocator,
         instancesBufferSize,
         vk::BufferUsageFlagBits::eShaderDeviceAddress
@@ -1528,16 +1581,16 @@ void VulkanRenderer::createTLAS() {
     memcpy(instancesBufferMapped, instances.data(), instancesBufferSize);
     instancesBuffer.unmap();
 
-    const vk::AccelerationStructureGeometryInstancesDataKHR geometryInstancesData {
+    const vk::AccelerationStructureGeometryInstancesDataKHR geometryInstancesData{
         .data = ctx.device->getBufferAddress({.buffer = *instancesBuffer}),
     };
 
-    const vk::AccelerationStructureGeometryKHR geometry {
+    const vk::AccelerationStructureGeometryKHR geometry{
         .geometryType = vk::GeometryTypeKHR::eInstances,
         .geometry = geometryInstancesData,
     };
 
-    vk::AccelerationStructureBuildGeometryInfoKHR buildInfo {
+    vk::AccelerationStructureBuildGeometryInfoKHR buildInfo{
         .type = vk::AccelerationStructureTypeKHR::eTopLevel,
         .flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace,
         .mode = vk::BuildAccelerationStructureModeKHR::eBuild,
@@ -1560,7 +1613,7 @@ void VulkanRenderer::createTLAS() {
         vk::MemoryPropertyFlagBits::eDeviceLocal
     );
 
-    const vk::AccelerationStructureCreateInfoKHR createInfo {
+    const vk::AccelerationStructureCreateInfoKHR createInfo{
         .buffer = **tlasBuffer,
         .size = tlasSize,
         .type = vk::AccelerationStructureTypeKHR::eTopLevel,
@@ -1571,7 +1624,7 @@ void VulkanRenderer::createTLAS() {
         std::move(tlasBuffer)
     );
 
-    const Buffer scratchBuffer {
+    const Buffer scratchBuffer{
         **ctx.allocator,
         sizeInfo.buildScratchSize,
         vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
@@ -1579,7 +1632,7 @@ void VulkanRenderer::createTLAS() {
     };
 
     buildInfo.srcAccelerationStructure = nullptr;
-    buildInfo.dstAccelerationStructure = **tlas;
+    buildInfo.dstAccelerationStructure = ***tlas;
     buildInfo.scratchData = ctx.device->getBufferAddress({.buffer = *scratchBuffer});
 
     static constexpr vk::AccelerationStructureBuildRangeInfoKHR rangeInfo{
@@ -1589,14 +1642,14 @@ void VulkanRenderer::createTLAS() {
         .transformOffset = 0,
     };
 
-    static constexpr vk::MemoryBarrier2 memoryBarrier {
+    static constexpr vk::MemoryBarrier2 memoryBarrier{
         .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
         .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
         .dstStageMask = vk::PipelineStageFlagBits2::eAccelerationStructureBuildKHR,
         .dstAccessMask = vk::AccessFlagBits2::eAccelerationStructureWriteKHR
     };
 
-    vkutils::cmd::doSingleTimeCommands(ctx, [&](const vk::raii::CommandBuffer& commandBuffer) {
+    vkutils::cmd::doSingleTimeCommands(ctx, [&](const vk::raii::CommandBuffer &commandBuffer) {
         commandBuffer.pipelineBarrier2({
             .memoryBarrierCount = 1u,
             .pMemoryBarriers = &memoryBarrier,

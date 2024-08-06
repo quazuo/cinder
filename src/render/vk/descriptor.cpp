@@ -58,7 +58,7 @@ DescriptorSet &DescriptorSet::queueUpdate(const uint32_t binding, const Buffer &
 }
 
 DescriptorSet &DescriptorSet::queueUpdate(const RendererContext &ctx, const uint32_t binding, const Texture &texture,
-                                          const uint32_t arrayElement) {
+                                          const vk::DescriptorType type, const uint32_t arrayElement) {
     const vk::DescriptorImageInfo imageInfo{
         .sampler = *texture.getSampler(),
         .imageView = **texture.getImage().getView(ctx),
@@ -68,8 +68,42 @@ DescriptorSet &DescriptorSet::queueUpdate(const RendererContext &ctx, const uint
     queuedUpdates.emplace_back(DescriptorUpdate{
         .binding = binding,
         .arrayElement = arrayElement,
-        .type = vk::DescriptorType::eCombinedImageSampler,
+        .type = type,
         .info = imageInfo,
+    });
+
+    return *this;
+}
+
+DescriptorSet &DescriptorSet::queueUpdate(const uint32_t binding, const vk::raii::ImageView &view,
+                                          const uint32_t arrayElement) {
+    const vk::DescriptorImageInfo imageInfo{
+        .imageView = *view,
+        .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+    };
+
+    queuedUpdates.emplace_back(DescriptorUpdate{
+        .binding = binding,
+        .arrayElement = arrayElement,
+        .type = vk::DescriptorType::eStorageImage,
+        .info = imageInfo,
+    });
+
+    return *this;
+}
+
+DescriptorSet &DescriptorSet::queueUpdate(const uint32_t binding, const AccelerationStructure &accel,
+                                          const uint32_t arrayElement) {
+    const vk::WriteDescriptorSetAccelerationStructureKHR accelInfo{
+        .accelerationStructureCount = 1u,
+        .pAccelerationStructures = &**accel, // todo - dangling pointer?
+    };
+
+    queuedUpdates.emplace_back(DescriptorUpdate{
+        .binding = binding,
+        .arrayElement = arrayElement,
+        .type = vk::DescriptorType::eAccelerationStructureKHR,
+        .info = accelInfo,
     });
 
     return *this;
@@ -91,6 +125,8 @@ void DescriptorSet::commitUpdates(const RendererContext &ctx) {
             write.pBufferInfo = &std::get<vk::DescriptorBufferInfo>(update.info);
         } else if (std::holds_alternative<vk::DescriptorImageInfo>(update.info)) {
             write.pImageInfo = &std::get<vk::DescriptorImageInfo>(update.info);
+        } else if (std::holds_alternative<vk::WriteDescriptorSetAccelerationStructureKHR>(update.info)) {
+            write.pNext = &std::get<vk::WriteDescriptorSetAccelerationStructureKHR>(update.info);
         } else {
             throw std::runtime_error("unexpected variant in DescriptorSet::commitUpdates");
         }
@@ -125,7 +161,7 @@ void DescriptorSet::updateBinding(const RendererContext &ctx, const uint32_t bin
 }
 
 void DescriptorSet::updateBinding(const RendererContext &ctx, const uint32_t binding, const Texture &texture,
-                                  const uint32_t arrayElement) const {
+                                  const vk::DescriptorType type, const uint32_t arrayElement) const {
     const vk::DescriptorImageInfo imageInfo{
         .sampler = *texture.getSampler(),
         .imageView = **texture.getImage().getView(ctx),
@@ -137,8 +173,46 @@ void DescriptorSet::updateBinding(const RendererContext &ctx, const uint32_t bin
         .dstBinding = binding,
         .dstArrayElement = arrayElement,
         .descriptorCount = 1,
-        .descriptorType = vk::DescriptorType::eCombinedImageSampler,
+        .descriptorType = type,
         .pImageInfo = &imageInfo,
+    };
+
+    ctx.device->updateDescriptorSets(write, nullptr);
+}
+
+void DescriptorSet::updateBinding(const RendererContext &ctx, const uint32_t binding, const vk::raii::ImageView &view,
+                                  const uint32_t arrayElement) const {
+    const vk::DescriptorImageInfo imageInfo{
+        .imageView = *view,
+        .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+    };
+
+    const vk::WriteDescriptorSet write{
+        .dstSet = **set,
+        .dstBinding = binding,
+        .dstArrayElement = arrayElement,
+        .descriptorCount = 1,
+        .descriptorType = vk::DescriptorType::eStorageImage,
+        .pImageInfo = &imageInfo,
+    };
+
+    ctx.device->updateDescriptorSets(write, nullptr);
+}
+
+void DescriptorSet::updateBinding(const RendererContext &ctx, const uint32_t binding,
+                                  const AccelerationStructure &accel, const uint32_t arrayElement) const {
+    const vk::WriteDescriptorSetAccelerationStructureKHR accelInfo{
+        .accelerationStructureCount = 1,
+        .pAccelerationStructures = &**accel,
+    };
+
+    const vk::WriteDescriptorSet write{
+        .pNext = &accelInfo,
+        .dstSet = **set,
+        .dstBinding = binding,
+        .dstArrayElement = arrayElement,
+        .descriptorCount = 1,
+        .descriptorType = vk::DescriptorType::eAccelerationStructureKHR,
     };
 
     ctx.device->updateDescriptorSets(write, nullptr);

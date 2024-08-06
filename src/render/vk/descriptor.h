@@ -6,6 +6,7 @@
 #include "src/render/libs.h"
 #include "src/render/globals.h"
 
+class AccelerationStructure;
 struct RendererContext;
 class Buffer;
 class Texture;
@@ -42,7 +43,10 @@ class DescriptorSet {
         uint32_t binding{};
         uint32_t arrayElement{};
         vk::DescriptorType type{};
-        std::variant<vk::DescriptorBufferInfo, vk::DescriptorImageInfo> info;
+        std::variant<
+            vk::DescriptorBufferInfo,
+            vk::DescriptorImageInfo,
+            vk::WriteDescriptorSetAccelerationStructureKHR> info;
     };
 
     std::vector<DescriptorUpdate> queuedUpdates;
@@ -57,31 +61,57 @@ public:
     [[nodiscard]] const vk::raii::DescriptorSetLayout &getLayout() const { return *layout; }
 
     /**
-     * Queues an update to a given binding in this descriptor set.
+     * Queues an update to a given binding in this descriptor set, referencing a buffer.
      * To actually push the update, `commitUpdates` must be called after all desired updates are queued.
      */
     DescriptorSet &queueUpdate(uint32_t binding, const Buffer &buffer, vk::DescriptorType type,
                                vk::DeviceSize size, vk::DeviceSize offset = 0, uint32_t arrayElement = 0);
 
     /**
-     * Queues an update to a given binding in this descriptor set.
+     * Queues an update to a given binding in this descriptor set, referencing a texture.
      * To actually push the update, `commitUpdates` must be called after all desired updates are queued.
      */
     DescriptorSet &queueUpdate(const RendererContext &ctx, uint32_t binding, const Texture &texture,
+                               vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler,
                                uint32_t arrayElement = 0);
+
+    /**
+     * Queues an update to a given binding in this descriptor set, referencing a raw storage image.
+     * To actually push the update, `commitUpdates` must be called after all desired updates are queued.
+     */
+    DescriptorSet &queueUpdate(uint32_t binding, const vk::raii::ImageView &view, uint32_t arrayElement = 0);
+
+    /**
+    * Queues an update to a given binding in this descriptor set, referencing an acceleration structure.
+    * To actually push the update, `commitUpdates` must be called after all desired updates are queued.
+    */
+    DescriptorSet &queueUpdate(uint32_t binding, const AccelerationStructure &accel, uint32_t arrayElement = 0);
 
     void commitUpdates(const RendererContext &ctx);
 
     /**
-     * Immediately updates a single binding in this descriptor set.
+     * Immediately updates a single binding in this descriptor set, referencing a buffer.
      */
     void updateBinding(const RendererContext &ctx, uint32_t binding, const Buffer &buffer, vk::DescriptorType type,
                        vk::DeviceSize size, vk::DeviceSize offset = 0, uint32_t arrayElement = 0) const;
 
     /**
-     * Immediately updates a single binding in this descriptor set.
+     * Immediately updates a single binding in this descriptor set, referencing a texture.
      */
     void updateBinding(const RendererContext &ctx, uint32_t binding, const Texture &texture,
+                       vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler,
+                       uint32_t arrayElement = 0) const;
+
+    /**
+     * Immediately updates a single binding in this descriptor set, referencing a raw storage image.
+     */
+    void updateBinding(const RendererContext &ctx, uint32_t binding, const vk::raii::ImageView &view,
+                       uint32_t arrayElement = 0) const;
+
+    /**
+     * Immediately updates a single binding in this descriptor set, referencing an acceleration structure.
+     */
+    void updateBinding(const RendererContext &ctx, uint32_t binding, const AccelerationStructure &accel,
                        uint32_t arrayElement = 0) const;
 };
 

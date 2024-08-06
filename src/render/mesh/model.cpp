@@ -158,16 +158,12 @@ Material::Material(const RendererContext &ctx, const aiMaterial *assimpMaterial,
 
     if (aoPath.empty() && roughnessPath.empty() && metallicPath.empty()) {
         ormBuilder.fromSwizzleFill({1, 1, 1});
-
     } else if (!aoPath.empty() && (aoPath == roughnessPath || aoPath == metallicPath)) {
         ormBuilder.fromPaths({aoPath});
-
     } else if (!roughnessPath.empty() && (roughnessPath == aoPath || roughnessPath == metallicPath)) {
         ormBuilder.fromPaths({roughnessPath});
-
     } else if (!metallicPath.empty() && (metallicPath == aoPath || metallicPath == roughnessPath)) {
         ormBuilder.fromPaths({metallicPath});
-
     } else {
         ormBuilder.asSeparateChannels().fromPaths({aoPath, roughnessPath, metallicPath});
     }
@@ -295,26 +291,26 @@ void Model::bindBuffers(const vk::raii::CommandBuffer &commandBuffer) const {
 }
 
 void Model::createBuffers(const RendererContext &ctx) {
+    constexpr auto rayTracingFlags = vk::BufferUsageFlagBits::eStorageBuffer
+                                     | vk::BufferUsageFlagBits::eShaderDeviceAddress
+                                     | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR;
+
     vertexBuffer = vkutils::buf::createLocalBuffer(
         ctx,
         getVertices(),
-        vk::BufferUsageFlagBits::eVertexBuffer
-        | vk::BufferUsageFlagBits::eShaderDeviceAddress
-        | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR
+        vk::BufferUsageFlagBits::eVertexBuffer | rayTracingFlags
     );
 
     instanceDataBuffer = vkutils::buf::createLocalBuffer(
         ctx,
         getInstanceTransforms(),
-        vk::BufferUsageFlagBits::eVertexBuffer
+        vk::BufferUsageFlagBits::eVertexBuffer | rayTracingFlags
     );
 
     indexBuffer = vkutils::buf::createLocalBuffer(
         ctx,
         getIndices(),
-        vk::BufferUsageFlagBits::eIndexBuffer
-        | vk::BufferUsageFlagBits::eShaderDeviceAddress
-        | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR
+        vk::BufferUsageFlagBits::eIndexBuffer | rayTracingFlags
     );
 }
 
@@ -382,7 +378,7 @@ void Model::createBLAS(const RendererContext &ctx) {
         vk::MemoryPropertyFlagBits::eDeviceLocal
     );
 
-    const vk::AccelerationStructureCreateInfoKHR asCreateInfo {
+    const vk::AccelerationStructureCreateInfoKHR asCreateInfo{
         .buffer = **blasBuffer,
         .size = accelerationStructureSize,
         .type = vk::AccelerationStructureTypeKHR::eBottomLevel,
