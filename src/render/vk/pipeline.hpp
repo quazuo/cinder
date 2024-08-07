@@ -6,33 +6,51 @@
 #include <filesystem>
 
 struct RendererContext;
+class Buffer;
 
 /**
- * Convenience wrapper around Vulkan pipelines, mainly to pair them together with related layouts.
+ * Convenience wrappers around Vulkan pipelines, mainly to pair them together with related layouts.
  * Might be extended in the future as it's very bare-bones at this moment.
  */
 class Pipeline {
     unique_ptr<vk::raii::Pipeline> pipeline;
     unique_ptr<vk::raii::PipelineLayout> layout;
-    vk::SampleCountFlagBits rasterizationSamples{};
 
-    friend class PipelineBuilder;
+    friend class GraphicsPipelineBuilder;
     friend class RtPipelineBuilder;
 
+protected:
     Pipeline() = default;
 
 public:
     [[nodiscard]] const vk::raii::Pipeline &operator*() const { return *pipeline; }
 
     [[nodiscard]] const vk::raii::PipelineLayout &getLayout() const { return *layout; }
+};
 
+class GraphicsPipeline : public Pipeline {
+    vk::SampleCountFlagBits rasterizationSamples{};
+
+    friend class GraphicsPipelineBuilder;
+
+    GraphicsPipeline() = default;
+
+public:
     [[nodiscard]] vk::SampleCountFlagBits getSampleCount() const { return rasterizationSamples; }
 };
 
+class RtPipeline : public Pipeline {
+    unique_ptr<Buffer> shaderBindingTableBuffer;
+
+    friend class RtPipelineBuilder;
+
+    RtPipeline() = default;
+};
+
 /**
- * Builder class streamlining pipeline creation.
+ * Builder class streamlining graphics pipeline creation.
  */
-class PipelineBuilder {
+class GraphicsPipelineBuilder {
     std::filesystem::path vertexShaderPath;
     std::filesystem::path fragmentShaderPath;
 
@@ -51,33 +69,33 @@ class PipelineBuilder {
     std::optional<vk::Format> depthAttachmentFormat;
 
 public:
-    PipelineBuilder &withVertexShader(const std::filesystem::path &path);
+    GraphicsPipelineBuilder &withVertexShader(const std::filesystem::path &path);
 
-    PipelineBuilder &withFragmentShader(const std::filesystem::path &path);
+    GraphicsPipelineBuilder &withFragmentShader(const std::filesystem::path &path);
 
     template<typename T>
-    PipelineBuilder &withVertices();
+    GraphicsPipelineBuilder &withVertices();
 
-    PipelineBuilder &withDescriptorLayouts(const std::vector<vk::DescriptorSetLayout> &layouts);
+    GraphicsPipelineBuilder &withDescriptorLayouts(const std::vector<vk::DescriptorSetLayout> &layouts);
 
-    PipelineBuilder &withPushConstants(const std::vector<vk::PushConstantRange> &ranges);
+    GraphicsPipelineBuilder &withPushConstants(const std::vector<vk::PushConstantRange> &ranges);
 
-    PipelineBuilder &withRasterizer(const vk::PipelineRasterizationStateCreateInfo &rasterizer);
+    GraphicsPipelineBuilder &withRasterizer(const vk::PipelineRasterizationStateCreateInfo &rasterizer);
 
-    PipelineBuilder &withMultisampling(const vk::PipelineMultisampleStateCreateInfo &multisampling);
+    GraphicsPipelineBuilder &withMultisampling(const vk::PipelineMultisampleStateCreateInfo &multisampling);
 
-    PipelineBuilder &withDepthStencil(const vk::PipelineDepthStencilStateCreateInfo &depthStencil);
+    GraphicsPipelineBuilder &withDepthStencil(const vk::PipelineDepthStencilStateCreateInfo &depthStencil);
 
     /**
      * Sets the number of views used with the `VK_KHR_multiview` extension.
      */
-    PipelineBuilder &forViews(uint32_t count);
+    GraphicsPipelineBuilder &forViews(uint32_t count);
 
-    PipelineBuilder &withColorFormats(const std::vector<vk::Format> &formats);
+    GraphicsPipelineBuilder &withColorFormats(const std::vector<vk::Format> &formats);
 
-    PipelineBuilder &withDepthFormat(vk::Format format);
+    GraphicsPipelineBuilder &withDepthFormat(vk::Format format);
 
-    [[nodiscard]] Pipeline create(const RendererContext &ctx) const;
+    [[nodiscard]] GraphicsPipeline create(const RendererContext &ctx) const;
 
 private:
     void checkParams() const;
@@ -102,7 +120,7 @@ public:
 
     RtPipelineBuilder &withPushConstants(const std::vector<vk::PushConstantRange> &ranges);
 
-    [[nodiscard]] Pipeline create(const RendererContext &ctx) const;
+    [[nodiscard]] RtPipeline create(const RendererContext &ctx) const;
 
 private:
     void checkParams() const;

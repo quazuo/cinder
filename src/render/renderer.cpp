@@ -81,8 +81,6 @@ VulkanRenderer::VulkanRenderer() {
         getMsaaSampleCount()
     );
 
-    createRenderTargetDescriptorSets();
-
     createCommandPool();
     createCommandBuffers();
 
@@ -90,6 +88,8 @@ VulkanRenderer::VulkanRenderer() {
 
     createUniformBuffers();
     updateGraphicsUniformBuffer();
+
+    createRenderTargetDescriptorSets();
 
     createDebugQuadDescriptorSet();
     createDebugQuadRenderInfos();
@@ -768,30 +768,41 @@ void VulkanRenderer::recreateSwapChain() {
     createSsaoTextures();
     createSsaoRenderInfo();
 
-    createRenderTargetDescriptorSets();
+    const auto renderTargets = swapChain->getRenderTargets(ctx);
+    for (uint32_t i = 0; i < renderTargets.size(); i++) {
+        renderTargetDescriptorSets[i].updateBinding(ctx, 0, *renderTargets[i].colorTarget);
+    }
 }
 
 // ==================== descriptors ====================
 
 void VulkanRenderer::createDescriptorPool() {
-    static constexpr vk::DescriptorPoolSize uboPoolSize{
-        .type = vk::DescriptorType::eUniformBuffer,
-        .descriptorCount = 100u,
+    const std::vector<vk::DescriptorPoolSize> poolSizes = {
+        {
+            .type = vk::DescriptorType::eUniformBuffer,
+            .descriptorCount = 100u,
+        },
+        {
+            .type = vk::DescriptorType::eCombinedImageSampler,
+            .descriptorCount = 1000u,
+        },
+        {
+            .type = vk::DescriptorType::eStorageImage,
+            .descriptorCount = 100u,
+        },
+        {
+            .type = vk::DescriptorType::eStorageBuffer,
+            .descriptorCount = 100u,
+        },
+        {
+            .type = vk::DescriptorType::eAccelerationStructureKHR,
+            .descriptorCount = 100u,
+        },
     };
 
-    static constexpr vk::DescriptorPoolSize samplerPoolSize{
-        .type = vk::DescriptorType::eCombinedImageSampler,
-        .descriptorCount = 1000u,
-    };
-
-    static constexpr std::array poolSizes = {
-        uboPoolSize,
-        samplerPoolSize
-    };
-
-    static constexpr vk::DescriptorPoolCreateInfo poolInfo{
+    const vk::DescriptorPoolCreateInfo poolInfo{
         .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
-        .maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * 4 + 5,
+        .maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * 6 + 5,
         .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
         .pPoolSizes = poolSizes.data(),
     };
@@ -1011,12 +1022,12 @@ void VulkanRenderer::createRtDescriptorSets() {
 
 // ==================== render infos ====================
 
-RenderInfo::RenderInfo(PipelineBuilder builder, shared_ptr<Pipeline> pipeline, std::vector<RenderTarget> colors)
+RenderInfo::RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline, std::vector<RenderTarget> colors)
     : cachedPipelineBuilder(std::move(builder)), pipeline(std::move(pipeline)), colorTargets(std::move(colors)) {
     makeAttachmentInfos();
 }
 
-RenderInfo::RenderInfo(PipelineBuilder builder, shared_ptr<Pipeline> pipeline,
+RenderInfo::RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline,
                        std::vector<RenderTarget> colors, RenderTarget depth)
     : cachedPipelineBuilder(std::move(builder)), pipeline(std::move(pipeline)),
       colorTargets(std::move(colors)), depthTarget(std::move(depth)) {
@@ -1075,7 +1086,7 @@ void RenderInfo::makeAttachmentInfos() {
 void VulkanRenderer::createSceneRenderInfos() {
     sceneRenderInfos.clear();
 
-    auto builder = PipelineBuilder()
+    auto builder = GraphicsPipelineBuilder()
             .withVertexShader("../shaders/obj/main-vert.spv")
             .withFragmentShader("../shaders/obj/main-frag.spv")
             .withVertices<ModelVertex>()
@@ -1103,7 +1114,7 @@ void VulkanRenderer::createSceneRenderInfos() {
             .withColorFormats({swapChain->getImageFormat()})
             .withDepthFormat(swapChain->getDepthFormat());
 
-    auto pipeline = make_shared<Pipeline>(builder.create(ctx));
+    auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
     for (auto &target: swapChain->getRenderTargets(ctx)) {
         std::vector<RenderTarget> colorTargets;
@@ -1123,7 +1134,7 @@ void VulkanRenderer::createSceneRenderInfos() {
 void VulkanRenderer::createSkyboxRenderInfos() {
     skyboxRenderInfos.clear();
 
-    auto builder = PipelineBuilder()
+    auto builder = GraphicsPipelineBuilder()
             .withVertexShader("../shaders/obj/skybox-vert.spv")
             .withFragmentShader("../shaders/obj/skybox-frag.spv")
             .withVertices<SkyboxVertex>()
@@ -1147,7 +1158,7 @@ void VulkanRenderer::createSkyboxRenderInfos() {
             .withColorFormats({swapChain->getImageFormat()})
             .withDepthFormat(swapChain->getDepthFormat());
 
-    auto pipeline = make_shared<Pipeline>(builder.create(ctx));
+    auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
     for (auto &target: swapChain->getRenderTargets(ctx)) {
         std::vector<RenderTarget> colorTargets;
@@ -1185,7 +1196,7 @@ void VulkanRenderer::createPrepassRenderInfo() {
     std::vector<vk::Format> colorFormats;
     for (const auto &target: colorTargets) colorFormats.emplace_back(target.getFormat());
 
-    auto builder = PipelineBuilder()
+    auto builder = GraphicsPipelineBuilder()
             .withVertexShader("../shaders/obj/prepass-vert.spv")
             .withFragmentShader("../shaders/obj/prepass-frag.spv")
             .withVertices<ModelVertex>()
@@ -1201,7 +1212,7 @@ void VulkanRenderer::createPrepassRenderInfo() {
             .withColorFormats(colorFormats)
             .withDepthFormat(depthTarget.getFormat());
 
-    auto pipeline = make_shared<Pipeline>(builder.create(ctx));
+    auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
     prepassRenderInfo = make_unique<RenderInfo>(
         builder,
@@ -1214,7 +1225,7 @@ void VulkanRenderer::createPrepassRenderInfo() {
 void VulkanRenderer::createSsaoRenderInfo() {
     RenderTarget target{ctx, *ssaoTexture};
 
-    auto builder = PipelineBuilder()
+    auto builder = GraphicsPipelineBuilder()
             .withVertexShader("../shaders/obj/ssao-vert.spv")
             .withFragmentShader("../shaders/obj/ssao-frag.spv")
             .withVertices<ScreenSpaceQuadVertex>()
@@ -1229,7 +1240,7 @@ void VulkanRenderer::createSsaoRenderInfo() {
             })
             .withColorFormats({target.getFormat()});
 
-    auto pipeline = make_shared<Pipeline>(builder.create(ctx));
+    auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
     std::vector<RenderTarget> targets;
     targets.emplace_back(std::move(target));
@@ -1247,7 +1258,7 @@ void VulkanRenderer::createCubemapCaptureRenderInfo() {
         skyboxTexture->getFormat()
     };
 
-    auto builder = PipelineBuilder()
+    auto builder = GraphicsPipelineBuilder()
             .withVertexShader("../shaders/obj/sphere-cube-vert.spv")
             .withFragmentShader("../shaders/obj/sphere-cube-frag.spv")
             .withVertices<SkyboxVertex>()
@@ -1267,7 +1278,7 @@ void VulkanRenderer::createCubemapCaptureRenderInfo() {
             .forViews(6)
             .withColorFormats({target.getFormat()});
 
-    auto pipeline = make_shared<Pipeline>(builder.create(ctx));
+    auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
     std::vector<RenderTarget> targets;
     targets.emplace_back(std::move(target));
@@ -1282,7 +1293,7 @@ void VulkanRenderer::createCubemapCaptureRenderInfo() {
 void VulkanRenderer::createDebugQuadRenderInfos() {
     debugQuadRenderInfos.clear();
 
-    auto builder = PipelineBuilder()
+    auto builder = GraphicsPipelineBuilder()
             .withVertexShader("../shaders/obj/ss-quad-vert.spv")
             .withFragmentShader("../shaders/obj/ss-quad-frag.spv")
             .withVertices<ScreenSpaceQuadVertex>()
@@ -1306,7 +1317,7 @@ void VulkanRenderer::createDebugQuadRenderInfos() {
             .withColorFormats({swapChain->getImageFormat()})
             .withDepthFormat(swapChain->getDepthFormat());
 
-    auto pipeline = make_shared<Pipeline>(builder.create(ctx));
+    auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
     for (auto &target: swapChain->getRenderTargets(ctx)) {
         std::vector<RenderTarget> colorTargets;
@@ -2146,7 +2157,7 @@ void VulkanRenderer::drawDebugQuad() {
 }
 
 void VulkanRenderer::drawModel(const vk::raii::CommandBuffer &commandBuffer, const bool doPushConstants,
-                               const Pipeline &pipeline) const {
+                               const GraphicsPipeline &pipeline) const {
     uint32_t indexOffset = 0;
     std::int32_t vertexOffset = 0;
     uint32_t instanceOffset = 0;

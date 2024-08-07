@@ -4,6 +4,7 @@
 
 #include "src/render/renderer.hpp"
 #include "src/render/mesh/vertex.hpp"
+#include "buffer.hpp"
 
 static vk::raii::ShaderModule createShaderModule(const RendererContext &ctx, const std::filesystem::path &path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
@@ -25,65 +26,65 @@ static vk::raii::ShaderModule createShaderModule(const RendererContext &ctx, con
     return vk::raii::ShaderModule{*ctx.device, createInfo};
 }
 
-PipelineBuilder &PipelineBuilder::withVertexShader(const std::filesystem::path &path) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::withVertexShader(const std::filesystem::path &path) {
     vertexShaderPath = path;
     return *this;
 }
 
-PipelineBuilder &PipelineBuilder::withFragmentShader(const std::filesystem::path &path) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::withFragmentShader(const std::filesystem::path &path) {
     fragmentShaderPath = path;
     return *this;
 }
 
 template<typename T>
-PipelineBuilder &PipelineBuilder::withVertices() {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::withVertices() {
     vertexBindings = T::getBindingDescriptions();
     vertexAttributes = T::getAttributeDescriptions();
     return *this;
 }
 
-PipelineBuilder &PipelineBuilder::withDescriptorLayouts(const std::vector<vk::DescriptorSetLayout> &layouts) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::withDescriptorLayouts(const std::vector<vk::DescriptorSetLayout> &layouts) {
     descriptorSetLayouts = layouts;
     return *this;
 }
 
-PipelineBuilder &PipelineBuilder::withPushConstants(const std::vector<vk::PushConstantRange> &ranges) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::withPushConstants(const std::vector<vk::PushConstantRange> &ranges) {
     pushConstantRanges = ranges;
     return *this;
 }
 
-PipelineBuilder &PipelineBuilder::withRasterizer(const vk::PipelineRasterizationStateCreateInfo &rasterizer) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::withRasterizer(const vk::PipelineRasterizationStateCreateInfo &rasterizer) {
     rasterizerOverride = rasterizer;
     return *this;
 }
 
-PipelineBuilder &PipelineBuilder::withMultisampling(const vk::PipelineMultisampleStateCreateInfo &multisampling) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::withMultisampling(const vk::PipelineMultisampleStateCreateInfo &multisampling) {
     multisamplingOverride = multisampling;
     return *this;
 }
 
-PipelineBuilder &PipelineBuilder::withDepthStencil(const vk::PipelineDepthStencilStateCreateInfo &depthStencil) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::withDepthStencil(const vk::PipelineDepthStencilStateCreateInfo &depthStencil) {
     depthStencilOverride = depthStencil;
     return *this;
 }
 
-PipelineBuilder &PipelineBuilder::forViews(const uint32_t count) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::forViews(const uint32_t count) {
     multiviewCount = count;
     return *this;
 }
 
-PipelineBuilder &PipelineBuilder::withColorFormats(const std::vector<vk::Format> &formats) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::withColorFormats(const std::vector<vk::Format> &formats) {
     colorAttachmentFormats = formats;
     return *this;
 }
 
-PipelineBuilder &PipelineBuilder::withDepthFormat(const vk::Format format) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::withDepthFormat(const vk::Format format) {
     depthAttachmentFormat = format;
     return *this;
 }
 
-Pipeline PipelineBuilder::create(const RendererContext &ctx) const {
-    Pipeline result;
+GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) const {
+    GraphicsPipeline result;
 
     vk::raii::ShaderModule vertShaderModule = createShaderModule(ctx, vertexShaderPath);
     vk::raii::ShaderModule fragShaderModule = createShaderModule(ctx, fragmentShaderPath);
@@ -217,7 +218,7 @@ Pipeline PipelineBuilder::create(const RendererContext &ctx) const {
     return result;
 }
 
-void PipelineBuilder::checkParams() const {
+void GraphicsPipelineBuilder::checkParams() const {
     if (vertexShaderPath.empty()) {
         throw std::invalid_argument("vertex shader must be specified during pipeline creation!");
     }
@@ -256,8 +257,8 @@ RtPipelineBuilder &RtPipelineBuilder::withPushConstants(const std::vector<vk::Pu
     return *this;
 }
 
-Pipeline RtPipelineBuilder::create(const RendererContext &ctx) const {
-    Pipeline result;
+RtPipeline RtPipelineBuilder::create(const RendererContext &ctx) const {
+    RtPipeline result;
 
     enum StageIndices {
         eRaygen = 0,
@@ -291,9 +292,9 @@ Pipeline RtPipelineBuilder::create(const RendererContext &ctx) const {
     };
 
     constexpr vk::RayTracingShaderGroupCreateInfoKHR shaderGroupTemplate {
-        .anyHitShader = vk::ShaderUnusedKHR,
-        .closestHitShader = vk::ShaderUnusedKHR,
         .generalShader = vk::ShaderUnusedKHR,
+        .closestHitShader = vk::ShaderUnusedKHR,
+        .anyHitShader = vk::ShaderUnusedKHR,
         .intersectionShader = vk::ShaderUnusedKHR,
     };
 
@@ -350,8 +351,8 @@ void RtPipelineBuilder::checkParams() const {
     }
 }
 
-template PipelineBuilder &PipelineBuilder::withVertices<ModelVertex>();
+template GraphicsPipelineBuilder &GraphicsPipelineBuilder::withVertices<ModelVertex>();
 
-template PipelineBuilder &PipelineBuilder::withVertices<SkyboxVertex>();
+template GraphicsPipelineBuilder &GraphicsPipelineBuilder::withVertices<SkyboxVertex>();
 
-template PipelineBuilder &PipelineBuilder::withVertices<ScreenSpaceQuadVertex>();
+template GraphicsPipelineBuilder &GraphicsPipelineBuilder::withVertices<ScreenSpaceQuadVertex>();

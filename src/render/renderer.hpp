@@ -20,7 +20,7 @@ class InputManager;
 class Model;
 class Camera;
 class Buffer;
-class Pipeline;
+class GraphicsPipeline;
 class DescriptorSet;
 class SwapChain;
 class GuiRenderer;
@@ -133,8 +133,8 @@ struct RendererContext {
 };
 
 class RenderInfo {
-    PipelineBuilder cachedPipelineBuilder;
-    shared_ptr<Pipeline> pipeline;
+    GraphicsPipelineBuilder cachedPipelineBuilder;
+    shared_ptr<GraphicsPipeline> pipeline;
 
     std::vector<RenderTarget> colorTargets;
     std::optional<RenderTarget> depthTarget;
@@ -145,9 +145,9 @@ class RenderInfo {
     std::vector<vk::Format> cachedColorAttachmentFormats;
 
 public:
-    RenderInfo(PipelineBuilder builder, shared_ptr<Pipeline> pipeline, std::vector<RenderTarget> colors);
+    RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline, std::vector<RenderTarget> colors);
 
-    RenderInfo(PipelineBuilder builder, shared_ptr<Pipeline> pipeline, std::vector<RenderTarget> colors,
+    RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline, std::vector<RenderTarget> colors,
                RenderTarget depth);
 
     RenderInfo(std::vector<RenderTarget> colors);
@@ -156,7 +156,7 @@ public:
 
     [[nodiscard]] vk::RenderingInfo get(vk::Extent2D extent, uint32_t views = 1, vk::RenderingFlags flags = {}) const;
 
-    [[nodiscard]] const Pipeline &getPipeline() const { return *pipeline; }
+    [[nodiscard]] const GraphicsPipeline &getPipeline() const { return *pipeline; }
 
     [[nodiscard]] vk::CommandBufferInheritanceRenderingInfo getInheritanceRenderingInfo();
 
@@ -490,7 +490,7 @@ public:
 
 private:
     void drawModel(const vk::raii::CommandBuffer &commandBuffer, bool doPushConstants,
-                   const Pipeline &pipeline) const;
+                   const GraphicsPipeline &pipeline) const;
 
     void captureCubemap() const;
 
