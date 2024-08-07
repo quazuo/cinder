@@ -17,6 +17,7 @@ class Pipeline {
     vk::SampleCountFlagBits rasterizationSamples{};
 
     friend class PipelineBuilder;
+    friend class RtPipelineBuilder;
 
     Pipeline() = default;
 
@@ -84,19 +85,22 @@ private:
 
 class RtPipelineBuilder {
     std::filesystem::path raygenShaderPath;
-    std::filesystem::path anyhitShaderPath;
+    std::filesystem::path closestHitShaderPath;
     std::filesystem::path missShaderPath;
 
+    std::vector<vk::DescriptorSetLayout> descriptorSetLayouts;
+    std::vector<vk::PushConstantRange> pushConstantRanges;
+
 public:
-    PipelineBuilder &withRayGenShader(const std::filesystem::path &path);
+    RtPipelineBuilder &withRayGenShader(const std::filesystem::path &path);
 
-    PipelineBuilder &withAnyHitShader(const std::filesystem::path &path);
+    RtPipelineBuilder &withClosestHitShader(const std::filesystem::path &path);
 
-    PipelineBuilder &withMissShader(const std::filesystem::path &path);
+    RtPipelineBuilder &withMissShader(const std::filesystem::path &path);
 
-    PipelineBuilder &withDescriptorLayouts(const std::vector<vk::DescriptorSetLayout> &layouts);
+    RtPipelineBuilder &withDescriptorLayouts(const std::vector<vk::DescriptorSetLayout> &layouts);
 
-    PipelineBuilder &withPushConstants(const std::vector<vk::PushConstantRange> &ranges);
+    RtPipelineBuilder &withPushConstants(const std::vector<vk::PushConstantRange> &ranges);
 
     [[nodiscard]] Pipeline create(const RendererContext &ctx) const;
 

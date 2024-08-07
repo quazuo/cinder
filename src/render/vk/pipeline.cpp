@@ -176,7 +176,7 @@ Pipeline PipelineBuilder::create(const RendererContext &ctx) const {
 
     const vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
         .setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size()),
-        .pSetLayouts = descriptorSetLayouts.data(),
+        .pSetLayouts = descriptorSetLayouts.empty() ? nullptr : descriptorSetLayouts.data(),
         .pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size()),
         .pPushConstantRanges = pushConstantRanges.empty() ? nullptr : pushConstantRanges.data()
     };
@@ -228,6 +228,125 @@ void PipelineBuilder::checkParams() const {
 
     if (vertexBindings.empty() && vertexAttributes.empty()) {
         throw std::invalid_argument("vertex descriptions must be specified during pipeline creation!");
+    }
+}
+
+RtPipelineBuilder &RtPipelineBuilder::withRayGenShader(const std::filesystem::path &path) {
+    raygenShaderPath = path;
+    return *this;
+}
+
+RtPipelineBuilder &RtPipelineBuilder::withClosestHitShader(const std::filesystem::path &path) {
+    closestHitShaderPath = path;
+    return *this;
+}
+
+RtPipelineBuilder &RtPipelineBuilder::withMissShader(const std::filesystem::path &path) {
+    missShaderPath = path;
+    return *this;
+}
+
+RtPipelineBuilder &RtPipelineBuilder::withDescriptorLayouts(const std::vector<vk::DescriptorSetLayout> &layouts) {
+    descriptorSetLayouts = layouts;
+    return *this;
+}
+
+RtPipelineBuilder &RtPipelineBuilder::withPushConstants(const std::vector<vk::PushConstantRange> &ranges) {
+    pushConstantRanges = ranges;
+    return *this;
+}
+
+Pipeline RtPipelineBuilder::create(const RendererContext &ctx) const {
+    Pipeline result;
+
+    enum StageIndices {
+        eRaygen = 0,
+        eMiss,
+        eClosestHit,
+        eShaderGroupCount
+    };
+
+    const vk::raii::ShaderModule raygenShaderModule = createShaderModule(ctx, raygenShaderPath);
+    const vk::raii::ShaderModule missShaderModule = createShaderModule(ctx, missShaderPath);
+    const vk::raii::ShaderModule closestHitShaderModule = createShaderModule(ctx, closestHitShaderPath);
+
+    std::array<vk::PipelineShaderStageCreateInfo, eShaderGroupCount> shaderStages;
+
+    shaderStages[eRaygen] = {
+        .stage = vk::ShaderStageFlagBits::eRaygenKHR,
+        .module = *raygenShaderModule,
+        .pName = "main",
+    };
+
+    shaderStages[eMiss] = {
+        .stage = vk::ShaderStageFlagBits::eMissKHR,
+        .module = *missShaderModule,
+        .pName = "main",
+    };
+
+    shaderStages[eClosestHit] = {
+        .stage = vk::ShaderStageFlagBits::eClosestHitKHR,
+        .module = *closestHitShaderModule,
+        .pName = "main",
+    };
+
+    constexpr vk::RayTracingShaderGroupCreateInfoKHR shaderGroupTemplate {
+        .anyHitShader = vk::ShaderUnusedKHR,
+        .closestHitShader = vk::ShaderUnusedKHR,
+        .generalShader = vk::ShaderUnusedKHR,
+        .intersectionShader = vk::ShaderUnusedKHR,
+    };
+
+    std::vector shaderGroups(eShaderGroupCount, shaderGroupTemplate);
+
+    shaderGroups[eRaygen].type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
+    shaderGroups[eRaygen].generalShader = eRaygen;
+
+    shaderGroups[eMiss].type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
+    shaderGroups[eMiss].generalShader = eMiss;
+
+    shaderGroups[eClosestHit].type = vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
+    shaderGroups[eClosestHit].closestHitShader = eClosestHit;
+
+    const vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
+        .setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size()),
+        .pSetLayouts = descriptorSetLayouts.empty() ? nullptr : descriptorSetLayouts.data(),
+        .pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size()),
+        .pPushConstantRanges = pushConstantRanges.empty() ? nullptr : pushConstantRanges.data()
+    };
+
+    result.layout = make_unique<vk::raii::PipelineLayout>(*ctx.device, pipelineLayoutInfo);
+
+    const vk::RayTracingPipelineCreateInfoKHR pipelineCreateInfo{
+        .stageCount = static_cast<uint32_t>(shaderStages.size()),
+        .pStages = shaderStages.data(),
+        .groupCount = static_cast<uint32_t>(shaderGroups.size()),
+        .pGroups = shaderGroups.data(),
+        .maxPipelineRayRecursionDepth = 1u,
+        .layout = **result.layout,
+    };
+
+    result.pipeline = make_unique<vk::raii::Pipeline>(
+        *ctx.device,
+        nullptr,
+        nullptr,
+        pipelineCreateInfo
+    );
+
+    return result;
+}
+
+void RtPipelineBuilder::checkParams() const {
+    if (raygenShaderPath.empty()) {
+        throw std::invalid_argument("ray generation shader must be specified during ray tracing pipeline creation!");
+    }
+
+    if (closestHitShaderPath.empty()) {
+        throw std::invalid_argument("closest hit shader must be specified during ray tracing pipeline creation!");
+    }
+
+    if (missShaderPath.empty()) {
+        throw std::invalid_argument("miss shader must be specified during ray tracing pipeline creation!");
     }
 }
 
