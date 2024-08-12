@@ -45,6 +45,9 @@ class RtPipeline : public Pipeline {
     friend class RtPipelineBuilder;
 
     RtPipeline() = default;
+
+public:
+    [[nodiscard]] const Buffer &getSbt() const { return *shaderBindingTableBuffer; }
 };
 
 /**
@@ -124,4 +127,10 @@ public:
 
 private:
     void checkParams() const;
+
+    [[nodiscard]] std::pair<vk::raii::Pipeline, vk::raii::PipelineLayout>
+    buildPipeline(const RendererContext &ctx) const;
+
+    [[nodiscard]] unique_ptr<Buffer>
+    buildSbtBuffer(const RendererContext &ctx, const vk::raii::Pipeline &pipeline) const;
 };

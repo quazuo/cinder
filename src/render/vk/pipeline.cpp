@@ -43,7 +43,8 @@ GraphicsPipelineBuilder &GraphicsPipelineBuilder::withVertices() {
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::withDescriptorLayouts(const std::vector<vk::DescriptorSetLayout> &layouts) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::withDescriptorLayouts(
+    const std::vector<vk::DescriptorSetLayout> &layouts) {
     descriptorSetLayouts = layouts;
     return *this;
 }
@@ -53,17 +54,20 @@ GraphicsPipelineBuilder &GraphicsPipelineBuilder::withPushConstants(const std::v
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::withRasterizer(const vk::PipelineRasterizationStateCreateInfo &rasterizer) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::withRasterizer(
+    const vk::PipelineRasterizationStateCreateInfo &rasterizer) {
     rasterizerOverride = rasterizer;
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::withMultisampling(const vk::PipelineMultisampleStateCreateInfo &multisampling) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::withMultisampling(
+    const vk::PipelineMultisampleStateCreateInfo &multisampling) {
     multisamplingOverride = multisampling;
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::withDepthStencil(const vk::PipelineDepthStencilStateCreateInfo &depthStencil) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::withDepthStencil(
+    const vk::PipelineDepthStencilStateCreateInfo &depthStencil) {
     depthStencilOverride = depthStencil;
     return *this;
 }
@@ -260,6 +264,31 @@ RtPipelineBuilder &RtPipelineBuilder::withPushConstants(const std::vector<vk::Pu
 RtPipeline RtPipelineBuilder::create(const RendererContext &ctx) const {
     RtPipeline result;
 
+    auto &[pipeline, layout] = buildPipeline(ctx);
+    result.pipeline = make_unique<decltype(pipeline)>(std::move(pipeline));
+    result.layout = make_unique<decltype(layout)>(std::move(layout));
+
+    result.shaderBindingTableBuffer = buildSbtBuffer(ctx, *result.pipeline);
+
+    return result;
+}
+
+void RtPipelineBuilder::checkParams() const {
+    if (raygenShaderPath.empty()) {
+        throw std::invalid_argument("ray generation shader must be specified during ray tracing pipeline creation!");
+    }
+
+    if (closestHitShaderPath.empty()) {
+        throw std::invalid_argument("closest hit shader must be specified during ray tracing pipeline creation!");
+    }
+
+    if (missShaderPath.empty()) {
+        throw std::invalid_argument("miss shader must be specified during ray tracing pipeline creation!");
+    }
+}
+
+std::pair<vk::raii::Pipeline, vk::raii::PipelineLayout>
+RtPipelineBuilder::buildPipeline(const RendererContext &ctx) const {
     enum StageIndices {
         eRaygen = 0,
         eMiss,
@@ -291,7 +320,7 @@ RtPipeline RtPipelineBuilder::create(const RendererContext &ctx) const {
         .pName = "main",
     };
 
-    constexpr vk::RayTracingShaderGroupCreateInfoKHR shaderGroupTemplate {
+    constexpr vk::RayTracingShaderGroupCreateInfoKHR shaderGroupTemplate{
         .generalShader = vk::ShaderUnusedKHR,
         .closestHitShader = vk::ShaderUnusedKHR,
         .anyHitShader = vk::ShaderUnusedKHR,
@@ -316,7 +345,7 @@ RtPipeline RtPipelineBuilder::create(const RendererContext &ctx) const {
         .pPushConstantRanges = pushConstantRanges.empty() ? nullptr : pushConstantRanges.data()
     };
 
-    result.layout = make_unique<vk::raii::PipelineLayout>(*ctx.device, pipelineLayoutInfo);
+    vk::raii::PipelineLayout layout{*ctx.device, pipelineLayoutInfo};
 
     const vk::RayTracingPipelineCreateInfoKHR pipelineCreateInfo{
         .stageCount = static_cast<uint32_t>(shaderStages.size()),
@@ -324,31 +353,96 @@ RtPipeline RtPipelineBuilder::create(const RendererContext &ctx) const {
         .groupCount = static_cast<uint32_t>(shaderGroups.size()),
         .pGroups = shaderGroups.data(),
         .maxPipelineRayRecursionDepth = 1u,
-        .layout = **result.layout,
+        .layout = *layout,
     };
 
-    result.pipeline = make_unique<vk::raii::Pipeline>(
+    vk::raii::Pipeline pipeline{
         *ctx.device,
         nullptr,
         nullptr,
         pipelineCreateInfo
-    );
+    };
 
-    return result;
+    return std::make_pair(pipeline, layout);
 }
 
-void RtPipelineBuilder::checkParams() const {
-    if (raygenShaderPath.empty()) {
-        throw std::invalid_argument("ray generation shader must be specified during ray tracing pipeline creation!");
+static constexpr uint32_t alignUp(const uint32_t size, const uint32_t alignment) {
+    return (size + alignment - 1) & ~(alignment - 1);
+}
+
+unique_ptr<Buffer>
+RtPipelineBuilder::buildSbtBuffer(const RendererContext &ctx, const vk::raii::Pipeline &pipeline) const {
+    auto properties = ctx.physicalDevice->getProperties2<
+        vk::PhysicalDeviceProperties2,
+        vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
+    auto rtProperties = properties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
+
+    constexpr uint32_t missCount = 1;
+    constexpr uint32_t hitCount = 1;
+    constexpr uint32_t handleCount = 1 + missCount + hitCount; // 1 for raygen count (always 1)
+    const uint32_t handleSize = rtProperties.shaderGroupHandleSize;
+    const uint32_t handleSizeAligned = alignUp(
+        handleSize,
+        rtProperties.shaderGroupHandleAlignment);
+
+    const auto rgenStride = alignUp(handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
+    vk::StridedDeviceAddressRegionKHR rgenRegion{
+        .stride = rgenStride,
+        .size = rgenStride
+    };
+
+    vk::StridedDeviceAddressRegionKHR missRegion{
+        .stride = handleSizeAligned,
+        .size = alignUp(missCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment)
+    };
+
+    vk::StridedDeviceAddressRegionKHR hitRegion{
+        .stride = handleSizeAligned,
+        .size = alignUp(hitCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment)
+    };
+
+    const uint32_t dataSize = handleCount * handleSize;
+    std::vector handles = pipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>(0, handleCount, dataSize);
+
+    const VkDeviceSize sbtSize = rgenRegion.size + missRegion.size + hitRegion.size;
+    auto sbtBuffer = make_unique<Buffer>(
+        **ctx.allocator,
+        sbtSize,
+        vk::BufferUsageFlagBits::eShaderBindingTableKHR
+        | vk::BufferUsageFlagBits::eShaderDeviceAddress
+        | vk::BufferUsageFlagBits::eTransferSrc,
+        vk::MemoryPropertyFlagBits::eHostVisible
+        | vk::MemoryPropertyFlagBits::eHostCoherent
+    );
+
+    const vk::DeviceAddress sbtAddress = ctx.device->getBufferAddress({.buffer = **sbtBuffer});
+    rgenRegion.deviceAddress = sbtAddress;
+    missRegion.deviceAddress = rgenRegion.deviceAddress + rgenRegion.size;
+    hitRegion.deviceAddress = missRegion.deviceAddress + missRegion.size;
+
+    auto getHandlePtr = [&](const uint32_t i) { return handles.data() + i * handleSize; };
+    auto *sbtBufferMapped = static_cast<uint8_t *>(sbtBuffer->map());
+
+    uint32_t handleIndex = 0;
+
+    uint8_t *rgenData = sbtBufferMapped;
+    memcpy(rgenData, getHandlePtr(handleIndex++), handleSize);
+
+    uint8_t *missData = sbtBufferMapped + rgenRegion.size;
+    for (uint32_t i = 0; i < missCount; i++) {
+        memcpy(missData, getHandlePtr(handleIndex++), handleSize);
+        missData += missRegion.stride;
     }
 
-    if (closestHitShaderPath.empty()) {
-        throw std::invalid_argument("closest hit shader must be specified during ray tracing pipeline creation!");
+    uint8_t *hitData = sbtBufferMapped + rgenRegion.size + missRegion.size;
+    for (uint32_t i = 0; i < missCount; i++) {
+        memcpy(hitData, getHandlePtr(handleIndex++), handleSize);
+        hitData += missRegion.stride;
     }
 
-    if (missShaderPath.empty()) {
-        throw std::invalid_argument("miss shader must be specified during ray tracing pipeline creation!");
-    }
+    sbtBuffer->unmap();
+
+    return sbtBuffer;
 }
 
 template GraphicsPipelineBuilder &GraphicsPipelineBuilder::withVertices<ModelVertex>();
