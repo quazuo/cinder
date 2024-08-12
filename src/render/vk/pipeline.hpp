@@ -40,14 +40,24 @@ public:
 };
 
 class RtPipeline : public Pipeline {
-    unique_ptr<Buffer> shaderBindingTableBuffer;
+public:
+    struct ShaderBindingTable {
+        unique_ptr<Buffer> backingBuffer;
+        vk::StridedDeviceAddressRegionKHR rgenRegion;
+        vk::StridedDeviceAddressRegionKHR missRegion;
+        vk::StridedDeviceAddressRegionKHR hitRegion;
+        vk::StridedDeviceAddressRegionKHR callRegion;
+    };
+
+private:
+    ShaderBindingTable sbt;
 
     friend class RtPipelineBuilder;
 
     RtPipeline() = default;
 
 public:
-    [[nodiscard]] const Buffer &getSbt() const { return *shaderBindingTableBuffer; }
+    [[nodiscard]] const ShaderBindingTable &getSbt() const { return sbt; }
 };
 
 /**
@@ -131,6 +141,6 @@ private:
     [[nodiscard]] std::pair<vk::raii::Pipeline, vk::raii::PipelineLayout>
     buildPipeline(const RendererContext &ctx) const;
 
-    [[nodiscard]] unique_ptr<Buffer>
-    buildSbtBuffer(const RendererContext &ctx, const vk::raii::Pipeline &pipeline) const;
+    [[nodiscard]] RtPipeline::ShaderBindingTable
+    buildSbt(const RendererContext &ctx, const vk::raii::Pipeline &pipeline) const;
 };

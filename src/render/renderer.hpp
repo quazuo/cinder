@@ -145,10 +145,11 @@ class RenderInfo {
     std::vector<vk::Format> cachedColorAttachmentFormats;
 
 public:
-    RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline, std::vector<RenderTarget> colors);
+    RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline,
+               std::vector<RenderTarget> colors);
 
-    RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline, std::vector<RenderTarget> colors,
-               RenderTarget depth);
+    RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline,
+               std::vector<RenderTarget> colors, RenderTarget depth);
 
     RenderInfo(std::vector<RenderTarget> colors);
 
@@ -160,15 +161,13 @@ public:
 
     [[nodiscard]] vk::CommandBufferInheritanceRenderingInfo getInheritanceRenderingInfo();
 
-    void reloadShaders(const RendererContext& ctx) const;
+    void reloadShaders(const RendererContext &ctx) const;
 
 private:
     void makeAttachmentInfos();
 };
 
 class VulkanRenderer {
-    using TimelineSemValueType = std::uint64_t;
-
     struct GLFWwindow *window = nullptr;
 
     unique_ptr<Camera> camera;
@@ -189,6 +188,8 @@ class VulkanRenderer {
     unique_ptr<Model> model;
     Material separateMaterial;
 
+    // textures
+
     unique_ptr<Texture> ssaoTexture;
     unique_ptr<Texture> ssaoNoiseTexture;
 
@@ -201,12 +202,18 @@ class VulkanRenderer {
     unique_ptr<Texture> skyboxTexture;
     unique_ptr<Texture> envmapTexture;
 
+    unique_ptr<Texture> rtTargetTexture;
+
+    // descriptors
+
     unique_ptr<vk::raii::DescriptorPool> descriptorPool;
 
     unique_ptr<DescriptorSet> materialsDescriptorSet;
     unique_ptr<DescriptorSet> cubemapCaptureDescriptorSet;
     unique_ptr<DescriptorSet> debugQuadDescriptorSet;
     std::vector<DescriptorSet> renderTargetDescriptorSets;
+
+    // render pass infos & misc pipelines
 
     std::vector<RenderInfo> sceneRenderInfos;
     std::vector<RenderInfo> skyboxRenderInfos;
@@ -216,10 +223,16 @@ class VulkanRenderer {
     unique_ptr<RenderInfo> cubemapCaptureRenderInfo;
     std::vector<RenderInfo> debugQuadRenderInfos;
 
+    unique_ptr<RtPipeline> rtPipeline;
+
+    // buffers and other resources
+
     unique_ptr<Buffer> skyboxVertexBuffer;
     unique_ptr<Buffer> screenSpaceQuadVertexBuffer;
 
     unique_ptr<AccelerationStructure> tlas;
+
+    using TimelineSemValueType = std::uint64_t;
 
     struct FrameResources {
         struct {
@@ -237,6 +250,7 @@ class VulkanRenderer {
         unique_ptr<vk::raii::CommandBuffer> graphicsCmdBuffer;
 
         SecondaryCommandBuffer sceneCmdBuffer;
+        SecondaryCommandBuffer rtCmdBuffer;
         SecondaryCommandBuffer prepassCmdBuffer;
         SecondaryCommandBuffer ssaoCmdBuffer;
         SecondaryCommandBuffer guiCmdBuffer;
@@ -255,10 +269,7 @@ class VulkanRenderer {
     static constexpr size_t MAX_FRAMES_IN_FLIGHT = 3;
     std::array<FrameResources, MAX_FRAMES_IN_FLIGHT> frameResources;
 
-    using FrameBeginCallback = std::function<void()>;
-    std::queue<FrameBeginCallback> queuedFrameBeginActions;
-
-    vk::SampleCountFlagBits msaaSampleCount = vk::SampleCountFlagBits::e1;
+    // gui stuff
 
     unique_ptr<vk::raii::DescriptorPool> imguiDescriptorPool;
     unique_ptr<GuiRenderer> guiRenderer;
@@ -272,11 +283,16 @@ class VulkanRenderer {
 
     // miscellaneous state variables
 
+    using FrameBeginCallback = std::function<void()>;
+    std::queue<FrameBeginCallback> queuedFrameBeginActions;
+
     uint32_t currentFrameIdx = 0;
 
     bool framebufferResized = false;
 
     glm::vec3 backgroundColor = glm::vec3(26, 26, 26) / 255.0f;
+
+    vk::SampleCountFlagBits msaaSampleCount = vk::SampleCountFlagBits::e1;
 
     float modelScale = 1.0f;
     glm::vec3 modelTranslate{};
@@ -392,6 +408,8 @@ private:
 
     void createSsaoTextures();
 
+    void createRtTargetTexture();
+
     // ==================== swap chain ====================
 
     void recreateSwapChain();
@@ -465,6 +483,8 @@ private:
 
     void createTLAS();
 
+    void createRtPipeline();
+
     // ==================== gui ====================
 
     void initImgui();
@@ -483,6 +503,8 @@ public:
     void runPrepass();
 
     void runSsaoPass();
+
+    void raytrace();
 
     void drawScene();
 

@@ -264,11 +264,11 @@ RtPipelineBuilder &RtPipelineBuilder::withPushConstants(const std::vector<vk::Pu
 RtPipeline RtPipelineBuilder::create(const RendererContext &ctx) const {
     RtPipeline result;
 
-    auto &[pipeline, layout] = buildPipeline(ctx);
+    auto [pipeline, layout] = buildPipeline(ctx);
     result.pipeline = make_unique<decltype(pipeline)>(std::move(pipeline));
     result.layout = make_unique<decltype(layout)>(std::move(layout));
 
-    result.shaderBindingTableBuffer = buildSbtBuffer(ctx, *result.pipeline);
+    result.sbt = buildSbt(ctx, *result.pipeline);
 
     return result;
 }
@@ -363,19 +363,19 @@ RtPipelineBuilder::buildPipeline(const RendererContext &ctx) const {
         pipelineCreateInfo
     };
 
-    return std::make_pair(pipeline, layout);
+    return std::make_pair(std::move(pipeline), std::move(layout));
 }
 
 static constexpr uint32_t alignUp(const uint32_t size, const uint32_t alignment) {
     return (size + alignment - 1) & ~(alignment - 1);
 }
 
-unique_ptr<Buffer>
-RtPipelineBuilder::buildSbtBuffer(const RendererContext &ctx, const vk::raii::Pipeline &pipeline) const {
-    auto properties = ctx.physicalDevice->getProperties2<
+RtPipeline::ShaderBindingTable
+RtPipelineBuilder::buildSbt(const RendererContext &ctx, const vk::raii::Pipeline &pipeline) const {
+    const auto properties = ctx.physicalDevice->getProperties2<
         vk::PhysicalDeviceProperties2,
         vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
-    auto rtProperties = properties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
+    const auto rtProperties = properties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
 
     constexpr uint32_t missCount = 1;
     constexpr uint32_t hitCount = 1;
@@ -386,7 +386,7 @@ RtPipelineBuilder::buildSbtBuffer(const RendererContext &ctx, const vk::raii::Pi
         rtProperties.shaderGroupHandleAlignment);
 
     const auto rgenStride = alignUp(handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
-    vk::StridedDeviceAddressRegionKHR rgenRegion{
+    vk::StridedDeviceAddressRegionKHR rgenRegion = {
         .stride = rgenStride,
         .size = rgenStride
     };
@@ -435,14 +435,19 @@ RtPipelineBuilder::buildSbtBuffer(const RendererContext &ctx, const vk::raii::Pi
     }
 
     uint8_t *hitData = sbtBufferMapped + rgenRegion.size + missRegion.size;
-    for (uint32_t i = 0; i < missCount; i++) {
+    for (uint32_t i = 0; i < hitCount; i++) {
         memcpy(hitData, getHandlePtr(handleIndex++), handleSize);
-        hitData += missRegion.stride;
+        hitData += hitRegion.stride;
     }
 
     sbtBuffer->unmap();
 
-    return sbtBuffer;
+    return {
+        .backingBuffer = std::move(sbtBuffer),
+        .rgenRegion = rgenRegion,
+        .missRegion = missRegion,
+        .hitRegion = hitRegion
+    };
 }
 
 template GraphicsPipelineBuilder &GraphicsPipelineBuilder::withVertices<ModelVertex>();

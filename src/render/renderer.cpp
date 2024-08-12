@@ -89,8 +89,6 @@ VulkanRenderer::VulkanRenderer() {
     createUniformBuffers();
     updateGraphicsUniformBuffer();
 
-    createRenderTargetDescriptorSets();
-
     createDebugQuadDescriptorSet();
     createDebugQuadRenderInfos();
 
@@ -120,7 +118,9 @@ VulkanRenderer::VulkanRenderer() {
     loadModelWithMaterials("../assets/example models/Sponza/Sponza.gltf");
     createTLAS();
 
+    createRtTargetTexture();
     createRtDescriptorSets();
+    createRtPipeline();
 
     loadEnvironmentMap("../assets/envmaps/vienna.hdr");
 
@@ -734,6 +734,26 @@ void VulkanRenderer::createSsaoTextures() {
     }
 }
 
+void VulkanRenderer::createRtTargetTexture() {
+    const auto &[width, height] = swapChain->getExtent();
+
+    const vk::Extent3D extent{
+        .width = width,
+        .height = height,
+        .depth = 1
+    };
+
+    rtTargetTexture = TextureBuilder()
+            .asUninitialized(extent)
+            .useFormat(vk::Format::eR32G32B32A32Sfloat)
+            .useUsage(vk::ImageUsageFlagBits::eStorage
+                      | vk::ImageUsageFlagBits::eSampled
+                      | vk::ImageUsageFlagBits::eTransferSrc
+                      | vk::ImageUsageFlagBits::eTransferDst)
+            .useLayout(vk::ImageLayout::eGeneral)
+            .create(ctx);
+}
+
 // ==================== swapchain ====================
 
 void VulkanRenderer::recreateSwapChain() {
@@ -997,6 +1017,7 @@ void VulkanRenderer::createRtDescriptorSets() {
                 vk::DescriptorType::eUniformBuffer,
                 vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eRaygenKHR) // uniforms
             .addBinding(vk::DescriptorType::eAccelerationStructureKHR, vk::ShaderStageFlagBits::eRaygenKHR) // TLAS
+            .addBinding(vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR) // offscreen image
             .addBinding(vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // vertex buffer
             .addBinding(vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // index buffer
             .create(ctx);
@@ -1016,13 +1037,15 @@ void VulkanRenderer::createRtDescriptorSets() {
                     sizeof(GraphicsUBO)
                 )
                 .queueUpdate(1, *tlas)
+                .queueUpdate(ctx, 2, *rtTargetTexture, vk::DescriptorType::eStorageImage)
                 .commitUpdates(ctx);
     }
 }
 
 // ==================== render infos ====================
 
-RenderInfo::RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline, std::vector<RenderTarget> colors)
+RenderInfo::RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline,
+                       std::vector<RenderTarget> colors)
     : cachedPipelineBuilder(std::move(builder)), pipeline(std::move(pipeline)), colorTargets(std::move(colors)) {
     makeAttachmentInfos();
 }
@@ -1446,6 +1469,7 @@ void VulkanRenderer::createCommandBuffers() {
     vk::raii::CommandBuffers graphicsCommandBuffers{*ctx.device, primaryAllocInfo};
 
     vk::raii::CommandBuffers sceneCommandBuffers{*ctx.device, secondaryAllocInfo};
+    vk::raii::CommandBuffers rtCommandBuffers{*ctx.device, secondaryAllocInfo};
     vk::raii::CommandBuffers guiCommandBuffers{*ctx.device, secondaryAllocInfo};
     vk::raii::CommandBuffers prepassCommandBuffers{*ctx.device, secondaryAllocInfo};
     vk::raii::CommandBuffers debugCommandBuffers{*ctx.device, secondaryAllocInfo};
@@ -1454,6 +1478,8 @@ void VulkanRenderer::createCommandBuffers() {
     for (size_t i = 0; i < graphicsCommandBuffers.size(); i++) {
         frameResources[i].graphicsCmdBuffer =
                 make_unique<vk::raii::CommandBuffer>(std::move(graphicsCommandBuffers[i]));
+        frameResources[i].rtCmdBuffer =
+                {make_unique<vk::raii::CommandBuffer>(std::move(rtCommandBuffers[i]))};
         frameResources[i].sceneCmdBuffer =
                 {make_unique<vk::raii::CommandBuffer>(std::move(sceneCommandBuffers[i]))};
         frameResources[i].guiCmdBuffer =
@@ -1491,6 +1517,12 @@ void VulkanRenderer::recordGraphicsCommandBuffer() {
         commandBuffer.beginRendering(ssaoRenderInfo->get(swapChain->getExtent(), 1, renderingFlags));
         commandBuffer.executeCommands(**frameResources[currentFrameIdx].ssaoCmdBuffer);
         commandBuffer.endRendering();
+    }
+
+    // rt pass
+
+    if (frameResources[currentFrameIdx].rtCmdBuffer.wasRecordedThisFrame) {
+        commandBuffer.executeCommands(**frameResources[currentFrameIdx].rtCmdBuffer);
     }
 
     // main pass
@@ -1668,6 +1700,18 @@ void VulkanRenderer::createTLAS() {
 
         commandBuffer.buildAccelerationStructuresKHR(buildInfo, &rangeInfo);
     });
+}
+
+void VulkanRenderer::createRtPipeline() {
+    const auto builder = RtPipelineBuilder()
+            .withRayGenShader("../shaders/obj/raytrace-rgen.spv")
+            .withMissShader("../shaders/obj/raytrace-rmiss.spv")
+            .withClosestHitShader("../shaders/obj/raytrace-rchit.spv")
+            .withDescriptorLayouts({
+                frameResources[0].rtDescriptorSet->getLayout(),
+            });
+
+    rtPipeline = make_unique<RtPipeline>(builder.create(ctx));
 }
 
 // ==================== gui ====================
@@ -2050,6 +2094,35 @@ void VulkanRenderer::runSsaoPass() {
     commandBuffer.end();
 
     frameResources[currentFrameIdx].ssaoCmdBuffer.wasRecordedThisFrame = true;
+}
+
+void VulkanRenderer::raytrace() {
+    const auto &commandBuffer = *frameResources[currentFrameIdx].rtCmdBuffer.buffer;
+
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, **rtPipeline);
+
+    commandBuffer.bindDescriptorSets(
+        vk::PipelineBindPoint::eRayTracingKHR,
+        *rtPipeline->getLayout(),
+        0,
+        ***frameResources[currentFrameIdx].rtDescriptorSet,
+        nullptr
+    );
+
+    const auto& sbt = rtPipeline->getSbt();
+    const auto& extent = rtTargetTexture->getImage().getExtent();
+
+    commandBuffer.traceRaysKHR(
+        sbt.rgenRegion,
+        sbt.missRegion,
+        sbt.hitRegion,
+        sbt.callRegion,
+        extent.width,
+        extent.height,
+        extent.depth
+    );
+
+    frameResources[currentFrameIdx].rtCmdBuffer.wasRecordedThisFrame = true;
 }
 
 void VulkanRenderer::drawScene() {
