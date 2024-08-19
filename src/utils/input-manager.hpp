@@ -5,6 +5,9 @@
 
 #include "src/render/libs.hpp"
 
+struct GLFWwindow;
+
+namespace zrx {
 enum class EActivationType {
     PRESS_ANY,
     PRESS_ONCE,
@@ -22,7 +25,7 @@ using EMouseDragCallback = std::function<void(double, double)>;
  * This can safely be instantiated multiple times, handling different events across different instances.
  */
 class InputManager {
-    struct GLFWwindow *window = nullptr;
+    GLFWwindow *window = nullptr;
 
     using KeyCallbackInfo = std::pair<EActivationType, EInputCallback>;
     std::unordered_map<EKey, KeyCallbackInfo> callbackMap;
@@ -72,3 +75,4 @@ private:
      */
     bool checkKey(EKey key, EActivationType type);
 };
+} // zrx

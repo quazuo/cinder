@@ -4,9 +4,9 @@
 
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
+#include "ctx.hpp"
 
-struct RendererContext;
-
+namespace zrx {
 /**
  * Abstraction over a Vulkan buffer, making it easier to manage by hiding all the Vulkan API calls.
  * These buffers are allocated using VMA and are currently suited mostly for two scenarios: first,
@@ -68,8 +68,33 @@ public:
                         vk::DeviceSize srcOffset = 0, vk::DeviceSize dstOffset = 0) const;
 };
 
-namespace vkutils::buf {
+namespace utils::buf {
     template<typename ElemType>
     unique_ptr<Buffer> createLocalBuffer(const RendererContext &ctx, const std::vector<ElemType> &contents,
-                                         vk::BufferUsageFlags usage);
-}
+                                         const vk::BufferUsageFlags usage) {
+        const vk::DeviceSize bufferSize = sizeof(contents[0]) * contents.size();
+
+        Buffer stagingBuffer{
+            **ctx.allocator,
+            bufferSize,
+            vk::BufferUsageFlagBits::eTransferSrc,
+            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+        };
+
+        void *data = stagingBuffer.map();
+        memcpy(data, contents.data(), static_cast<size_t>(bufferSize));
+        stagingBuffer.unmap();
+
+        auto resultBuffer = make_unique<Buffer>(
+            **ctx.allocator,
+            bufferSize,
+            vk::BufferUsageFlagBits::eTransferDst | usage,
+            vk::MemoryPropertyFlagBits::eDeviceLocal
+        );
+
+        resultBuffer->copyFromBuffer(ctx, stagingBuffer, bufferSize);
+
+        return resultBuffer;
+    }
+} // utils::buf
+} // zrx

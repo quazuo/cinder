@@ -8,8 +8,78 @@
 
 #include "buffer.hpp"
 #include "cmd.hpp"
-#include "src/render/renderer.hpp"
+#include "ctx.hpp"
 
+struct ImageBarrierInfo {
+    vk::AccessFlagBits srcAccessMask;
+    vk::AccessFlagBits dstAccessMask;
+    vk::PipelineStageFlagBits srcStage;
+    vk::PipelineStageFlagBits dstStage;
+};
+
+/**
+ * List of stages and access masks for image layout transitions.
+ * Currently there's no need for more fine-grained customization of these parameters during transitions,
+ * so they're defined statically and used depeneding on the transition's start and end layouts.
+ */
+static const std::map<std::pair<vk::ImageLayout, vk::ImageLayout>, ImageBarrierInfo> transitionBarrierSchemes{
+    {
+        {vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal},
+        {
+            .srcAccessMask = {},
+            .dstAccessMask = vk::AccessFlagBits::eTransferRead,
+            .srcStage = vk::PipelineStageFlagBits::eTopOfPipe,
+            .dstStage = vk::PipelineStageFlagBits::eTransfer,
+        }
+    },
+    {
+        {vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal},
+        {
+            .srcAccessMask = {},
+            .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
+            .srcStage = vk::PipelineStageFlagBits::eTopOfPipe,
+            .dstStage = vk::PipelineStageFlagBits::eTransfer,
+        }
+    },
+    {
+        {vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal},
+        {
+            .srcAccessMask = vk::AccessFlagBits::eTransferRead,
+            .dstAccessMask = vk::AccessFlagBits::eShaderRead,
+            .srcStage = vk::PipelineStageFlagBits::eTransfer,
+            .dstStage = vk::PipelineStageFlagBits::eFragmentShader,
+        }
+    },
+    {
+        {vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal},
+        {
+            .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
+            .dstAccessMask = vk::AccessFlagBits::eShaderRead,
+            .srcStage = vk::PipelineStageFlagBits::eTransfer,
+            .dstStage = vk::PipelineStageFlagBits::eFragmentShader,
+        }
+    },
+    {
+        {vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferSrcOptimal},
+        {
+            .srcAccessMask = vk::AccessFlagBits::eShaderRead,
+            .dstAccessMask = vk::AccessFlagBits::eTransferRead,
+            .srcStage = vk::PipelineStageFlagBits::eFragmentShader,
+            .dstStage = vk::PipelineStageFlagBits::eTransfer,
+        }
+    },
+    {
+        {vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferDstOptimal},
+        {
+            .srcAccessMask = vk::AccessFlagBits::eShaderRead,
+            .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
+            .srcStage = vk::PipelineStageFlagBits::eFragmentShader,
+            .dstStage = vk::PipelineStageFlagBits::eTransfer,
+        }
+    }
+};
+
+namespace zrx {
 Image::Image(const RendererContext &ctx, const vk::ImageCreateInfo &imageInfo,
              const vk::MemoryPropertyFlags properties, const vk::ImageAspectFlags aspect)
     : allocator(**ctx.allocator),
@@ -46,7 +116,7 @@ Image::Image(const RendererContext &ctx, const vk::ImageCreateInfo &imageInfo,
         throw std::runtime_error("failed to allocate buffer!");
     }
 
-    image = make_unique<vk::raii::Image>(*ctx.device, newImage);
+    image      = make_unique<vk::raii::Image>(*ctx.device, newImage);
     allocation = make_unique<VmaAllocation>(newAllocation);
 }
 
@@ -79,8 +149,8 @@ shared_ptr<vk::raii::ImageView> Image::getCachedView(const RendererContext &ctx,
     const auto &[baseMip, mipCount, baseLayer, layerCount] = params;
 
     auto view = layerCount == 1
-                    ? vkutils::img::createImageView(ctx, **image, format, aspectMask, baseMip, mipCount, baseLayer)
-                    : vkutils::img::createCubeImageView(ctx, **image, format, aspectMask, baseMip, mipCount);
+                    ? utils::img::createImageView(ctx, **image, format, aspectMask, baseMip, mipCount, baseLayer)
+                    : utils::img::createCubeImageView(ctx, **image, format, aspectMask, baseMip, mipCount);
     auto viewPtr = make_shared<vk::raii::ImageView>(std::move(view));
     cachedViews.emplace(params, viewPtr);
     return viewPtr;
@@ -175,7 +245,7 @@ void Image::saveToFile(const RendererContext &ctx, const std::filesystem::path &
         vk::ImageAspectFlagBits::eColor
     };
 
-    vkutils::cmd::doSingleTimeCommands(ctx, [&](const auto &cmdBuffer) {
+    utils::cmd::doSingleTimeCommands(ctx, [&](const auto &cmdBuffer) {
         transitionLayout(
             vk::ImageLayout::eShaderReadOnlyOptimal,
             vk::ImageLayout::eTransferSrcOptimal,
@@ -254,7 +324,7 @@ void Image::saveToFile(const RendererContext &ctx, const std::filesystem::path &
         supportsBlit = false;
     }
 
-    vkutils::cmd::doSingleTimeCommands(ctx, [&](const auto &commandBuffer) {
+    utils::cmd::doSingleTimeCommands(ctx, [&](const auto &commandBuffer) {
         if (supportsBlit) {
             commandBuffer.blitImage(
                 **image,
@@ -286,12 +356,12 @@ void Image::saveToFile(const RendererContext &ctx, const std::filesystem::path &
         static_cast<int>(tempImage.extent.height),
         STBI_rgb_alpha,
         data,
-        vkutils::img::getFormatSizeInBytes(tempImage.format) * tempImage.extent.width
+        utils::img::getFormatSizeInBytes(tempImage.format) * tempImage.extent.width
     );
 
     vmaUnmapMemory(tempImage.allocator, *tempImage.allocation);
 
-    vkutils::cmd::doSingleTimeCommands(ctx, [&](const auto &cmdBuffer) {
+    utils::cmd::doSingleTimeCommands(ctx, [&](const auto &cmdBuffer) {
         transitionLayout(
             vk::ImageLayout::eTransferSrcOptimal,
             vk::ImageLayout::eShaderReadOnlyOptimal,
@@ -360,9 +430,9 @@ void Texture::generateMipmaps(const RendererContext &ctx, const vk::ImageLayout 
         throw std::runtime_error("texture image format does not support linear blitting!");
     }
 
-    const vk::raii::CommandBuffer commandBuffer = vkutils::cmd::beginSingleTimeCommands(ctx);
+    const vk::raii::CommandBuffer commandBuffer = utils::cmd::beginSingleTimeCommands(ctx);
 
-    const bool isCubeMap = dynamic_cast<CubeImage *>(&*image) != nullptr;
+    const bool isCubeMap      = dynamic_cast<CubeImage *>(&*image) != nullptr;
     const uint32_t layerCount = isCubeMap ? 6 : 1;
 
     const vk::ImageMemoryBarrier barrier{
@@ -381,11 +451,11 @@ void Texture::generateMipmaps(const RendererContext &ctx, const vk::ImageLayout 
         }
     };
 
-    int32_t mipWidth = image->getExtent().width;
+    int32_t mipWidth  = image->getExtent().width;
     int32_t mipHeight = image->getExtent().height;
 
     for (uint32_t i = 1; i < image->getMipLevels(); i++) {
-        vk::ImageMemoryBarrier currBarrier = barrier;
+        vk::ImageMemoryBarrier currBarrier        = barrier;
         currBarrier.subresourceRange.baseMipLevel = i - 1;
 
         commandBuffer.pipelineBarrier(
@@ -435,10 +505,10 @@ void Texture::generateMipmaps(const RendererContext &ctx, const vk::ImageLayout 
         );
 
         vk::ImageMemoryBarrier transBarrier = currBarrier;
-        transBarrier.oldLayout = vk::ImageLayout::eTransferSrcOptimal;
-        transBarrier.newLayout = finalLayout;
-        transBarrier.srcAccessMask = vk::AccessFlagBits::eTransferRead;
-        transBarrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+        transBarrier.oldLayout              = vk::ImageLayout::eTransferSrcOptimal;
+        transBarrier.newLayout              = finalLayout;
+        transBarrier.srcAccessMask          = vk::AccessFlagBits::eTransferRead;
+        transBarrier.dstAccessMask          = vk::AccessFlagBits::eShaderRead;
 
         commandBuffer.pipelineBarrier(
             vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader,
@@ -452,12 +522,12 @@ void Texture::generateMipmaps(const RendererContext &ctx, const vk::ImageLayout 
         if (mipHeight > 1) mipHeight /= 2;
     }
 
-    vk::ImageMemoryBarrier transBarrier = barrier;
+    vk::ImageMemoryBarrier transBarrier        = barrier;
     transBarrier.subresourceRange.baseMipLevel = image->getMipLevels() - 1;
-    transBarrier.oldLayout = vk::ImageLayout::eTransferDstOptimal;
-    transBarrier.newLayout = finalLayout;
-    transBarrier.srcAccessMask = vk::AccessFlagBits::eTransferWrite;
-    transBarrier.dstAccessMask = vk::AccessFlagBits::eShaderRead;
+    transBarrier.oldLayout                     = vk::ImageLayout::eTransferDstOptimal;
+    transBarrier.newLayout                     = finalLayout;
+    transBarrier.srcAccessMask                 = vk::AccessFlagBits::eTransferWrite;
+    transBarrier.dstAccessMask                 = vk::AccessFlagBits::eShaderRead;
 
     commandBuffer.pipelineBarrier(
         vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader,
@@ -467,7 +537,7 @@ void Texture::generateMipmaps(const RendererContext &ctx, const vk::ImageLayout 
         transBarrier
     );
 
-    vkutils::cmd::endSingleTimeCommands(commandBuffer, *ctx.graphicsQueue);
+    utils::cmd::endSingleTimeCommands(commandBuffer, *ctx.graphicsQueue);
 }
 
 void Texture::createSampler(const RendererContext &ctx, const vk::SamplerAddressMode addressMode) {
@@ -538,7 +608,7 @@ TextureBuilder &TextureBuilder::withSamplerAddressMode(const vk::SamplerAddressM
 
 TextureBuilder &TextureBuilder::asUninitialized(const vk::Extent3D extent) {
     isUninitialized = true;
-    desiredExtent = extent;
+    desiredExtent   = extent;
     return *this;
 }
 
@@ -557,14 +627,14 @@ TextureBuilder &TextureBuilder::fromMemory(void *ptr, const vk::Extent3D extent)
         throw std::invalid_argument("cannot specify null memory source!");
     }
 
-    memorySource = ptr;
+    memorySource  = ptr;
     desiredExtent = extent;
     return *this;
 }
 
 TextureBuilder &TextureBuilder::fromSwizzleFill(vk::Extent3D extent) {
     isFromSwizzleFill = true;
-    desiredExtent = extent;
+    desiredExtent     = extent;
     return *this;
 }
 
@@ -584,7 +654,7 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
     else if (memorySource) loadedTexData = loadFromMemory();
     else if (isFromSwizzleFill) loadedTexData = loadFromSwizzleFill();
 
-    const auto extent = loadedTexData.extent;
+    const auto extent        = loadedTexData.extent;
     const auto stagingBuffer = isUninitialized ? nullptr : makeStagingBuffer(ctx, loadedTexData);
 
     uint32_t mipLevels = 1;
@@ -606,7 +676,7 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
         .initialLayout = vk::ImageLayout::eUndefined,
     };
 
-    const bool isDepth = !!(usage & vk::ImageUsageFlagBits::eDepthStencilAttachment);
+    const bool isDepth     = !!(usage & vk::ImageUsageFlagBits::eDepthStencilAttachment);
     const auto aspectFlags = isDepth ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor;
 
     if (isCubemap) {
@@ -626,7 +696,7 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
 
     texture->createSampler(ctx, addressMode);
 
-    vkutils::cmd::doSingleTimeCommands(ctx, [&](const auto &cmdBuffer) {
+    utils::cmd::doSingleTimeCommands(ctx, [&](const auto &cmdBuffer) {
         texture->image->transitionLayout(
             vk::ImageLayout::eUndefined,
             vk::ImageLayout::eTransferDstOptimal,
@@ -707,12 +777,12 @@ void TextureBuilder::checkParams() const {
             throw std::invalid_argument("separate-channeled textures must provide path sources!");
         }
 
-        if (vkutils::img::getFormatSizeInBytes(format) != 4) {
+        if (utils::img::getFormatSizeInBytes(format) != 4) {
             throw std::invalid_argument(
                 "currently only 4-byte formats are supported when using separate channel mode!");
         }
 
-        if (vkutils::img::getFormatSizeInBytes(format) % 4 != 0) {
+        if (utils::img::getFormatSizeInBytes(format) % 4 != 0) {
             throw std::invalid_argument(
                 "currently only 4-component formats are supported when using separate channel mode!"
             );
@@ -758,7 +828,7 @@ uint32_t TextureBuilder::getLayerCount() const {
 
 TextureBuilder::LoadedTextureData TextureBuilder::loadFromPaths() const {
     std::vector<void *> dataSources;
-    int texWidth = 0, texHeight = 0, texChannels;
+    int texWidth         = 0, texHeight = 0, texChannels;
     bool isFirstNonEmpty = true;
 
     for (const auto &path: paths) {
@@ -784,8 +854,8 @@ TextureBuilder::LoadedTextureData TextureBuilder::loadFromPaths() const {
         }
 
         if (isFirstNonEmpty && !desiredExtent) {
-            texWidth = currTexWidth;
-            texHeight = currTexHeight;
+            texWidth        = currTexWidth;
+            texHeight       = currTexHeight;
             isFirstNonEmpty = false;
         } else if (texWidth != currTexWidth || texHeight != currTexHeight) {
             throw std::runtime_error("size mismatch while loading a texture from paths!");
@@ -794,9 +864,9 @@ TextureBuilder::LoadedTextureData TextureBuilder::loadFromPaths() const {
         dataSources.push_back(src);
     }
 
-    const uint32_t layerCount = getLayerCount();
-    const vk::DeviceSize formatSize = vkutils::img::getFormatSizeInBytes(format);
-    const vk::DeviceSize layerSize = texWidth * texHeight * formatSize;
+    const uint32_t layerCount        = getLayerCount();
+    const vk::DeviceSize formatSize  = utils::img::getFormatSizeInBytes(format);
+    const vk::DeviceSize layerSize   = texWidth * texHeight * formatSize;
     const vk::DeviceSize textureSize = layerSize * layerCount;
 
     constexpr uint32_t componentCount = 4;
@@ -828,12 +898,12 @@ TextureBuilder::LoadedTextureData TextureBuilder::loadFromPaths() const {
 TextureBuilder::LoadedTextureData TextureBuilder::loadFromMemory() const {
     const std::vector<void *> dataSources = {memorySource};
 
-    const uint32_t texWidth = desiredExtent->width;
+    const uint32_t texWidth  = desiredExtent->width;
     const uint32_t texHeight = desiredExtent->height;
 
-    const uint32_t layerCount = getLayerCount();
-    const vk::DeviceSize formatSize = vkutils::img::getFormatSizeInBytes(format);
-    const vk::DeviceSize layerSize = texWidth * texHeight * formatSize;
+    const uint32_t layerCount       = getLayerCount();
+    const vk::DeviceSize formatSize = utils::img::getFormatSizeInBytes(format);
+    const vk::DeviceSize layerSize  = texWidth * texHeight * formatSize;
 
     constexpr uint32_t componentCount = 4;
     if (formatSize % componentCount != 0) {
@@ -858,11 +928,11 @@ TextureBuilder::LoadedTextureData TextureBuilder::loadFromMemory() const {
 }
 
 TextureBuilder::LoadedTextureData TextureBuilder::loadFromSwizzleFill() const {
-    const uint32_t texWidth = desiredExtent->width;
-    const uint32_t texHeight = desiredExtent->height;
-    const uint32_t layerCount = getLayerCount();
-    const vk::DeviceSize formatSize = vkutils::img::getFormatSizeInBytes(format);
-    const vk::DeviceSize layerSize = texWidth * texHeight * formatSize;
+    const uint32_t texWidth          = desiredExtent->width;
+    const uint32_t texHeight         = desiredExtent->height;
+    const uint32_t layerCount        = getLayerCount();
+    const vk::DeviceSize formatSize  = utils::img::getFormatSizeInBytes(format);
+    const vk::DeviceSize layerSize   = texWidth * texHeight * formatSize;
     const vk::DeviceSize textureSize = layerSize * layerCount;
 
     constexpr uint32_t componentCount = 4;
@@ -888,9 +958,9 @@ TextureBuilder::LoadedTextureData TextureBuilder::loadFromSwizzleFill() const {
 }
 
 unique_ptr<Buffer> TextureBuilder::makeStagingBuffer(const RendererContext &ctx, const LoadedTextureData &data) const {
-    const uint32_t layerCount = getLayerCount();
-    const vk::DeviceSize formatSize = vkutils::img::getFormatSizeInBytes(format);
-    const vk::DeviceSize layerSize = data.extent.width * data.extent.height * formatSize;
+    const uint32_t layerCount        = getLayerCount();
+    const vk::DeviceSize formatSize  = utils::img::getFormatSizeInBytes(format);
+    const vk::DeviceSize layerSize   = data.extent.width * data.extent.height * formatSize;
     const vk::DeviceSize textureSize = layerSize * layerCount;
 
     auto stagingBuffer = make_unique<Buffer>(
@@ -996,12 +1066,12 @@ RenderTarget::RenderTarget(const RendererContext &ctx, const Texture &texture)
 }
 
 vk::RenderingAttachmentInfo RenderTarget::getAttachmentInfo() const {
-    const auto layout = vkutils::img::isDepthFormat(format)
+    const auto layout = utils::img::isDepthFormat(format)
                             ? vk::ImageLayout::eDepthStencilAttachmentOptimal
                             : vk::ImageLayout::eColorAttachmentOptimal;
 
     vk::ClearValue clearValue = vk::ClearColorValue{0.0f, 0.0f, 0.0f, 1.0f};
-    if (vkutils::img::isDepthFormat(format)) {
+    if (utils::img::isDepthFormat(format)) {
         clearValue = vk::ClearDepthStencilValue{
             .depth = 1.0f,
             .stencil = 0,
@@ -1017,8 +1087,8 @@ vk::RenderingAttachmentInfo RenderTarget::getAttachmentInfo() const {
     };
 
     if (resolveView) {
-        info.resolveMode = vk::ResolveModeFlagBits::eAverage;
-        info.resolveImageView = **resolveView;
+        info.resolveMode        = vk::ResolveModeFlagBits::eAverage;
+        info.resolveImageView   = **resolveView;
         info.resolveImageLayout = vk::ImageLayout::eColorAttachmentOptimal;
     }
 
@@ -1026,80 +1096,82 @@ vk::RenderingAttachmentInfo RenderTarget::getAttachmentInfo() const {
 }
 
 void RenderTarget::overrideAttachmentConfig(const vk::AttachmentLoadOp loadOp, const vk::AttachmentStoreOp storeOp) {
-    this->loadOp = loadOp;
+    this->loadOp  = loadOp;
     this->storeOp = storeOp;
 }
 
 // ==================== utils ====================
 
-vk::raii::ImageView
-vkutils::img::createImageView(const RendererContext &ctx, const vk::Image image, const vk::Format format,
-                              const vk::ImageAspectFlags aspectFlags, const uint32_t baseMipLevel,
-                              const uint32_t mipLevels, const uint32_t layer) {
-    const vk::ImageViewCreateInfo createInfo{
-        .image = image,
-        .viewType = vk::ImageViewType::e2D,
-        .format = format,
-        .subresourceRange = {
-            .aspectMask = aspectFlags,
-            .baseMipLevel = baseMipLevel,
-            .levelCount = mipLevels,
-            .baseArrayLayer = layer,
-            .layerCount = 1,
-        },
-    };
+namespace utils::img {
+    vk::raii::ImageView
+    utils::img::createImageView(const RendererContext &ctx, const vk::Image image, const vk::Format format,
+                                     const vk::ImageAspectFlags aspectFlags, const uint32_t baseMipLevel,
+                                     const uint32_t mipLevels, const uint32_t layer) {
+        const vk::ImageViewCreateInfo createInfo{
+            .image = image,
+            .viewType = vk::ImageViewType::e2D,
+            .format = format,
+            .subresourceRange = {
+                .aspectMask = aspectFlags,
+                .baseMipLevel = baseMipLevel,
+                .levelCount = mipLevels,
+                .baseArrayLayer = layer,
+                .layerCount = 1,
+            },
+        };
 
-    return {*ctx.device, createInfo};
-}
+        return {*ctx.device, createInfo};
+    }
 
-vk::raii::ImageView
-vkutils::img::createCubeImageView(const RendererContext &ctx, const vk::Image image, const vk::Format format,
-                                  const vk::ImageAspectFlags aspectFlags, const uint32_t baseMipLevel,
-                                  const uint32_t mipLevels) {
-    const vk::ImageViewCreateInfo createInfo{
-        .image = image,
-        .viewType = vk::ImageViewType::eCube,
-        .format = format,
-        .subresourceRange = {
-            .aspectMask = aspectFlags,
-            .baseMipLevel = baseMipLevel,
-            .levelCount = mipLevels,
-            .baseArrayLayer = 0,
-            .layerCount = 6,
+    vk::raii::ImageView createCubeImageView(const RendererContext &ctx, const vk::Image image, const vk::Format format,
+                                            const vk::ImageAspectFlags aspectFlags, const uint32_t baseMipLevel,
+                                            const uint32_t mipLevels) {
+        const vk::ImageViewCreateInfo createInfo{
+            .image = image,
+            .viewType = vk::ImageViewType::eCube,
+            .format = format,
+            .subresourceRange = {
+                .aspectMask = aspectFlags,
+                .baseMipLevel = baseMipLevel,
+                .levelCount = mipLevels,
+                .baseArrayLayer = 0,
+                .layerCount = 6,
+            }
+        };
+
+        return {*ctx.device, createInfo};
+    }
+
+    bool isDepthFormat(const vk::Format format) {
+        switch (format) {
+            case vk::Format::eD16Unorm:
+            case vk::Format::eD32Sfloat:
+            case vk::Format::eD16UnormS8Uint:
+            case vk::Format::eD24UnormS8Uint:
+            case vk::Format::eD32SfloatS8Uint:
+                return true;
+            default:
+                return false;
         }
-    };
-
-    return {*ctx.device, createInfo};
-}
-
-bool vkutils::img::isDepthFormat(const vk::Format format) {
-    switch (format) {
-        case vk::Format::eD16Unorm:
-        case vk::Format::eD32Sfloat:
-        case vk::Format::eD16UnormS8Uint:
-        case vk::Format::eD24UnormS8Uint:
-        case vk::Format::eD32SfloatS8Uint:
-            return true;
-        default:
-            return false;
     }
-}
 
-size_t vkutils::img::getFormatSizeInBytes(const vk::Format format) {
-    switch (format) {
-        case vk::Format::eB8G8R8A8Srgb:
-        case vk::Format::eR8G8B8A8Srgb:
-        case vk::Format::eR8G8B8A8Unorm:
-            return 4;
-        case vk::Format::eR16G16B16Sfloat:
-            return 6;
-        case vk::Format::eR16G16B16A16Sfloat:
-            return 8;
-        case vk::Format::eR32G32B32Sfloat:
-            return 12;
-        case vk::Format::eR32G32B32A32Sfloat:
-            return 16;
-        default:
-            throw std::runtime_error("unexpected format in utils::img::getFormatSizeInBytes");
+    size_t getFormatSizeInBytes(const vk::Format format) {
+        switch (format) {
+            case vk::Format::eB8G8R8A8Srgb:
+            case vk::Format::eR8G8B8A8Srgb:
+            case vk::Format::eR8G8B8A8Unorm:
+                return 4;
+            case vk::Format::eR16G16B16Sfloat:
+                return 6;
+            case vk::Format::eR16G16B16A16Sfloat:
+                return 8;
+            case vk::Format::eR32G32B32Sfloat:
+                return 12;
+            case vk::Format::eR32G32B32A32Sfloat:
+                return 16;
+            default:
+                throw std::runtime_error("unexpected format in utils::img::getFormatSizeInBytes");
+        }
     }
-}
+} // utils::img
+} // zrx

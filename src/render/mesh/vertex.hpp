@@ -1,6 +1,15 @@
 #pragma once
 
+#include <concepts>
+
 #include "src/render/libs.hpp"
+
+namespace zrx {
+template<typename T>
+concept VertexLike = requires {
+    { T::getBindingDescriptions() } -> std::same_as<std::vector<vk::VertexInputBindingDescription>>;
+    { T::getAttributeDescriptions() } -> std::same_as<std::vector<vk::VertexInputAttributeDescription>>;
+};
 
 struct ModelVertex {
     glm::vec3 pos;
@@ -20,18 +29,6 @@ struct ModelVertex {
     static std::vector<vk::VertexInputBindingDescription> getBindingDescriptions();
 
     static std::vector<vk::VertexInputAttributeDescription> getAttributeDescriptions();
-};
-
-// as mentioned above, this is implemented to allow using `Vertex` as a key in an `unordered_map`.
-template<>
-struct std::hash<ModelVertex> {
-    size_t operator()(ModelVertex const &vertex) const noexcept {
-        return (hash<glm::vec3>()(vertex.pos) >> 1) ^
-               (hash<glm::vec2>()(vertex.texCoord) << 1) ^
-               (hash<glm::vec3>()(vertex.normal) << 1) ^
-               (hash<glm::vec3>()(vertex.tangent) << 1) ^
-               (hash<glm::vec3>()(vertex.bitangent) << 1);
-    }
 };
 
 struct SkyboxVertex {
@@ -105,4 +102,17 @@ static const std::vector<ScreenSpaceQuadVertex> screenSpaceQuadVertices = {
     {{-1, -1}, {0, 1}},
     {{1, 1}, {1, 0}},
     {{-1, 1}, {0, 0}},
+};
+} // zrx
+
+// as mentioned above, this is implemented to allow using `Vertex` as a key in an `unordered_map`.
+template<>
+struct std::hash<zrx::ModelVertex> {
+    size_t operator()(zrx::ModelVertex const &vertex) const noexcept {
+        return (hash<glm::vec3>()(vertex.pos) >> 1) ^
+               (hash<glm::vec2>()(vertex.texCoord) << 1) ^
+               (hash<glm::vec3>()(vertex.normal) << 1) ^
+               (hash<glm::vec3>()(vertex.tangent) << 1) ^
+               (hash<glm::vec3>()(vertex.bitangent) << 1);
+    }
 };

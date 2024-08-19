@@ -1,10 +1,12 @@
 #pragma once
 
-#include "src/render/libs.hpp"
-#include "src/render/globals.hpp"
-
 #include <filesystem>
 
+#include "src/render/libs.hpp"
+#include "src/render/globals.hpp"
+#include "src/render/mesh/vertex.hpp"
+
+namespace zrx {
 struct RendererContext;
 class Buffer;
 
@@ -87,7 +89,12 @@ public:
     GraphicsPipelineBuilder &withFragmentShader(const std::filesystem::path &path);
 
     template<typename T>
-    GraphicsPipelineBuilder &withVertices();
+        requires VertexLike<T>
+    GraphicsPipelineBuilder &withVertices() {
+        vertexBindings   = T::getBindingDescriptions();
+        vertexAttributes = T::getAttributeDescriptions();
+        return *this;
+    }
 
     GraphicsPipelineBuilder &withDescriptorLayouts(const std::vector<vk::DescriptorSetLayout> &layouts);
 
@@ -144,3 +151,4 @@ private:
     [[nodiscard]] RtPipeline::ShaderBindingTable
     buildSbt(const RendererContext &ctx, const vk::raii::Pipeline &pipeline) const;
 };
+} // zrx

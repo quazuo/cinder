@@ -15,8 +15,6 @@ layout (binding = 0) uniform UniformBufferObject {
     MiscData misc;
 } ubo;
 
-layout (binding = 1) uniform sampler2D normalSampler;
-
 void main() {
     outNormal = normalize(normal);
 

@@ -1,5 +1,6 @@
 #include "vertex.hpp"
 
+namespace zrx {
 std::vector<vk::VertexInputBindingDescription> ModelVertex::getBindingDescriptions() {
     return {
         {
@@ -121,3 +122,4 @@ std::vector<vk::VertexInputAttributeDescription> ScreenSpaceQuadVertex::getAttri
         },
     };
 }
+} // zrx

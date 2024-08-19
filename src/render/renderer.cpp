@@ -23,31 +23,49 @@
 #include "vk/descriptor.hpp"
 #include "vk/pipeline.hpp"
 #include "vk/accel-struct.hpp"
+#include "vk/ctx.hpp"
 
-VmaAllocatorWrapper::VmaAllocatorWrapper(const vk::PhysicalDevice physicalDevice, const vk::Device device,
-                                         const vk::Instance instance) {
-    static constexpr VmaVulkanFunctions funcs{
-        .vkGetInstanceProcAddr = vkGetInstanceProcAddr,
-        .vkGetDeviceProcAddr = vkGetDeviceProcAddr
+/**
+ * Information held in the fragment shader's uniform buffer.
+ * This (obviously) has to exactly match the corresponding definition in the fragment shader.
+ */
+struct GraphicsUBO {
+    struct WindowRes {
+        uint32_t windowWidth;
+        uint32_t windowHeight;
     };
 
-    const VmaAllocatorCreateInfo allocatorCreateInfo{
-        .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
-        .physicalDevice = physicalDevice,
-        .device = device,
-        .pVulkanFunctions = &funcs,
-        .instance = instance,
+    struct Matrices {
+        glm::mat4 model;
+        glm::mat4 view;
+        glm::mat4 proj;
+        glm::mat4 viewInverse;
+        glm::mat4 projInverse;
+        glm::mat4 vpInverse;
+        glm::mat4 staticView;
+        glm::mat4 cubemapCaptureViews[6];
+        glm::mat4 cubemapCaptureProj;
     };
 
-    vmaCreateAllocator(&allocatorCreateInfo, &allocator);
-}
+    struct MiscData {
+        float debugNumber;
+        float zNear;
+        float zFar;
+        uint32_t useSsao;
+        float lightIntensity;
+        glm::vec3 lightDir;
+        glm::vec3 lightColor;
+        glm::vec3 cameraPos;
+    };
 
-VmaAllocatorWrapper::~VmaAllocatorWrapper() {
-    vmaDestroyAllocator(allocator);
-}
+    alignas(16) WindowRes window{};
+    alignas(16) Matrices matrices{};
+    alignas(16) MiscData misc{};
+};
 
+namespace zrx {
 VulkanRenderer::VulkanRenderer() {
-    constexpr int INIT_WINDOW_WIDTH = 1200;
+    constexpr int INIT_WINDOW_WIDTH  = 1200;
     constexpr int INIT_WINDOW_HEIGHT = 800;
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -143,7 +161,7 @@ void VulkanRenderer::framebufferResizeCallback(GLFWwindow *window, const int wid
 void VulkanRenderer::bindMouseDragActions() {
     inputManager->bindMouseDragCallback(GLFW_MOUSE_BUTTON_RIGHT, [&](const double dx, const double dy) {
         static constexpr float speed = 0.002;
-        const float cameraDistance = glm::length(camera->getPos());
+        const float cameraDistance   = glm::length(camera->getPos());
 
         const auto viewVectors = camera->getViewVectors();
 
@@ -310,7 +328,7 @@ void VulkanRenderer::pickPhysicalDevice() {
     for (const auto &dev: devices) {
         if (isDeviceSuitable(dev)) {
             ctx.physicalDevice = make_unique<vk::raii::PhysicalDevice>(dev);
-            msaaSampleCount = getMaxUsableSampleCount();
+            msaaSampleCount    = getMaxUsableSampleCount();
             return;
         }
     }
@@ -388,7 +406,7 @@ QueueFamilyIndices VulkanRenderer::findQueueFamilies(const vk::raii::PhysicalDev
     uint32_t i = 0;
     for (const auto &queueFamily: queueFamilies) {
         const bool hasGraphicsSupport = static_cast<bool>(queueFamily.queueFlags & vk::QueueFlagBits::eGraphics);
-        const bool hasComputeSupport = static_cast<bool>(queueFamily.queueFlags & vk::QueueFlagBits::eCompute);
+        const bool hasComputeSupport  = static_cast<bool>(queueFamily.queueFlags & vk::QueueFlagBits::eCompute);
         if (hasGraphicsSupport && hasComputeSupport) {
             graphicsComputeFamily = i;
         }
@@ -427,7 +445,7 @@ bool VulkanRenderer::checkDeviceExtensionSupport(const vk::raii::PhysicalDevice 
 
 void VulkanRenderer::createLogicalDevice() {
     const auto [graphicsComputeFamily, presentFamily] = findQueueFamilies(*ctx.physicalDevice);
-    const std::set uniqueQueueFamilies = {graphicsComputeFamily.value(), presentFamily.value()};
+    const std::set uniqueQueueFamilies                = {graphicsComputeFamily.value(), presentFamily.value()};
 
     constexpr float queuePriority = 1.0f;
     std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
@@ -480,7 +498,7 @@ void VulkanRenderer::createLogicalDevice() {
     ctx.device = make_unique<vk::raii::Device>(*ctx.physicalDevice, createInfo.get<vk::DeviceCreateInfo>());
 
     ctx.graphicsQueue = make_unique<vk::raii::Queue>(ctx.device->getQueue(graphicsComputeFamily.value(), 0));
-    presentQueue = make_unique<vk::raii::Queue>(ctx.device->getQueue(presentFamily.value(), 0));
+    presentQueue      = make_unique<vk::raii::Queue>(ctx.device->getQueue(presentFamily.value(), 0));
 }
 
 void VulkanRenderer::createSkyboxTexture() {
@@ -508,23 +526,23 @@ void VulkanRenderer::loadModelWithMaterials(const std::filesystem::path &path) {
     const auto &materials = model->getMaterials();
 
     for (uint32_t i = 0; i < materials.size(); i++) {
-        const auto &material = materials[i];
+        const auto &material    = materials[i];
         constexpr auto descType = vk::DescriptorType::eCombinedImageSampler;
 
         if (material.baseColor) {
-            materialsDescriptorSet->queueUpdate(ctx, 0, *material.baseColor, descType, i);
+            materialsDescriptorSet->queueUpdate(0, *material.baseColor, descType, i);
         }
 
         if (material.normal) {
-            materialsDescriptorSet->queueUpdate(ctx, 1, *material.normal, descType, i);
+            materialsDescriptorSet->queueUpdate(1, *material.normal, descType, i);
         }
 
         if (material.orm) {
-            materialsDescriptorSet->queueUpdate(ctx, 2, *material.orm, descType, i);
+            materialsDescriptorSet->queueUpdate(2, *material.orm, descType, i);
         }
     }
 
-    materialsDescriptorSet->commitUpdates(ctx);
+    materialsDescriptorSet->commitUpdates();
 }
 
 void VulkanRenderer::loadModel(const std::filesystem::path &path) {
@@ -545,7 +563,7 @@ void VulkanRenderer::loadBaseColorTexture(const std::filesystem::path &path) {
             .makeMipmaps()
             .create(ctx);
 
-    materialsDescriptorSet->updateBinding(ctx, 0, *separateMaterial.baseColor);
+    materialsDescriptorSet->updateBinding(0, *separateMaterial.baseColor);
 }
 
 void VulkanRenderer::loadNormalMap(const std::filesystem::path &path) {
@@ -557,11 +575,7 @@ void VulkanRenderer::loadNormalMap(const std::filesystem::path &path) {
             .fromPaths({path})
             .create(ctx);
 
-    materialsDescriptorSet->updateBinding(ctx, 1, *separateMaterial.normal);
-
-    for (auto &res: frameResources) {
-        res.prepassDescriptorSet->updateBinding(ctx, 1, *separateMaterial.normal);
-    }
+    materialsDescriptorSet->updateBinding(1, *separateMaterial.normal);
 }
 
 void VulkanRenderer::loadOrmMap(const std::filesystem::path &path) {
@@ -573,7 +587,7 @@ void VulkanRenderer::loadOrmMap(const std::filesystem::path &path) {
             .fromPaths({path})
             .create(ctx);
 
-    materialsDescriptorSet->updateBinding(ctx, 2, *separateMaterial.orm);
+    materialsDescriptorSet->updateBinding(2, *separateMaterial.orm);
 }
 
 void VulkanRenderer::loadOrmMap(const std::filesystem::path &aoPath, const std::filesystem::path &roughnessPath,
@@ -594,7 +608,7 @@ void VulkanRenderer::loadOrmMap(const std::filesystem::path &aoPath, const std::
             .makeMipmaps()
             .create(ctx);
 
-    materialsDescriptorSet->updateBinding(ctx, 2, *separateMaterial.orm);
+    materialsDescriptorSet->updateBinding(2, *separateMaterial.orm);
 }
 
 void VulkanRenderer::loadRmaMap(const std::filesystem::path &path) {
@@ -607,7 +621,7 @@ void VulkanRenderer::loadRmaMap(const std::filesystem::path &path) {
             .fromPaths({path})
             .create(ctx);
 
-    materialsDescriptorSet->updateBinding(ctx, 2, *separateMaterial.orm);
+    materialsDescriptorSet->updateBinding(2, *separateMaterial.orm);
 }
 
 void VulkanRenderer::loadEnvironmentMap(const std::filesystem::path &path) {
@@ -621,7 +635,7 @@ void VulkanRenderer::loadEnvironmentMap(const std::filesystem::path &path) {
             .makeMipmaps()
             .create(ctx);
 
-    cubemapCaptureDescriptorSet->updateBinding(ctx, 1, *envmapTexture);
+    cubemapCaptureDescriptorSet->updateBinding(1, *envmapTexture);
 
     captureCubemap();
 }
@@ -664,10 +678,10 @@ void VulkanRenderer::createPrepassTextures() {
 
     for (auto &res: frameResources) {
         if (res.ssaoDescriptorSet) {
-            res.ssaoDescriptorSet->queueUpdate(ctx, 1, *gBufferTextures.depth)
-                    .queueUpdate(ctx, 2, *gBufferTextures.normal)
-                    .queueUpdate(ctx, 3, *gBufferTextures.pos)
-                    .commitUpdates(ctx);
+            res.ssaoDescriptorSet->queueUpdate(1, *gBufferTextures.depth)
+                    .queueUpdate(2, *gBufferTextures.normal)
+                    .queueUpdate(3, *gBufferTextures.pos)
+                    .commitUpdates();
         }
     }
 }
@@ -720,16 +734,16 @@ void VulkanRenderer::createSsaoTextures() {
             .create(ctx);
 
     if (debugQuadDescriptorSet) {
-        debugQuadDescriptorSet->updateBinding(ctx, 0, *ssaoTexture);
+        debugQuadDescriptorSet->updateBinding(0, *ssaoTexture);
     }
 
     for (auto &res: frameResources) {
         if (res.sceneDescriptorSet) {
-            res.sceneDescriptorSet->updateBinding(ctx, 1, *ssaoTexture);
+            res.sceneDescriptorSet->updateBinding(1, *ssaoTexture);
         }
 
         if (res.ssaoDescriptorSet) {
-            res.ssaoDescriptorSet->updateBinding(ctx, 4, *ssaoNoiseTexture);
+            res.ssaoDescriptorSet->updateBinding(4, *ssaoNoiseTexture);
         }
     }
 }
@@ -787,11 +801,6 @@ void VulkanRenderer::recreateSwapChain() {
 
     createSsaoTextures();
     createSsaoRenderInfo();
-
-    const auto renderTargets = swapChain->getRenderTargets(ctx);
-    for (uint32_t i = 0; i < renderTargets.size(); i++) {
-        renderTargetDescriptorSets[i].updateBinding(ctx, 0, *renderTargets[i].colorTarget);
-    }
 }
 
 // ==================== descriptors ====================
@@ -831,214 +840,125 @@ void VulkanRenderer::createDescriptorPool() {
 }
 
 void VulkanRenderer::createSceneDescriptorSets() {
-    auto layout = DescriptorLayoutBuilder()
-            .addBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment
-            )
-            .addBinding(vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment) // ssao
-            .create(ctx);
-
-    const auto layoutPtr = make_shared<vk::raii::DescriptorSetLayout>(std::move(layout));
-    auto sets = vkutils::desc::createDescriptorSets(ctx, *descriptorPool, layoutPtr, MAX_FRAMES_IN_FLIGHT);
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        frameResources[i].sceneDescriptorSet = make_unique<DescriptorSet>(std::move(sets[i]));
-    }
-
     for (auto &res: frameResources) {
-        res.sceneDescriptorSet->queueUpdate(
-                    0,
-                    *res.graphicsUniformBuffer,
-                    vk::DescriptorType::eUniformBuffer,
-                    sizeof(GraphicsUBO)
-                )
-                .queueUpdate(ctx, 1, *ssaoTexture)
-                .commitUpdates(ctx);
-    }
-}
-
-void VulkanRenderer::createMaterialsDescriptorSet() {
-    auto layout = DescriptorLayoutBuilder()
-            .addRepeatedBindings(
-                3,
-                vk::DescriptorType::eCombinedImageSampler,
-                vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eClosestHitKHR,
-                MATERIAL_TEX_ARRAY_SIZE
-            )
-            .create(ctx);
-
-    const auto layoutPtr = make_shared<vk::raii::DescriptorSetLayout>(std::move(layout));
-    auto sets = vkutils::desc::createDescriptorSets(ctx, *descriptorPool, layoutPtr, 1);
-
-    materialsDescriptorSet = make_unique<DescriptorSet>(std::move(sets[0]));
-}
-
-void VulkanRenderer::createSkyboxDescriptorSets() {
-    auto layout = DescriptorLayoutBuilder()
-            .addBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment
-            )
-            .addBinding(vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment)
-            .create(ctx);
-
-    const auto layoutPtr = make_shared<vk::raii::DescriptorSetLayout>(std::move(layout));
-    auto sets = vkutils::desc::createDescriptorSets(ctx, *descriptorPool, layoutPtr, MAX_FRAMES_IN_FLIGHT);
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        frameResources[i].skyboxDescriptorSet = make_unique<DescriptorSet>(std::move(sets[i]));
-    }
-
-    for (auto &res: frameResources) {
-        res.skyboxDescriptorSet->queueUpdate(
-                    0,
-                    *res.graphicsUniformBuffer,
-                    vk::DescriptorType::eUniformBuffer,
-                    sizeof(GraphicsUBO)
-                )
-                .queueUpdate(ctx, 1, *skyboxTexture)
-                .commitUpdates(ctx);
-    }
-}
-
-void VulkanRenderer::createPrepassDescriptorSets() {
-    auto layout = DescriptorLayoutBuilder()
-            .addBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment
-            )
-            .addBinding(vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment)
-            .create(ctx);
-
-    const auto layoutPtr = make_shared<vk::raii::DescriptorSetLayout>(std::move(layout));
-    auto sets = vkutils::desc::createDescriptorSets(ctx, *descriptorPool, layoutPtr, MAX_FRAMES_IN_FLIGHT);
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        frameResources[i].prepassDescriptorSet = make_unique<DescriptorSet>(std::move(sets[i]));
-    }
-
-    for (auto &res: frameResources) {
-        res.prepassDescriptorSet->updateBinding(
+        res.sceneDescriptorSet = make_unique<SceneDescriptorSet>(
             ctx,
-            0,
-            *res.graphicsUniformBuffer,
-            vk::DescriptorType::eUniformBuffer,
-            sizeof(GraphicsUBO)
+            *descriptorPool,
+            BufferResource{
+                *res.graphicsUniformBuffer,
+                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                vk::DescriptorType::eUniformBuffer
+            },
+            TextureResource{*ssaoTexture, vk::ShaderStageFlagBits::eFragment}
         );
     }
 }
 
-void VulkanRenderer::createRenderTargetDescriptorSets() {
-    const auto renderTargets = swapChain->getRenderTargets(ctx);
+void VulkanRenderer::createMaterialsDescriptorSet() {
+    constexpr auto scope           = vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eClosestHitKHR;
+    constexpr auto type            = vk::DescriptorType::eCombinedImageSampler;
+    constexpr auto descriptorCount = MATERIAL_TEX_ARRAY_SIZE;
 
-    auto layout = DescriptorLayoutBuilder()
-            .addBinding(vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR)
-            .create(ctx);
+    materialsDescriptorSet = make_unique<MaterialsDescriptorSet>(
+        ctx,
+        *descriptorPool,
+        TextureResource{descriptorCount, scope, type},
+        TextureResource{descriptorCount, scope, type},
+        TextureResource{descriptorCount, scope, type}
+    );
+}
 
-    const auto layoutPtr = make_shared<vk::raii::DescriptorSetLayout>(std::move(layout));
-    renderTargetDescriptorSets =
-            vkutils::desc::createDescriptorSets(ctx, *descriptorPool, layoutPtr, renderTargets.size());
+void VulkanRenderer::createSkyboxDescriptorSets() {
+    for (auto &res: frameResources) {
+        res.skyboxDescriptorSet = make_unique<SkyboxDescriptorSet>(
+            ctx,
+            *descriptorPool,
+            BufferResource{
+                *res.graphicsUniformBuffer,
+                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                vk::DescriptorType::eUniformBuffer
+            },
+            TextureResource{*skyboxTexture, vk::ShaderStageFlagBits::eFragment}
+        );
+    }
+}
 
-    for (uint32_t i = 0; i < renderTargets.size(); i++) {
-        renderTargetDescriptorSets[i].updateBinding(ctx, 0, *renderTargets[i].colorTarget);
+void VulkanRenderer::createPrepassDescriptorSets() {
+    for (auto &res: frameResources) {
+        res.prepassDescriptorSet = make_unique<PrepassDescriptorSet>(
+            ctx,
+            *descriptorPool,
+            BufferResource{
+                *res.graphicsUniformBuffer,
+                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                vk::DescriptorType::eUniformBuffer
+            }
+        );
     }
 }
 
 void VulkanRenderer::createSsaoDescriptorSets() {
-    auto layout = DescriptorLayoutBuilder()
-            .addBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment
-            )
-            .addRepeatedBindings(4, vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment)
-            .create(ctx);
-
-    const auto layoutPtr = make_shared<vk::raii::DescriptorSetLayout>(std::move(layout));
-    auto sets = vkutils::desc::createDescriptorSets(ctx, *descriptorPool, layoutPtr, MAX_FRAMES_IN_FLIGHT);
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        frameResources[i].ssaoDescriptorSet = make_unique<DescriptorSet>(std::move(sets[i]));
-    }
-
     for (auto &res: frameResources) {
-        res.ssaoDescriptorSet->queueUpdate(
-                    0,
-                    *res.graphicsUniformBuffer,
-                    vk::DescriptorType::eUniformBuffer,
-                    sizeof(GraphicsUBO)
-                )
-                .queueUpdate(ctx, 1, *gBufferTextures.depth)
-                .queueUpdate(ctx, 2, *gBufferTextures.normal)
-                .queueUpdate(ctx, 3, *gBufferTextures.pos)
-                .queueUpdate(ctx, 4, *ssaoNoiseTexture)
-                .commitUpdates(ctx);
+        res.ssaoDescriptorSet = make_unique<SsaoDescriptorSet>(
+            ctx,
+            *descriptorPool,
+            BufferResource{
+                *res.graphicsUniformBuffer,
+                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                vk::DescriptorType::eUniformBuffer
+            },
+            TextureResource{*gBufferTextures.depth, vk::ShaderStageFlagBits::eFragment},
+            TextureResource{*gBufferTextures.normal, vk::ShaderStageFlagBits::eFragment},
+            TextureResource{*gBufferTextures.pos, vk::ShaderStageFlagBits::eFragment},
+            TextureResource{*ssaoNoiseTexture, vk::ShaderStageFlagBits::eFragment}
+        );
     }
 }
 
 void VulkanRenderer::createCubemapCaptureDescriptorSet() {
-    auto layout = DescriptorLayoutBuilder()
-            .addBinding(vk::DescriptorType::eUniformBuffer, vk::ShaderStageFlagBits::eVertex)
-            .addBinding(vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment)
-            .create(ctx);
-
-    const auto layoutPtr = make_shared<vk::raii::DescriptorSetLayout>(std::move(layout));
-    auto sets = vkutils::desc::createDescriptorSets(ctx, *descriptorPool, layoutPtr, 1);
-
-    cubemapCaptureDescriptorSet = make_unique<DescriptorSet>(std::move(sets[0]));
-
-    cubemapCaptureDescriptorSet->updateBinding(
+    cubemapCaptureDescriptorSet = make_unique<CubemapCaptureDescriptorSet>(
         ctx,
-        0,
-        *frameResources[0].graphicsUniformBuffer,
-        vk::DescriptorType::eUniformBuffer,
-        sizeof(GraphicsUBO)
+        *descriptorPool,
+        BufferResource{
+            *frameResources[0].graphicsUniformBuffer,
+            vk::ShaderStageFlagBits::eVertex,
+            vk::DescriptorType::eUniformBuffer
+        },
+        TextureResource{*envmapTexture, vk::ShaderStageFlagBits::eFragment}
     );
 }
 
 void VulkanRenderer::createDebugQuadDescriptorSet() {
-    auto layout = DescriptorLayoutBuilder()
-            .addBinding(vk::DescriptorType::eCombinedImageSampler, vk::ShaderStageFlagBits::eFragment)
-            .create(ctx);
-
-    const auto layoutPtr = make_shared<vk::raii::DescriptorSetLayout>(std::move(layout));
-    auto sets = vkutils::desc::createDescriptorSets(ctx, *descriptorPool, layoutPtr, 1);
-
-    debugQuadDescriptorSet = make_unique<DescriptorSet>(std::move(sets[0]));
-
-    if (ssaoTexture) {
-        debugQuadDescriptorSet->updateBinding(ctx, 0, *ssaoTexture);
-    }
+    debugQuadDescriptorSet = make_unique<DebugQuadDescriptorSet>(
+        ctx,
+        *descriptorPool,
+        TextureResource{*ssaoTexture, vk::ShaderStageFlagBits::eFragment}
+    );
 }
 
 void VulkanRenderer::createRtDescriptorSets() {
-    auto layout = DescriptorLayoutBuilder()
-            .addBinding(
-                vk::DescriptorType::eUniformBuffer,
-                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eRaygenKHR) // uniforms
-            .addBinding(vk::DescriptorType::eAccelerationStructureKHR, vk::ShaderStageFlagBits::eRaygenKHR) // TLAS
-            .addBinding(vk::DescriptorType::eStorageImage, vk::ShaderStageFlagBits::eRaygenKHR) // offscreen image
-            .addBinding(vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // vertex buffer
-            .addBinding(vk::DescriptorType::eStorageBuffer, vk::ShaderStageFlagBits::eClosestHitKHR) // index buffer
-            .create(ctx);
-
-    const auto layoutPtr = make_shared<vk::raii::DescriptorSetLayout>(std::move(layout));
-    auto sets = vkutils::desc::createDescriptorSets(ctx, *descriptorPool, layoutPtr, MAX_FRAMES_IN_FLIGHT);
-
-    for (size_t i = 0; i < MAX_FRAMES_IN_FLIGHT; i++) {
-        frameResources[i].rtDescriptorSet = make_unique<DescriptorSet>(std::move(sets[i]));
-    }
-
     for (auto &res: frameResources) {
-        res.rtDescriptorSet->queueUpdate(
-                    0,
-                    *res.graphicsUniformBuffer,
-                    vk::DescriptorType::eUniformBuffer,
-                    sizeof(GraphicsUBO)
-                )
-                .queueUpdate(1, *tlas)
-                .queueUpdate(ctx, 2, *rtTargetTexture, vk::DescriptorType::eStorageImage)
-                .commitUpdates(ctx);
+        res.rtDescriptorSet = make_unique<RtDescriptorSet>(
+            ctx,
+            *descriptorPool,
+            BufferResource{
+                *res.graphicsUniformBuffer,
+                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eRaygenKHR,
+                vk::DescriptorType::eUniformBuffer
+            },
+            AccelStructureResource{
+                *tlas, vk::ShaderStageFlagBits::eRaygenKHR
+            },
+            TextureResource{
+                *rtTargetTexture, vk::ShaderStageFlagBits::eRaygenKHR, vk::DescriptorType::eStorageImage
+            },
+            BufferResource{
+                model->getVertexBuffer(), vk::ShaderStageFlagBits::eClosestHitKHR, vk::DescriptorType::eStorageBuffer
+            },
+            BufferResource{
+                model->getIndexBuffer(), vk::ShaderStageFlagBits::eClosestHitKHR, vk::DescriptorType::eStorageBuffer
+            }
+        );
     }
 }
 
@@ -1676,7 +1596,7 @@ void VulkanRenderer::createTLAS() {
 
     buildInfo.srcAccelerationStructure = nullptr;
     buildInfo.dstAccelerationStructure = ***tlas;
-    buildInfo.scratchData = ctx.device->getBufferAddress({.buffer = *scratchBuffer});
+    buildInfo.scratchData              = ctx.device->getBufferAddress({.buffer = *scratchBuffer});
 
     static constexpr vk::AccelerationStructureBuildRangeInfoKHR rangeInfo{
         .primitiveCount = instanceCount,
@@ -1692,7 +1612,7 @@ void VulkanRenderer::createTLAS() {
         .dstAccessMask = vk::AccessFlagBits2::eAccelerationStructureWriteKHR
     };
 
-    vkutils::cmd::doSingleTimeCommands(ctx, [&](const vk::raii::CommandBuffer &commandBuffer) {
+    utils::cmd::doSingleTimeCommands(ctx, [&](const vk::raii::CommandBuffer &commandBuffer) {
         commandBuffer.pipelineBarrier2({
             .memoryBarrierCount = 1u,
             .pMemoryBarriers = &memoryBarrier,
@@ -1708,7 +1628,7 @@ void VulkanRenderer::createRtPipeline() {
             .withMissShader("../shaders/obj/raytrace-rmiss.spv")
             .withClosestHitShader("../shaders/obj/raytrace-rchit.spv")
             .withDescriptorLayouts({
-                frameResources[0].rtDescriptorSet->getLayout(),
+                *frameResources[0].rtDescriptorSet->getLayout(),
             });
 
     rtPipeline = make_unique<RtPipeline>(builder.create(ctx));
@@ -1915,11 +1835,11 @@ bool VulkanRenderer::startFrame() {
         throw std::runtime_error("failed to acquire swap chain image!");
     }
 
-    frameResources[currentFrameIdx].sceneCmdBuffer.wasRecordedThisFrame = false;
+    frameResources[currentFrameIdx].sceneCmdBuffer.wasRecordedThisFrame   = false;
     frameResources[currentFrameIdx].prepassCmdBuffer.wasRecordedThisFrame = false;
-    frameResources[currentFrameIdx].ssaoCmdBuffer.wasRecordedThisFrame = false;
-    frameResources[currentFrameIdx].guiCmdBuffer.wasRecordedThisFrame = false;
-    frameResources[currentFrameIdx].debugCmdBuffer.wasRecordedThisFrame = false;
+    frameResources[currentFrameIdx].ssaoCmdBuffer.wasRecordedThisFrame    = false;
+    frameResources[currentFrameIdx].guiCmdBuffer.wasRecordedThisFrame     = false;
+    frameResources[currentFrameIdx].debugCmdBuffer.wasRecordedThisFrame   = false;
 
     return true;
 }
@@ -2032,7 +1952,7 @@ void VulkanRenderer::runPrepass() {
 
     commandBuffer.begin(beginInfo);
 
-    vkutils::cmd::setDynamicStates(commandBuffer, swapChain->getExtent());
+    utils::cmd::setDynamicStates(commandBuffer, swapChain->getExtent());
 
     auto &pipeline = prepassRenderInfo->getPipeline();
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
@@ -2074,7 +1994,7 @@ void VulkanRenderer::runSsaoPass() {
 
     commandBuffer.begin(beginInfo);
 
-    vkutils::cmd::setDynamicStates(commandBuffer, swapChain->getExtent());
+    utils::cmd::setDynamicStates(commandBuffer, swapChain->getExtent());
 
     auto &pipeline = ssaoRenderInfo->getPipeline();
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
@@ -2099,7 +2019,7 @@ void VulkanRenderer::runSsaoPass() {
 void VulkanRenderer::raytrace() {
     const auto &commandBuffer = *frameResources[currentFrameIdx].rtCmdBuffer.buffer;
 
-    commandBuffer.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, **rtPipeline);
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, ***rtPipeline);
 
     commandBuffer.bindDescriptorSets(
         vk::PipelineBindPoint::eRayTracingKHR,
@@ -2109,8 +2029,8 @@ void VulkanRenderer::raytrace() {
         nullptr
     );
 
-    const auto& sbt = rtPipeline->getSbt();
-    const auto& extent = rtTargetTexture->getImage().getExtent();
+    const auto &sbt    = rtPipeline->getSbt();
+    const auto &extent = rtTargetTexture->getImage().getExtent();
 
     commandBuffer.traceRaysKHR(
         sbt.rgenRegion,
@@ -2147,7 +2067,7 @@ void VulkanRenderer::drawScene() {
 
     commandBuffer.begin(beginInfo);
 
-    vkutils::cmd::setDynamicStates(commandBuffer, swapChain->getExtent());
+    utils::cmd::setDynamicStates(commandBuffer, swapChain->getExtent());
 
     // skybox
 
@@ -2207,7 +2127,7 @@ void VulkanRenderer::drawDebugQuad() {
 
     commandBuffer.begin(beginInfo);
 
-    vkutils::cmd::setDynamicStates(commandBuffer, swapChain->getExtent());
+    utils::cmd::setDynamicStates(commandBuffer, swapChain->getExtent());
 
     auto &pipeline = debugQuadRenderInfos[swapChain->getCurrentImageIndex()].getPipeline();
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
@@ -2231,9 +2151,9 @@ void VulkanRenderer::drawDebugQuad() {
 
 void VulkanRenderer::drawModel(const vk::raii::CommandBuffer &commandBuffer, const bool doPushConstants,
                                const GraphicsPipeline &pipeline) const {
-    uint32_t indexOffset = 0;
+    uint32_t indexOffset      = 0;
     std::int32_t vertexOffset = 0;
-    uint32_t instanceOffset = 0;
+    uint32_t instanceOffset   = 0;
 
     model->bindBuffers(commandBuffer);
 
@@ -2267,9 +2187,9 @@ void VulkanRenderer::drawModel(const vk::raii::CommandBuffer &commandBuffer, con
 void VulkanRenderer::captureCubemap() const {
     const vk::Extent2D extent = skyboxTexture->getImage().getExtent2d();
 
-    const auto commandBuffer = vkutils::cmd::beginSingleTimeCommands(ctx);
+    const auto commandBuffer = utils::cmd::beginSingleTimeCommands(ctx);
 
-    vkutils::cmd::setDynamicStates(commandBuffer, extent);
+    utils::cmd::setDynamicStates(commandBuffer, extent);
 
     commandBuffer.beginRendering(cubemapCaptureRenderInfo->get(extent, 6));
 
@@ -2296,7 +2216,7 @@ void VulkanRenderer::captureCubemap() const {
         commandBuffer
     );
 
-    vkutils::cmd::endSingleTimeCommands(commandBuffer, *ctx.graphicsQueue);
+    utils::cmd::endSingleTimeCommands(commandBuffer, *ctx.graphicsQueue);
 
     skyboxTexture->generateMipmaps(ctx, vk::ImageLayout::eShaderReadOnlyOptimal);
 }
@@ -2324,7 +2244,9 @@ void VulkanRenderer::updateGraphicsUniformBuffer() const {
             .model = model,
             .view = view,
             .proj = proj,
-            .inverseVp = glm::inverse(proj * view),
+            .viewInverse = glm::inverse(view),
+            .projInverse = glm::inverse(proj),
+            .vpInverse = glm::inverse(proj * view),
             .staticView = camera->getStaticViewMatrix(),
             .cubemapCaptureProj = cubemapFaceProjection
         },
@@ -2355,3 +2277,4 @@ void VulkanRenderer::updateGraphicsUniformBuffer() const {
 
     memcpy(frameResources[currentFrameIdx].graphicsUboMapped, &graphicsUbo, sizeof(graphicsUbo));
 }
+} // zrx

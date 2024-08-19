@@ -6,25 +6,16 @@
 #include <array>
 #include <queue>
 
-#include <vma/vk_mem_alloc.h>
-
 #include "libs.hpp"
 #include "globals.hpp"
 #include "mesh/model.hpp"
 #include "vk/cmd.hpp"
 #include "vk/image.hpp"
 #include "vk/pipeline.hpp"
+#include "vk/ctx.hpp"
+#include "vk/descriptor.hpp"
 
-class RenderTarget;
-class InputManager;
-class Model;
-class Camera;
-class Buffer;
-class GraphicsPipeline;
-class DescriptorSet;
-class SwapChain;
-class GuiRenderer;
-class AccelerationStructure;
+struct GLFWwindow;
 
 static constexpr std::array validationLayers{
     "VK_LAYER_KHRONOS_validation"
@@ -48,6 +39,17 @@ constexpr bool enableValidationLayers = false;
 constexpr bool enableValidationLayers = true;
 #endif
 
+namespace zrx {
+
+class RenderTarget;
+class InputManager;
+class Model;
+class Buffer;
+class GraphicsPipeline;
+class SwapChain;
+class GuiRenderer;
+class AccelerationStructure;
+
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsComputeFamily;
     std::optional<uint32_t> presentFamily;
@@ -57,80 +59,11 @@ struct QueueFamilyIndices {
     }
 };
 
-/**
- * Information held in the fragment shader's uniform buffer.
- * This (obviously) has to exactly match the corresponding definition in the fragment shader.
- */
-struct GraphicsUBO {
-    struct WindowRes {
-        uint32_t windowWidth;
-        uint32_t windowHeight;
-    };
-
-    struct Matrices {
-        glm::mat4 model;
-        glm::mat4 view;
-        glm::mat4 proj;
-        glm::mat4 inverseVp;
-        glm::mat4 staticView;
-        glm::mat4 cubemapCaptureViews[6];
-        glm::mat4 cubemapCaptureProj;
-    };
-
-    struct MiscData {
-        float debugNumber;
-        float zNear;
-        float zFar;
-        uint32_t useSsao;
-        float lightIntensity;
-        glm::vec3 lightDir;
-        glm::vec3 lightColor;
-        glm::vec3 cameraPos;
-    };
-
-    alignas(16) WindowRes window{};
-    alignas(16) Matrices matrices{};
-    alignas(16) MiscData misc{};
-};
-
 struct ScenePushConstants {
     uint32_t materialID;
 };
 
-/**
- * Simple RAII-preserving wrapper class for the VMA allocator.
- */
-class VmaAllocatorWrapper {
-    VmaAllocator allocator{};
-
-public:
-    VmaAllocatorWrapper(vk::PhysicalDevice physicalDevice, vk::Device device, vk::Instance instance);
-
-    ~VmaAllocatorWrapper();
-
-    VmaAllocatorWrapper(const VmaAllocatorWrapper &other) = delete;
-
-    VmaAllocatorWrapper(VmaAllocatorWrapper &&other) = delete;
-
-    VmaAllocatorWrapper &operator=(const VmaAllocatorWrapper &other) = delete;
-
-    VmaAllocatorWrapper &operator=(VmaAllocatorWrapper &&other) = delete;
-
-    [[nodiscard]] VmaAllocator operator*() const { return allocator; }
-};
-
-/**
- * Helper structure used to pass handles to essential Vulkan objects which are used while interacting with the API.
- * Introduced so that we can preserve top-down data flow and no object needs to refer to a renderer object
- * to get access to these.
- */
-struct RendererContext {
-    unique_ptr<vk::raii::PhysicalDevice> physicalDevice;
-    unique_ptr<vk::raii::Device> device;
-    unique_ptr<vk::raii::CommandPool> commandPool;
-    unique_ptr<vk::raii::Queue> graphicsQueue;
-    unique_ptr<VmaAllocatorWrapper> allocator;
-};
+class Camera;
 
 class RenderInfo {
     GraphicsPipelineBuilder cachedPipelineBuilder;
@@ -168,7 +101,28 @@ private:
 };
 
 class VulkanRenderer {
-    struct GLFWwindow *window = nullptr;
+    using CubemapCaptureDescriptorSet = DescriptorSet<BufferResource, TextureResource>;
+    using DebugQuadDescriptorSet      = DescriptorSet<TextureResource>;
+    using MaterialsDescriptorSet      = DescriptorSet<TextureResource, TextureResource, TextureResource>;
+    using SceneDescriptorSet          = DescriptorSet<BufferResource, TextureResource>;
+    using SkyboxDescriptorSet         = DescriptorSet<BufferResource, TextureResource>;
+    using PrepassDescriptorSet        = DescriptorSet<BufferResource>;
+
+    using RtDescriptorSet = DescriptorSet<
+        BufferResource,
+        AccelStructureResource,
+        TextureResource,
+        BufferResource,
+        BufferResource>;
+
+    using SsaoDescriptorSet = DescriptorSet<
+        BufferResource,
+        TextureResource,
+        TextureResource,
+        TextureResource,
+        TextureResource>;
+
+    GLFWwindow *window = nullptr;
 
     unique_ptr<Camera> camera;
 
@@ -208,10 +162,9 @@ class VulkanRenderer {
 
     unique_ptr<vk::raii::DescriptorPool> descriptorPool;
 
-    unique_ptr<DescriptorSet> materialsDescriptorSet;
-    unique_ptr<DescriptorSet> cubemapCaptureDescriptorSet;
-    unique_ptr<DescriptorSet> debugQuadDescriptorSet;
-    std::vector<DescriptorSet> renderTargetDescriptorSets;
+    unique_ptr<MaterialsDescriptorSet> materialsDescriptorSet;
+    unique_ptr<CubemapCaptureDescriptorSet> cubemapCaptureDescriptorSet;
+    unique_ptr<DebugQuadDescriptorSet> debugQuadDescriptorSet;
 
     // render pass infos & misc pipelines
 
@@ -259,11 +212,11 @@ class VulkanRenderer {
         unique_ptr<Buffer> graphicsUniformBuffer;
         void *graphicsUboMapped{};
 
-        unique_ptr<DescriptorSet> sceneDescriptorSet;
-        unique_ptr<DescriptorSet> skyboxDescriptorSet;
-        unique_ptr<DescriptorSet> prepassDescriptorSet;
-        unique_ptr<DescriptorSet> ssaoDescriptorSet;
-        unique_ptr<DescriptorSet> rtDescriptorSet;
+        unique_ptr<SceneDescriptorSet> sceneDescriptorSet;
+        unique_ptr<SkyboxDescriptorSet> skyboxDescriptorSet;
+        unique_ptr<PrepassDescriptorSet> prepassDescriptorSet;
+        unique_ptr<SsaoDescriptorSet> ssaoDescriptorSet;
+        unique_ptr<RtDescriptorSet> rtDescriptorSet;
     };
 
     static constexpr size_t MAX_FRAMES_IN_FLIGHT = 3;
@@ -277,7 +230,7 @@ class VulkanRenderer {
     // miscellaneous constants
 
     static constexpr auto prepassColorFormat = vk::Format::eR16G16B16A16Sfloat;
-    static constexpr auto hdrEnvmapFormat = vk::Format::eR32G32B32A32Sfloat;
+    static constexpr auto hdrEnvmapFormat    = vk::Format::eR32G32B32A32Sfloat;
 
     static constexpr uint32_t MATERIAL_TEX_ARRAY_SIZE = 32;
 
@@ -299,15 +252,15 @@ class VulkanRenderer {
     glm::quat modelRotation{1, 0, 0, 0};
 
     glm::quat lightDirection = glm::normalize(glm::vec3(1, 1.5, -2));
-    glm::vec3 lightColor = glm::normalize(glm::vec3(23.47, 21.31, 20.79));
-    float lightIntensity = 20.0f;
+    glm::vec3 lightColor     = glm::normalize(glm::vec3(23.47, 21.31, 20.79));
+    float lightIntensity     = 20.0f;
 
     float debugNumber = 0;
 
     bool cullBackFaces = false;
     bool wireframeMode = false;
-    bool useSsao = false;
-    bool useMsaa = false;
+    bool useSsao       = false;
+    bool useMsaa       = false;
 
 public:
     explicit VulkanRenderer();
@@ -426,8 +379,6 @@ private:
 
     void createPrepassDescriptorSets();
 
-    void createRenderTargetDescriptorSets();
-
     void createSsaoDescriptorSets();
 
     void createCubemapCaptureDescriptorSet();
@@ -518,3 +469,4 @@ private:
 
     void updateGraphicsUniformBuffer() const;
 };
+} // zrx

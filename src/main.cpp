@@ -12,6 +12,8 @@
 #include "utils/input-manager.hpp"
 #include "utils/file-type.hpp"
 
+namespace zrx {
+
 class Engine {
     GLFWwindow *window = nullptr;
     VulkanRenderer renderer;
@@ -266,6 +268,8 @@ private:
     }
 };
 
+}
+
 static void showErrorBox(const std::string &message) {
     MessageBox(
         nullptr,
@@ -316,7 +320,7 @@ int main() {
         return EXIT_FAILURE;
     }
 #else
-    Engine engine;
+    zrx::Engine engine;
     engine.run();
 #endif
 

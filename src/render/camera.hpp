@@ -1,9 +1,12 @@
 #pragma once
 
 #include "libs.hpp"
-#include "src/utils/input-manager.hpp"
 #include "globals.hpp"
+#include "src/utils/input-manager.hpp"
 
+struct GLFWwindow;
+
+namespace zrx {
 class Rotator {
     glm::vec2 rot = {0, 0};
 
@@ -24,7 +27,7 @@ public:
 };
 
 class Camera {
-    struct GLFWwindow *window = nullptr;
+    GLFWwindow *window = nullptr;
 
     float aspectRatio = 4.0f / 3.0f;
     float fieldOfView = 80.0f;
@@ -94,3 +97,4 @@ private:
 
     void centerCursor() const;
 };
+} // zrx

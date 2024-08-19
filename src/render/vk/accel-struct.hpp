@@ -3,6 +3,7 @@
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
 
+namespace zrx {
 class Buffer;
 
 class AccelerationStructure {
@@ -16,3 +17,4 @@ public:
 
     [[nodiscard]] const Buffer& getBuffer() const { return *buffer; }
 };
+} // zrx

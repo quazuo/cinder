@@ -3,6 +3,7 @@
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
 
+namespace zrx {
 struct RendererContext;
 
 struct SecondaryCommandBuffer {
@@ -12,7 +13,7 @@ struct SecondaryCommandBuffer {
     vk::raii::CommandBuffer& operator*() const { return *buffer; }
 };
 
-namespace vkutils::cmd {
+namespace utils::cmd {
     /**
     * Allocates and begins a new command buffer which is supposed to be recorded once
     * and destroyed after submission.
@@ -47,3 +48,4 @@ namespace vkutils::cmd {
      */
     void setDynamicStates(const vk::raii::CommandBuffer &commandBuffer, vk::Extent2D drawExtent);
 }
+} // zrx

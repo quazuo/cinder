@@ -3,6 +3,7 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+namespace zrx {
 void InputManager::bindCallback(const EKey k, const EActivationType type, const EInputCallback& f) {
     callbackMap.emplace(k, std::make_pair(type, f));
     keyStateMap.emplace(k, KeyState::RELEASED);
@@ -71,3 +72,4 @@ bool InputManager::checkKey(const EKey key, const EActivationType type) {
 
     return false;
 }
+} // zrx

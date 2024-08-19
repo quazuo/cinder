@@ -13,6 +13,7 @@
 #include <imgui-filebrowser/imfilebrowser.h>
 #include <imGuIZMO.quat/imGuIZMOquat.h>
 
+namespace zrx {
 class GuiRenderer {
     GLFWwindow *window;
 
@@ -29,3 +30,4 @@ public:
 
     void endRendering(const vk::raii::CommandBuffer& commandBuffer);
 };
+} // zrx

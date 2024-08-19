@@ -10,6 +10,7 @@
 #include "src/render/vk/image.hpp"
 #include "src/render/vk/buffer.hpp"
 
+namespace zrx {
 static glm::vec3 assimpVecToGlm(const aiVector3D &v) {
     return {v.x, v.y, v.z};
 }
@@ -295,19 +296,19 @@ void Model::createBuffers(const RendererContext &ctx) {
                                      | vk::BufferUsageFlagBits::eShaderDeviceAddress
                                      | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR;
 
-    vertexBuffer = vkutils::buf::createLocalBuffer(
+    vertexBuffer = utils::buf::createLocalBuffer(
         ctx,
         getVertices(),
         vk::BufferUsageFlagBits::eVertexBuffer | rayTracingFlags
     );
 
-    instanceDataBuffer = vkutils::buf::createLocalBuffer(
+    instanceDataBuffer = utils::buf::createLocalBuffer(
         ctx,
         getInstanceTransforms(),
         vk::BufferUsageFlagBits::eVertexBuffer | rayTracingFlags
     );
 
-    indexBuffer = vkutils::buf::createLocalBuffer(
+    indexBuffer = utils::buf::createLocalBuffer(
         ctx,
         getIndices(),
         vk::BufferUsageFlagBits::eIndexBuffer | rayTracingFlags
@@ -397,7 +398,7 @@ void Model::createBLAS(const RendererContext &ctx) {
 
     // todo - compact
 
-    vkutils::cmd::doSingleTimeCommands(ctx, [&](const vk::raii::CommandBuffer &commandBuffer) {
+    utils::cmd::doSingleTimeCommands(ctx, [&](const vk::raii::CommandBuffer &commandBuffer) {
         commandBuffer.buildAccelerationStructuresKHR(geometryInfo, &rangeInfo);
     });
 }
@@ -429,4 +430,5 @@ float Model::getMaxVertexDistance() const {
     }
 
     return largestDistance;
+}
 }

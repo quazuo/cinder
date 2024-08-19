@@ -1,12 +1,12 @@
 #include "camera.hpp"
 
-#define GLFW_INCLUDE_VULKAN
-#include <iostream>
-#include <GLFW/glfw3.h>
-
 #include "gui/gui.hpp"
 #include "src/utils/glfw-statics.hpp"
 
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
+
+namespace zrx {
 Rotator &Rotator::operator=(const glm::vec2 other) {
     rot = other;
     return *this;
@@ -114,25 +114,25 @@ void Camera::renderGuiSection() {
                 IM_COL32(0, 0, 0, 255)
             );
 
-            const ImVec2 offset = ImGui::GetWindowPos() + ImVec2(25, 25);
-            constexpr float scale = 20;
-            const glm::mat4 view = getStaticViewMatrix();
+            const ImVec2 offset        = ImGui::GetWindowPos() + ImVec2(25, 25);
+            constexpr float scale      = 20;
+            const glm::mat4 view       = getStaticViewMatrix();
             constexpr auto projectionX = glm::vec3(1, 0, 0);
             constexpr auto projectionY = glm::vec3(0, 1, 0);
 
             const glm::vec3 x = view * glm::vec4(1, 0, 0, 0);
-            const float tx1 = scale * glm::dot(projectionX, x);
-            const float tx2 = scale * glm::dot(projectionY, x);
+            const float tx1   = scale * glm::dot(projectionX, x);
+            const float tx2   = scale * glm::dot(projectionY, x);
             drawList->AddLine(offset, offset + ImVec2(tx1, -tx2), IM_COL32(255, 0, 0, 255));
 
             const glm::vec3 y = view * glm::vec4(0, 1, 0, 0);
-            const float ty1 = scale * glm::dot(projectionX, y);
-            const float ty2 = scale * glm::dot(projectionY, y);
+            const float ty1   = scale * glm::dot(projectionX, y);
+            const float ty2   = scale * glm::dot(projectionY, y);
             drawList->AddLine(offset, offset + ImVec2(ty1, -ty2), IM_COL32(0, 255, 0, 255));
 
             const glm::vec3 z = view * glm::vec4(0, 0, 1, 0);
-            const float tz1 = scale * glm::dot(projectionX, z);
-            const float tz2 = scale * glm::dot(projectionY, z);
+            const float tz1   = scale * glm::dot(projectionX, z);
+            const float tz2   = scale * glm::dot(projectionY, z);
             drawList->AddLine(offset, offset + ImVec2(tz1, -tz2), IM_COL32(0, 0, 255, 255));
         }
         ImGui::EndChild();
@@ -308,7 +308,7 @@ void Camera::updateVecs() {
 
     front = viewVectors.front;
     right = viewVectors.right;
-    up = viewVectors.up;
+    up    = viewVectors.up;
 }
 
 void Camera::updateAspectRatio() {
@@ -332,3 +332,4 @@ void Camera::centerCursor() const {
         windowSize.y / 2
     );
 }
+} // zrx

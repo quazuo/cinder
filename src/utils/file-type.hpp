@@ -1,5 +1,6 @@
 #pragma once
 
+namespace zrx {
 enum class FileType {
     MODEL,
     BASE_COLOR_PNG,
@@ -108,3 +109,4 @@ static const std::vector<FileLoadScheme> fileLoadSchemes{
         }
     },
 };
+} // zrx

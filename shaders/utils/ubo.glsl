@@ -7,7 +7,9 @@ struct Matrices {
     mat4 model;
     mat4 view;
     mat4 proj;
-    mat4 inverse_vp;
+    mat4 view_inverse;
+    mat4 proj_inverse;
+    mat4 vp_inverse;
     mat4 static_view;
     mat4 cubemap_capture_views[6];
     mat4 cubemap_capture_proj;

@@ -1,8 +1,9 @@
 #include "buffer.hpp"
 
+#include "src/render/mesh/vertex.hpp"
 #include "cmd.hpp"
-#include "src/render/renderer.hpp"
 
+namespace zrx {
 Buffer::Buffer(const VmaAllocator _allocator, const vk::DeviceSize size, const vk::BufferUsageFlags usage,
                const vk::MemoryPropertyFlags properties)
     : allocator(_allocator) {
@@ -65,7 +66,7 @@ void Buffer::unmap() {
 void Buffer::copyFromBuffer(const RendererContext &ctx, const Buffer &otherBuffer,
                             const vk::DeviceSize size, const vk::DeviceSize srcOffset,
                             const vk::DeviceSize dstOffset) const {
-    const vk::raii::CommandBuffer commandBuffer = vkutils::cmd::beginSingleTimeCommands(ctx);
+    const vk::raii::CommandBuffer commandBuffer = utils::cmd::beginSingleTimeCommands(ctx);
 
     const vk::BufferCopy copyRegion{
         .srcOffset = srcOffset,
@@ -75,45 +76,6 @@ void Buffer::copyFromBuffer(const RendererContext &ctx, const Buffer &otherBuffe
 
     commandBuffer.copyBuffer(*otherBuffer, buffer, copyRegion);
 
-    vkutils::cmd::endSingleTimeCommands(commandBuffer, *ctx.graphicsQueue);
+    utils::cmd::endSingleTimeCommands(commandBuffer, *ctx.graphicsQueue);
 }
-
-namespace vkutils::buf {
-    template<typename ElemType>
-    unique_ptr<Buffer> createLocalBuffer(const RendererContext &ctx, const std::vector<ElemType> &contents,
-                                         const vk::BufferUsageFlags usage) {
-        const vk::DeviceSize bufferSize = sizeof(contents[0]) * contents.size();
-
-        Buffer stagingBuffer{
-            **ctx.allocator,
-            bufferSize,
-            vk::BufferUsageFlagBits::eTransferSrc,
-            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-        };
-
-        void *data = stagingBuffer.map();
-        memcpy(data, contents.data(), static_cast<size_t>(bufferSize));
-        stagingBuffer.unmap();
-
-        auto resultBuffer = make_unique<Buffer>(
-            **ctx.allocator,
-            bufferSize,
-            vk::BufferUsageFlagBits::eTransferDst | usage,
-            vk::MemoryPropertyFlagBits::eDeviceLocal
-        );
-
-        resultBuffer->copyFromBuffer(ctx, stagingBuffer, bufferSize);
-
-        return resultBuffer;
-    }
-
-#define CREATE_LOCAL_BUFFER_DECL(ELEM_TYPE) \
-    template unique_ptr<Buffer> \
-    createLocalBuffer<ELEM_TYPE>(const RendererContext &, const std::vector<ELEM_TYPE> &, vk::BufferUsageFlags);
-
-    CREATE_LOCAL_BUFFER_DECL(ModelVertex)
-    CREATE_LOCAL_BUFFER_DECL(SkyboxVertex)
-    CREATE_LOCAL_BUFFER_DECL(ScreenSpaceQuadVertex)
-    CREATE_LOCAL_BUFFER_DECL(uint32_t)
-    CREATE_LOCAL_BUFFER_DECL(glm::mat4)
-}
+} // zrx

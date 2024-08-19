@@ -3,6 +3,9 @@
 #include "image.hpp"
 #include "src/render/libs.hpp"
 
+struct GLFWwindow;
+
+namespace zrx {
 /**
  * Helper structure holding details about supported features of the swap chain.
  */
@@ -16,7 +19,6 @@ struct SwapChainSupportDetails {
 
 struct RendererContext;
 struct QueueFamilyIndices;
-struct GLFWwindow;
 
 struct SwapChainRenderTargets {
     RenderTarget colorTarget;
@@ -109,3 +111,4 @@ private:
 
     static vk::PresentModeKHR choosePresentMode(const std::vector<vk::PresentModeKHR> &availablePresentModes);
 };
+} // zrx

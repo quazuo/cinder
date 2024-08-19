@@ -1,8 +1,12 @@
 #pragma once
 
+struct GLFWwindow;
+
+namespace zrx {
 struct GlfwStaticUserData {
     class VulkanRenderer* renderer;
     class Camera* camera;
 };
 
-void initGlfwUserPointer(struct GLFWwindow* window);
+void initGlfwUserPointer(GLFWwindow* window);
+} // zrx

@@ -7,10 +7,7 @@
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
 
-class Buffer;
-
-struct RendererContext;
-
+namespace zrx {
 /**
  * Parameters defining which mip levels and layers of a given image are available for a given view.
  * This struct is used mainly for caching views to eliminate creating multiple identical views.
@@ -29,17 +26,22 @@ struct ViewParams {
                && layerCount == other.layerCount;
     }
 };
+} // zrx
 
 // `unordered_map` requirement
 template<>
-struct std::hash<ViewParams> {
-    size_t operator()(ViewParams const &params) const noexcept {
+struct std::hash<zrx::ViewParams> {
+    size_t operator()(zrx::ViewParams const &params) const noexcept {
         return (hash<uint32_t>()(params.mipLevels) >> 1) ^
                (hash<uint32_t>()(params.baseMipLevel) << 1) ^
                (hash<uint32_t>()(params.baseLayer) << 1) ^
                (hash<uint32_t>()(params.layerCount) << 1);
     }
 };
+
+namespace zrx {
+class Buffer;
+struct RendererContext;
 
 /**
  * Abstraction over a Vulkan image, making it easier to manage by hiding all the Vulkan API calls.
@@ -319,7 +321,7 @@ public:
                                   vk::AttachmentStoreOp storeOp = vk::AttachmentStoreOp::eStore);
 };
 
-namespace vkutils::img {
+namespace utils::img {
     [[nodiscard]] vk::raii::ImageView
     createImageView(const RendererContext &ctx, vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags,
                     uint32_t baseMipLevel = 0, uint32_t mipLevels = 1, uint32_t layer = 0);
@@ -332,72 +334,4 @@ namespace vkutils::img {
 
     [[nodiscard]] size_t getFormatSizeInBytes(vk::Format format);
 }
-
-struct ImageBarrierInfo {
-    vk::AccessFlagBits srcAccessMask;
-    vk::AccessFlagBits dstAccessMask;
-    vk::PipelineStageFlagBits srcStage;
-    vk::PipelineStageFlagBits dstStage;
-};
-
-/**
- * List of stages and access masks for image layout transitions.
- * Currently there's no need for more fine-grained customization of these parameters during transitions,
- * so they're defined statically and used depeneding on the transition's start and end layouts.
- */
-static const std::map<std::pair<vk::ImageLayout, vk::ImageLayout>, ImageBarrierInfo> transitionBarrierSchemes{
-    {
-        {vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal},
-        {
-            .srcAccessMask = {},
-            .dstAccessMask = vk::AccessFlagBits::eTransferRead,
-            .srcStage = vk::PipelineStageFlagBits::eTopOfPipe,
-            .dstStage = vk::PipelineStageFlagBits::eTransfer,
-        }
-    },
-    {
-        {vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferDstOptimal},
-        {
-            .srcAccessMask = {},
-            .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
-            .srcStage = vk::PipelineStageFlagBits::eTopOfPipe,
-            .dstStage = vk::PipelineStageFlagBits::eTransfer,
-        }
-    },
-    {
-        {vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal},
-        {
-            .srcAccessMask = vk::AccessFlagBits::eTransferRead,
-            .dstAccessMask = vk::AccessFlagBits::eShaderRead,
-            .srcStage = vk::PipelineStageFlagBits::eTransfer,
-            .dstStage = vk::PipelineStageFlagBits::eFragmentShader,
-        }
-    },
-    {
-        {vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eShaderReadOnlyOptimal},
-        {
-            .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
-            .dstAccessMask = vk::AccessFlagBits::eShaderRead,
-            .srcStage = vk::PipelineStageFlagBits::eTransfer,
-            .dstStage = vk::PipelineStageFlagBits::eFragmentShader,
-        }
-    },
-    {
-        {vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferSrcOptimal},
-        {
-            .srcAccessMask = vk::AccessFlagBits::eShaderRead,
-            .dstAccessMask = vk::AccessFlagBits::eTransferRead,
-            .srcStage = vk::PipelineStageFlagBits::eFragmentShader,
-            .dstStage = vk::PipelineStageFlagBits::eTransfer,
-        }
-    },
-    {
-        {vk::ImageLayout::eShaderReadOnlyOptimal, vk::ImageLayout::eTransferDstOptimal},
-        {
-            .srcAccessMask = vk::AccessFlagBits::eShaderRead,
-            .dstAccessMask = vk::AccessFlagBits::eTransferWrite,
-            .srcStage = vk::PipelineStageFlagBits::eFragmentShader,
-            .dstStage = vk::PipelineStageFlagBits::eTransfer,
-        }
-    }
-};
+} // zrx

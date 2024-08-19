@@ -1,5 +1,6 @@
 #include "gui.hpp"
 
+namespace zrx {
 GuiRenderer::GuiRenderer(GLFWwindow *w, ImGui_ImplVulkan_InitInfo &imguiInitInfo) : window(w) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -45,4 +46,5 @@ void GuiRenderer::endRendering(const vk::raii::CommandBuffer &commandBuffer) {
     ImGui::End();
     ImGui::Render();
     ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), *commandBuffer);
+}
 }

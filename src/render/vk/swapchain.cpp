@@ -4,7 +4,9 @@
 #include <GLFW/glfw3.h>
 
 #include "src/render/renderer.hpp"
+#include "ctx.hpp"
 
+namespace zrx {
 SwapChainSupportDetails::SwapChainSupportDetails(const vk::raii::PhysicalDevice &physicalDevice,
                                                  const vk::raii::SurfaceKHR &surface)
     : capabilities(physicalDevice.getSurfaceCapabilitiesKHR(*surface)),
@@ -240,7 +242,7 @@ std::vector<SwapChainRenderTargets> SwapChain::getRenderTargets(const RendererCo
 
     if (cachedViews.empty()) {
         for (const auto &image: images) {
-            auto view = make_shared<vk::raii::ImageView>(vkutils::img::createImageView(
+            auto view = make_shared<vk::raii::ImageView>(utils::img::createImageView(
                 ctx,
                 image,
                 imageFormat,
@@ -300,3 +302,4 @@ vk::Format SwapChain::findSupportedFormat(const RendererContext &ctx, const std:
 
     throw std::runtime_error("failed to find supported format!");
 }
+} // zrx

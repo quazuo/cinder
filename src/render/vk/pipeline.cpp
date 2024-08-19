@@ -2,10 +2,11 @@
 
 #include <fstream>
 
-#include "src/render/renderer.hpp"
 #include "src/render/mesh/vertex.hpp"
+#include "ctx.hpp"
 #include "buffer.hpp"
 
+namespace zrx {
 static vk::raii::ShaderModule createShaderModule(const RendererContext &ctx, const std::filesystem::path &path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
 
@@ -33,13 +34,6 @@ GraphicsPipelineBuilder &GraphicsPipelineBuilder::withVertexShader(const std::fi
 
 GraphicsPipelineBuilder &GraphicsPipelineBuilder::withFragmentShader(const std::filesystem::path &path) {
     fragmentShaderPath = path;
-    return *this;
-}
-
-template<typename T>
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::withVertices() {
-    vertexBindings = T::getBindingDescriptions();
-    vertexAttributes = T::getAttributeDescriptions();
     return *this;
 }
 
@@ -449,9 +443,4 @@ RtPipelineBuilder::buildSbt(const RendererContext &ctx, const vk::raii::Pipeline
         .hitRegion = hitRegion
     };
 }
-
-template GraphicsPipelineBuilder &GraphicsPipelineBuilder::withVertices<ModelVertex>();
-
-template GraphicsPipelineBuilder &GraphicsPipelineBuilder::withVertices<SkyboxVertex>();
-
-template GraphicsPipelineBuilder &GraphicsPipelineBuilder::withVertices<ScreenSpaceQuadVertex>();
+} // zrx

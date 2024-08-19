@@ -8,12 +8,13 @@
 #include "src/render/globals.hpp"
 #include "src/render/vk/accel-struct.hpp"
 
-struct RendererContext;
 struct aiMaterial;
 struct aiScene;
 struct aiMesh;
 struct aiNode;
-class DescriptorSet;
+
+namespace zrx {
+struct RendererContext;
 class Texture;
 class Buffer;
 
@@ -56,15 +57,19 @@ public:
 
     [[nodiscard]] const std::vector<Material> &getMaterials() const { return materials; }
 
+    [[nodiscard]] const Buffer &getVertexBuffer() const { return *vertexBuffer; }
+
+    [[nodiscard]] const Buffer &getIndexBuffer() const { return *indexBuffer; }
+
     [[nodiscard]] std::vector<ModelVertex> getVertices() const;
 
     [[nodiscard]] std::vector<uint32_t> getIndices() const;
 
     [[nodiscard]] std::vector<glm::mat4> getInstanceTransforms() const;
 
-    [[nodiscard]] const vk::raii::AccelerationStructureKHR& getBLAS() const { return **blas; }
+    [[nodiscard]] const vk::raii::AccelerationStructureKHR &getBLAS() const { return **blas; }
 
-    void bindBuffers(const vk::raii::CommandBuffer& commandBuffer) const;
+    void bindBuffers(const vk::raii::CommandBuffer &commandBuffer) const;
 
 private:
     void normalizeScale();
@@ -75,3 +80,4 @@ private:
 
     [[nodiscard]] float getMaxVertexDistance() const;
 };
+} // zrx
