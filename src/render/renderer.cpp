@@ -107,9 +107,6 @@ VulkanRenderer::VulkanRenderer() {
     createUniformBuffers();
     updateGraphicsUniformBuffer();
 
-    createDebugQuadDescriptorSet();
-    createDebugQuadRenderInfos();
-
     createPrepassTextures();
     createPrepassDescriptorSets();
     createPrepassRenderInfo();
@@ -141,6 +138,9 @@ VulkanRenderer::VulkanRenderer() {
     createRtPipeline();
 
     loadEnvironmentMap("../assets/envmaps/vienna.hdr");
+
+    createDebugQuadDescriptorSet();
+    createDebugQuadRenderInfos();
 
     createSyncObjects();
 
@@ -530,15 +530,15 @@ void VulkanRenderer::loadModelWithMaterials(const std::filesystem::path &path) {
         constexpr auto descType = vk::DescriptorType::eCombinedImageSampler;
 
         if (material.baseColor) {
-            materialsDescriptorSet->queueUpdate(0, *material.baseColor, descType, i);
+            materialsDescriptorSet->queueUpdate<0>(*material.baseColor, descType, i);
         }
 
         if (material.normal) {
-            materialsDescriptorSet->queueUpdate(1, *material.normal, descType, i);
+            materialsDescriptorSet->queueUpdate<1>(*material.normal, descType, i);
         }
 
         if (material.orm) {
-            materialsDescriptorSet->queueUpdate(2, *material.orm, descType, i);
+            materialsDescriptorSet->queueUpdate<2>(*material.orm, descType, i);
         }
     }
 
@@ -563,7 +563,7 @@ void VulkanRenderer::loadBaseColorTexture(const std::filesystem::path &path) {
             .makeMipmaps()
             .create(ctx);
 
-    materialsDescriptorSet->updateBinding(0, *separateMaterial.baseColor);
+    materialsDescriptorSet->updateBinding<0>(*separateMaterial.baseColor);
 }
 
 void VulkanRenderer::loadNormalMap(const std::filesystem::path &path) {
@@ -575,7 +575,7 @@ void VulkanRenderer::loadNormalMap(const std::filesystem::path &path) {
             .fromPaths({path})
             .create(ctx);
 
-    materialsDescriptorSet->updateBinding(1, *separateMaterial.normal);
+    materialsDescriptorSet->updateBinding<1>(*separateMaterial.normal);
 }
 
 void VulkanRenderer::loadOrmMap(const std::filesystem::path &path) {
@@ -587,7 +587,7 @@ void VulkanRenderer::loadOrmMap(const std::filesystem::path &path) {
             .fromPaths({path})
             .create(ctx);
 
-    materialsDescriptorSet->updateBinding(2, *separateMaterial.orm);
+    materialsDescriptorSet->updateBinding<2>(*separateMaterial.orm);
 }
 
 void VulkanRenderer::loadOrmMap(const std::filesystem::path &aoPath, const std::filesystem::path &roughnessPath,
@@ -608,7 +608,7 @@ void VulkanRenderer::loadOrmMap(const std::filesystem::path &aoPath, const std::
             .makeMipmaps()
             .create(ctx);
 
-    materialsDescriptorSet->updateBinding(2, *separateMaterial.orm);
+    materialsDescriptorSet->updateBinding<2>(*separateMaterial.orm);
 }
 
 void VulkanRenderer::loadRmaMap(const std::filesystem::path &path) {
@@ -621,7 +621,7 @@ void VulkanRenderer::loadRmaMap(const std::filesystem::path &path) {
             .fromPaths({path})
             .create(ctx);
 
-    materialsDescriptorSet->updateBinding(2, *separateMaterial.orm);
+    materialsDescriptorSet->updateBinding<2>(*separateMaterial.orm);
 }
 
 void VulkanRenderer::loadEnvironmentMap(const std::filesystem::path &path) {
@@ -635,7 +635,7 @@ void VulkanRenderer::loadEnvironmentMap(const std::filesystem::path &path) {
             .makeMipmaps()
             .create(ctx);
 
-    cubemapCaptureDescriptorSet->updateBinding(1, *envmapTexture);
+    cubemapCaptureDescriptorSet->updateBinding<1>(*envmapTexture);
 
     captureCubemap();
 }
@@ -678,9 +678,9 @@ void VulkanRenderer::createPrepassTextures() {
 
     for (auto &res: frameResources) {
         if (res.ssaoDescriptorSet) {
-            res.ssaoDescriptorSet->queueUpdate(1, *gBufferTextures.depth)
-                    .queueUpdate(2, *gBufferTextures.normal)
-                    .queueUpdate(3, *gBufferTextures.pos)
+            res.ssaoDescriptorSet->queueUpdate<1>(*gBufferTextures.depth)
+                    .queueUpdate<2>(*gBufferTextures.normal)
+                    .queueUpdate<3>(*gBufferTextures.pos)
                     .commitUpdates();
         }
     }
@@ -734,16 +734,16 @@ void VulkanRenderer::createSsaoTextures() {
             .create(ctx);
 
     if (debugQuadDescriptorSet) {
-        debugQuadDescriptorSet->updateBinding(0, *ssaoTexture);
+        debugQuadDescriptorSet->updateBinding<0>(*ssaoTexture);
     }
 
     for (auto &res: frameResources) {
         if (res.sceneDescriptorSet) {
-            res.sceneDescriptorSet->updateBinding(1, *ssaoTexture);
+            res.sceneDescriptorSet->updateBinding<1>(*ssaoTexture);
         }
 
         if (res.ssaoDescriptorSet) {
-            res.ssaoDescriptorSet->updateBinding(4, *ssaoNoiseTexture);
+            res.ssaoDescriptorSet->updateBinding<4>(*ssaoNoiseTexture);
         }
     }
 }
@@ -847,7 +847,7 @@ void VulkanRenderer::createSceneDescriptorSets() {
             BufferResource{
                 *res.graphicsUniformBuffer,
                 vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-                vk::DescriptorType::eUniformBuffer
+                sizeof(GraphicsUBO),
             },
             TextureResource{*ssaoTexture, vk::ShaderStageFlagBits::eFragment}
         );
@@ -876,7 +876,7 @@ void VulkanRenderer::createSkyboxDescriptorSets() {
             BufferResource{
                 *res.graphicsUniformBuffer,
                 vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-                vk::DescriptorType::eUniformBuffer
+                sizeof(GraphicsUBO),
             },
             TextureResource{*skyboxTexture, vk::ShaderStageFlagBits::eFragment}
         );
@@ -891,7 +891,7 @@ void VulkanRenderer::createPrepassDescriptorSets() {
             BufferResource{
                 *res.graphicsUniformBuffer,
                 vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-                vk::DescriptorType::eUniformBuffer
+                sizeof(GraphicsUBO),
             }
         );
     }
@@ -905,7 +905,7 @@ void VulkanRenderer::createSsaoDescriptorSets() {
             BufferResource{
                 *res.graphicsUniformBuffer,
                 vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-                vk::DescriptorType::eUniformBuffer
+                sizeof(GraphicsUBO),
             },
             TextureResource{*gBufferTextures.depth, vk::ShaderStageFlagBits::eFragment},
             TextureResource{*gBufferTextures.normal, vk::ShaderStageFlagBits::eFragment},
@@ -922,9 +922,11 @@ void VulkanRenderer::createCubemapCaptureDescriptorSet() {
         BufferResource{
             *frameResources[0].graphicsUniformBuffer,
             vk::ShaderStageFlagBits::eVertex,
-            vk::DescriptorType::eUniformBuffer
+            sizeof(GraphicsUBO),
         },
-        TextureResource{*envmapTexture, vk::ShaderStageFlagBits::eFragment}
+        envmapTexture
+        ? TextureResource{*envmapTexture, vk::ShaderStageFlagBits::eFragment}
+        : TextureResource{1, vk::ShaderStageFlagBits::eFragment}
     );
 }
 
@@ -944,19 +946,29 @@ void VulkanRenderer::createRtDescriptorSets() {
             BufferResource{
                 *res.graphicsUniformBuffer,
                 vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eRaygenKHR,
-                vk::DescriptorType::eUniformBuffer
+                sizeof(GraphicsUBO),
             },
             AccelStructureResource{
                 *tlas, vk::ShaderStageFlagBits::eRaygenKHR
             },
             TextureResource{
-                *rtTargetTexture, vk::ShaderStageFlagBits::eRaygenKHR, vk::DescriptorType::eStorageImage
+                *rtTargetTexture,
+                vk::ShaderStageFlagBits::eRaygenKHR,
+                vk::DescriptorType::eStorageImage
             },
             BufferResource{
-                model->getVertexBuffer(), vk::ShaderStageFlagBits::eClosestHitKHR, vk::DescriptorType::eStorageBuffer
+                model->getVertexBuffer(),
+                vk::ShaderStageFlagBits::eClosestHitKHR,
+                model->getVertices().size() * sizeof(ModelVertex),
+                0,
+                vk::DescriptorType::eStorageBuffer
             },
             BufferResource{
-                model->getIndexBuffer(), vk::ShaderStageFlagBits::eClosestHitKHR, vk::DescriptorType::eStorageBuffer
+                model->getIndexBuffer(),
+                vk::ShaderStageFlagBits::eClosestHitKHR,
+                model->getIndices().size() * sizeof(uint32_t),
+                0,
+                vk::DescriptorType::eStorageBuffer
             }
         );
     }

@@ -76,7 +76,16 @@ static const std::map<std::pair<vk::ImageLayout, vk::ImageLayout>, ImageBarrierI
             .srcStage = vk::PipelineStageFlagBits::eFragmentShader,
             .dstStage = vk::PipelineStageFlagBits::eTransfer,
         }
-    }
+    },
+    {
+        {vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eGeneral},
+        {
+            .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
+            .dstAccessMask = vk::AccessFlagBits::eShaderRead,
+            .srcStage = vk::PipelineStageFlagBits::eTransfer,
+            .dstStage = vk::PipelineStageFlagBits::eRayTracingShaderKHR,
+        }
+    },
 };
 
 namespace zrx {
