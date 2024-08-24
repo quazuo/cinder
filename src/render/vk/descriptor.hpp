@@ -100,8 +100,9 @@ using NthTypeOf = typename std::tuple_element_t<N, std::tuple<Ts...> >;
  */
 template<typename... Ts>
     requires are_all_resources<Ts...>::value
-class DescriptorSet : public std::tuple<Ts...> {
+class DescriptorSet {
     std::reference_wrapper<const RendererContext> ctx;
+    std::tuple<Ts...> resources;
     shared_ptr<vk::raii::DescriptorSetLayout> layout;
     unique_ptr<vk::raii::DescriptorSet> set;
 
@@ -119,7 +120,7 @@ class DescriptorSet : public std::tuple<Ts...> {
 
 public:
     explicit DescriptorSet(const RendererContext &ctx, const vk::raii::DescriptorPool &pool, Ts... elems)
-        : std::tuple<Ts...>(elems...), ctx(ctx) {
+        : ctx(ctx), resources(elems...) {
         createLayout();
         createSet(pool);
         doFullUpdate();
@@ -162,10 +163,14 @@ public:
     DescriptorSet &queueUpdate(const Texture &texture,
                                const vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler,
                                const uint32_t arrayElement = 0) {
+        const auto layout = type == vk::DescriptorType::eCombinedImageSampler
+                            ? vk::ImageLayout::eShaderReadOnlyOptimal
+                            : vk::ImageLayout::eGeneral;
+
         const vk::DescriptorImageInfo imageInfo{
             .sampler = *texture.getSampler(),
             .imageView = **texture.getImage().getView(ctx),
-            .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+            .imageLayout = layout,
         };
 
         queuedUpdates.emplace_back(DescriptorUpdate{
@@ -285,10 +290,14 @@ public:
     void updateBinding(const Texture &texture,
                        const vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler,
                        const uint32_t arrayElement = 0) const {
+        const auto layout = type == vk::DescriptorType::eCombinedImageSampler
+                            ? vk::ImageLayout::eShaderReadOnlyOptimal
+                            : vk::ImageLayout::eGeneral;
+
         const vk::DescriptorImageInfo imageInfo{
             .sampler = *texture.getSampler(),
             .imageView = **texture.getImage().getView(ctx),
-            .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+            .imageLayout = layout,
         };
 
         const vk::WriteDescriptorSet write{
@@ -355,7 +364,7 @@ private:
             return std::vector<vk::DescriptorSetLayoutBinding>{
                 makeBinding(std::forward<decltype(elems)>(elems))...
             };
-        }, std::forward<std::tuple<Ts...> >(*this));
+        }, resources);
 
         for (uint32_t i = 0; i < bindings.size(); i++) {
             bindings[i].binding = i;
@@ -391,7 +400,7 @@ private:
 
     template<size_t I = 0>
     void updateSlot() {
-        auto resource = std::get<I>(static_cast<std::tuple<Ts...> &&>(*this));
+        auto resource = std::get<I>(resources);
 
         if constexpr (std::is_same_v<NthTypeOf<I, Ts...>, BufferResource>) {
             queueUpdate<I>(resource.buffer.get(), resource.type, resource.size, resource.offset);
@@ -421,7 +430,9 @@ private:
 };
 
 template<typename... Ts>
-class DescriptorSets : std::vector<DescriptorSet<Ts...> > {
+class DescriptorSets {
+    std::vector<DescriptorSet<Ts...> > sets;
+
 public:
     DescriptorSets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool, Ts... elems) {
     }

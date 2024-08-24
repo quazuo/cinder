@@ -69,6 +69,7 @@ private:
             renderer.runPrepass();
             renderer.runSsaoPass();
             renderer.drawScene();
+            renderer.raytrace();
 
             if (showDebugQuad) {
                 renderer.drawDebugQuad();
@@ -312,7 +313,7 @@ int main() {
 
 #ifdef NDEBUG
     try {
-        Engine engine;
+        zrx::Engine engine;
         engine.run();
     } catch (std::exception &e) {
         showErrorBox(std::string("Fatal error: ") + e.what());

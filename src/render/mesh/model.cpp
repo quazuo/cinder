@@ -338,7 +338,7 @@ void Model::createBLAS(const RendererContext &ctx) {
 
     vk::AccelerationStructureBuildGeometryInfoKHR geometryInfo{
         .type = vk::AccelerationStructureTypeKHR::eBottomLevel,
-        .flags = vk::BuildAccelerationStructureFlagBitsKHR::eAllowCompaction,
+        .flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace,
         .mode = vk::BuildAccelerationStructureModeKHR::eBuild,
         .geometryCount = 1u,
         .pGeometries = &geometry,

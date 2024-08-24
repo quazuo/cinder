@@ -42,6 +42,24 @@ static const std::map<std::pair<vk::ImageLayout, vk::ImageLayout>, ImageBarrierI
         }
     },
     {
+        {vk::ImageLayout::eUndefined, vk::ImageLayout::eGeneral},
+        {
+            .srcAccessMask = {},
+            .dstAccessMask = {},
+            .srcStage = vk::PipelineStageFlagBits::eTopOfPipe,
+            .dstStage = vk::PipelineStageFlagBits::eBottomOfPipe,
+        }
+    },
+    {
+        {vk::ImageLayout::eUndefined, vk::ImageLayout::eShaderReadOnlyOptimal},
+        {
+            .srcAccessMask = {},
+            .dstAccessMask = vk::AccessFlagBits::eTransferRead,
+            .srcStage = vk::PipelineStageFlagBits::eTopOfPipe,
+            .dstStage = vk::PipelineStageFlagBits::eTransfer,
+        }
+    },
+    {
         {vk::ImageLayout::eTransferSrcOptimal, vk::ImageLayout::eShaderReadOnlyOptimal},
         {
             .srcAccessMask = vk::AccessFlagBits::eTransferRead,
@@ -81,9 +99,9 @@ static const std::map<std::pair<vk::ImageLayout, vk::ImageLayout>, ImageBarrierI
         {vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eGeneral},
         {
             .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
-            .dstAccessMask = vk::AccessFlagBits::eShaderRead,
+            .dstAccessMask = vk::AccessFlagBits::eMemoryRead,
             .srcStage = vk::PipelineStageFlagBits::eTransfer,
-            .dstStage = vk::PipelineStageFlagBits::eRayTracingShaderKHR,
+            .dstStage = vk::PipelineStageFlagBits::eBottomOfPipe,
         }
     },
 };
@@ -705,28 +723,38 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
 
     texture->createSampler(ctx, addressMode);
 
-    utils::cmd::doSingleTimeCommands(ctx, [&](const auto &cmdBuffer) {
-        texture->image->transitionLayout(
-            vk::ImageLayout::eUndefined,
-            vk::ImageLayout::eTransferDstOptimal,
-            cmdBuffer
-        );
-
-        if (!isUninitialized) {
-            texture->image->copyFromBuffer(**stagingBuffer, cmdBuffer);
-        }
-
-        if (!hasMipmaps) {
+    if (isUninitialized && !hasMipmaps) {
+        utils::cmd::doSingleTimeCommands(ctx, [&](const auto &cmdBuffer) {
             texture->image->transitionLayout(
-                vk::ImageLayout::eTransferDstOptimal,
+                vk::ImageLayout::eUndefined,
                 layout,
                 cmdBuffer
             );
-        }
-    });
+        });
+    } else {
+        utils::cmd::doSingleTimeCommands(ctx, [&](const auto &cmdBuffer) {
+            texture->image->transitionLayout(
+                vk::ImageLayout::eUndefined,
+                vk::ImageLayout::eTransferDstOptimal,
+                cmdBuffer
+            );
 
-    if (hasMipmaps) {
-        texture->generateMipmaps(ctx, layout);
+            if (!isUninitialized) {
+                texture->image->copyFromBuffer(**stagingBuffer, cmdBuffer);
+            }
+
+            if (!hasMipmaps) {
+                texture->image->transitionLayout(
+                    vk::ImageLayout::eTransferDstOptimal,
+                    layout,
+                    cmdBuffer
+                );
+            }
+        });
+
+        if (hasMipmaps) {
+            texture->generateMipmaps(ctx, layout);
+        }
     }
 
     return texture;

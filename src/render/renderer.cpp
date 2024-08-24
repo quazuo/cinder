@@ -65,7 +65,7 @@ struct GraphicsUBO {
 
 namespace zrx {
 VulkanRenderer::VulkanRenderer() {
-    constexpr int INIT_WINDOW_WIDTH  = 1200;
+    constexpr int INIT_WINDOW_WIDTH = 1200;
     constexpr int INIT_WINDOW_HEIGHT = 800;
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -130,7 +130,10 @@ VulkanRenderer::VulkanRenderer() {
     createSceneRenderInfos();
     createGuiRenderInfos();
 
-    loadModelWithMaterials("../assets/example models/Sponza/Sponza.gltf");
+    loadModel("../assets/example models/kettle/kettle.obj");
+    loadBaseColorTexture("../assets/example models/kettle/kettle-albedo.png");
+    loadNormalMap("../assets/example models/kettle/kettle-normal.png");
+    loadOrmMap("../assets/example models/kettle/kettle-orm.png");
     createTLAS();
 
     createRtTargetTexture();
@@ -161,7 +164,7 @@ void VulkanRenderer::framebufferResizeCallback(GLFWwindow *window, const int wid
 void VulkanRenderer::bindMouseDragActions() {
     inputManager->bindMouseDragCallback(GLFW_MOUSE_BUTTON_RIGHT, [&](const double dx, const double dy) {
         static constexpr float speed = 0.002;
-        const float cameraDistance   = glm::length(camera->getPos());
+        const float cameraDistance = glm::length(camera->getPos());
 
         const auto viewVectors = camera->getViewVectors();
 
@@ -281,8 +284,8 @@ VKAPI_ATTR VkBool32 VKAPI_CALL VulkanRenderer::debugCallback(
     void *pUserData
 ) {
     auto &stream = messageSeverity == VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
-                       ? std::cout
-                       : std::cerr;
+                   ? std::cout
+                   : std::cerr;
 
     stream << "Validation layer:";
     stream << "\n\tSeverity: ";
@@ -328,7 +331,7 @@ void VulkanRenderer::pickPhysicalDevice() {
     for (const auto &dev: devices) {
         if (isDeviceSuitable(dev)) {
             ctx.physicalDevice = make_unique<vk::raii::PhysicalDevice>(dev);
-            msaaSampleCount    = getMaxUsableSampleCount();
+            msaaSampleCount = getMaxUsableSampleCount();
             return;
         }
     }
@@ -406,7 +409,7 @@ QueueFamilyIndices VulkanRenderer::findQueueFamilies(const vk::raii::PhysicalDev
     uint32_t i = 0;
     for (const auto &queueFamily: queueFamilies) {
         const bool hasGraphicsSupport = static_cast<bool>(queueFamily.queueFlags & vk::QueueFlagBits::eGraphics);
-        const bool hasComputeSupport  = static_cast<bool>(queueFamily.queueFlags & vk::QueueFlagBits::eCompute);
+        const bool hasComputeSupport = static_cast<bool>(queueFamily.queueFlags & vk::QueueFlagBits::eCompute);
         if (hasGraphicsSupport && hasComputeSupport) {
             graphicsComputeFamily = i;
         }
@@ -445,7 +448,7 @@ bool VulkanRenderer::checkDeviceExtensionSupport(const vk::raii::PhysicalDevice 
 
 void VulkanRenderer::createLogicalDevice() {
     const auto [graphicsComputeFamily, presentFamily] = findQueueFamilies(*ctx.physicalDevice);
-    const std::set uniqueQueueFamilies                = {graphicsComputeFamily.value(), presentFamily.value()};
+    const std::set uniqueQueueFamilies = {graphicsComputeFamily.value(), presentFamily.value()};
 
     constexpr float queuePriority = 1.0f;
     std::vector<vk::DeviceQueueCreateInfo> queueCreateInfos;
@@ -498,21 +501,21 @@ void VulkanRenderer::createLogicalDevice() {
     ctx.device = make_unique<vk::raii::Device>(*ctx.physicalDevice, createInfo.get<vk::DeviceCreateInfo>());
 
     ctx.graphicsQueue = make_unique<vk::raii::Queue>(ctx.device->getQueue(graphicsComputeFamily.value(), 0));
-    presentQueue      = make_unique<vk::raii::Queue>(ctx.device->getQueue(presentFamily.value(), 0));
+    presentQueue = make_unique<vk::raii::Queue>(ctx.device->getQueue(presentFamily.value(), 0));
 }
 
 void VulkanRenderer::createSkyboxTexture() {
     skyboxTexture = TextureBuilder()
-            .asCubemap()
-            .asUninitialized({2048, 2048, 1})
-            .asHdr()
-            .useFormat(hdrEnvmapFormat)
-            .useUsage(vk::ImageUsageFlagBits::eTransferSrc
-                      | vk::ImageUsageFlagBits::eTransferDst
-                      | vk::ImageUsageFlagBits::eSampled
-                      | vk::ImageUsageFlagBits::eColorAttachment)
-            .makeMipmaps()
-            .create(ctx);
+                    .asCubemap()
+                    .asUninitialized({2048, 2048, 1})
+                    .asHdr()
+                    .useFormat(hdrEnvmapFormat)
+                    .useUsage(vk::ImageUsageFlagBits::eTransferSrc
+                              | vk::ImageUsageFlagBits::eTransferDst
+                              | vk::ImageUsageFlagBits::eSampled
+                              | vk::ImageUsageFlagBits::eColorAttachment)
+                    .makeMipmaps()
+                    .create(ctx);
 }
 
 // ==================== models ====================
@@ -526,7 +529,7 @@ void VulkanRenderer::loadModelWithMaterials(const std::filesystem::path &path) {
     const auto &materials = model->getMaterials();
 
     for (uint32_t i = 0; i < materials.size(); i++) {
-        const auto &material    = materials[i];
+        const auto &material = materials[i];
         constexpr auto descType = vk::DescriptorType::eCombinedImageSampler;
 
         if (material.baseColor) {
@@ -559,9 +562,9 @@ void VulkanRenderer::loadBaseColorTexture(const std::filesystem::path &path) {
 
     separateMaterial.baseColor.reset();
     separateMaterial.baseColor = TextureBuilder()
-            .fromPaths({path})
-            .makeMipmaps()
-            .create(ctx);
+                                 .fromPaths({path})
+                                 .makeMipmaps()
+                                 .create(ctx);
 
     materialsDescriptorSet->updateBinding<0>(*separateMaterial.baseColor);
 }
@@ -571,9 +574,9 @@ void VulkanRenderer::loadNormalMap(const std::filesystem::path &path) {
 
     separateMaterial.normal.reset();
     separateMaterial.normal = TextureBuilder()
-            .useFormat(vk::Format::eR8G8B8A8Unorm)
-            .fromPaths({path})
-            .create(ctx);
+                              .useFormat(vk::Format::eR8G8B8A8Unorm)
+                              .fromPaths({path})
+                              .create(ctx);
 
     materialsDescriptorSet->updateBinding<1>(*separateMaterial.normal);
 }
@@ -583,9 +586,9 @@ void VulkanRenderer::loadOrmMap(const std::filesystem::path &path) {
 
     separateMaterial.orm.reset();
     separateMaterial.orm = TextureBuilder()
-            .useFormat(vk::Format::eR8G8B8A8Unorm)
-            .fromPaths({path})
-            .create(ctx);
+                           .useFormat(vk::Format::eR8G8B8A8Unorm)
+                           .fromPaths({path})
+                           .create(ctx);
 
     materialsDescriptorSet->updateBinding<2>(*separateMaterial.orm);
 }
@@ -596,17 +599,17 @@ void VulkanRenderer::loadOrmMap(const std::filesystem::path &aoPath, const std::
 
     separateMaterial.orm.reset();
     separateMaterial.orm = TextureBuilder()
-            .useFormat(vk::Format::eR8G8B8A8Unorm)
-            .asSeparateChannels()
-            .fromPaths({aoPath, roughnessPath, metallicPath})
-            .withSwizzle({
-                aoPath.empty() ? SwizzleComponent::MAX : SwizzleComponent::R,
-                SwizzleComponent::G,
-                metallicPath.empty() ? SwizzleComponent::ZERO : SwizzleComponent::B,
-                SwizzleComponent::A
-            })
-            .makeMipmaps()
-            .create(ctx);
+                           .useFormat(vk::Format::eR8G8B8A8Unorm)
+                           .asSeparateChannels()
+                           .fromPaths({aoPath, roughnessPath, metallicPath})
+                           .withSwizzle({
+                               aoPath.empty() ? SwizzleComponent::MAX : SwizzleComponent::R,
+                               SwizzleComponent::G,
+                               metallicPath.empty() ? SwizzleComponent::ZERO : SwizzleComponent::B,
+                               SwizzleComponent::A
+                           })
+                           .makeMipmaps()
+                           .create(ctx);
 
     materialsDescriptorSet->updateBinding<2>(*separateMaterial.orm);
 }
@@ -616,10 +619,12 @@ void VulkanRenderer::loadRmaMap(const std::filesystem::path &path) {
 
     separateMaterial.orm.reset();
     separateMaterial.orm = TextureBuilder()
-            .withSwizzle({SwizzleComponent::B, SwizzleComponent::R, SwizzleComponent::G, SwizzleComponent::A})
-            .useFormat(vk::Format::eR8G8B8A8Unorm)
-            .fromPaths({path})
-            .create(ctx);
+                           .withSwizzle({
+                               SwizzleComponent::B, SwizzleComponent::R, SwizzleComponent::G, SwizzleComponent::A
+                           })
+                           .useFormat(vk::Format::eR8G8B8A8Unorm)
+                           .fromPaths({path})
+                           .create(ctx);
 
     materialsDescriptorSet->updateBinding<2>(*separateMaterial.orm);
 }
@@ -628,12 +633,12 @@ void VulkanRenderer::loadEnvironmentMap(const std::filesystem::path &path) {
     waitIdle();
 
     envmapTexture = TextureBuilder()
-            .asHdr()
-            .useFormat(hdrEnvmapFormat)
-            .fromPaths({path})
-            .withSamplerAddressMode(vk::SamplerAddressMode::eClampToEdge)
-            .makeMipmaps()
-            .create(ctx);
+                    .asHdr()
+                    .useFormat(hdrEnvmapFormat)
+                    .fromPaths({path})
+                    .withSamplerAddressMode(vk::SamplerAddressMode::eClampToEdge)
+                    .makeMipmaps()
+                    .create(ctx);
 
     cubemapCaptureDescriptorSet->updateBinding<1>(*envmapTexture);
 
@@ -650,38 +655,38 @@ void VulkanRenderer::createPrepassTextures() {
     };
 
     gBufferTextures.pos = TextureBuilder()
-            .asUninitialized(extent)
-            .useFormat(prepassColorFormat)
-            .useUsage(vk::ImageUsageFlagBits::eTransferSrc
-                      | vk::ImageUsageFlagBits::eTransferDst
-                      | vk::ImageUsageFlagBits::eSampled
-                      | vk::ImageUsageFlagBits::eColorAttachment)
-            .create(ctx);
+                          .asUninitialized(extent)
+                          .useFormat(prepassColorFormat)
+                          .useUsage(vk::ImageUsageFlagBits::eTransferSrc
+                                    | vk::ImageUsageFlagBits::eTransferDst
+                                    | vk::ImageUsageFlagBits::eSampled
+                                    | vk::ImageUsageFlagBits::eColorAttachment)
+                          .create(ctx);
 
     gBufferTextures.normal = TextureBuilder()
-            .asUninitialized(extent)
-            .useFormat(prepassColorFormat)
-            .useUsage(vk::ImageUsageFlagBits::eTransferSrc
-                      | vk::ImageUsageFlagBits::eTransferDst
-                      | vk::ImageUsageFlagBits::eSampled
-                      | vk::ImageUsageFlagBits::eColorAttachment)
-            .create(ctx);
+                             .asUninitialized(extent)
+                             .useFormat(prepassColorFormat)
+                             .useUsage(vk::ImageUsageFlagBits::eTransferSrc
+                                       | vk::ImageUsageFlagBits::eTransferDst
+                                       | vk::ImageUsageFlagBits::eSampled
+                                       | vk::ImageUsageFlagBits::eColorAttachment)
+                             .create(ctx);
 
     gBufferTextures.depth = TextureBuilder()
-            .asUninitialized(extent)
-            .useFormat(swapChain->getDepthFormat())
-            .useUsage(vk::ImageUsageFlagBits::eTransferSrc
-                      | vk::ImageUsageFlagBits::eTransferDst
-                      | vk::ImageUsageFlagBits::eSampled
-                      | vk::ImageUsageFlagBits::eDepthStencilAttachment)
-            .create(ctx);
+                            .asUninitialized(extent)
+                            .useFormat(swapChain->getDepthFormat())
+                            .useUsage(vk::ImageUsageFlagBits::eTransferSrc
+                                      | vk::ImageUsageFlagBits::eTransferDst
+                                      | vk::ImageUsageFlagBits::eSampled
+                                      | vk::ImageUsageFlagBits::eDepthStencilAttachment)
+                            .create(ctx);
 
     for (auto &res: frameResources) {
         if (res.ssaoDescriptorSet) {
             res.ssaoDescriptorSet->queueUpdate<1>(*gBufferTextures.depth)
-                    .queueUpdate<2>(*gBufferTextures.normal)
-                    .queueUpdate<3>(*gBufferTextures.pos)
-                    .commitUpdates();
+               .queueUpdate<2>(*gBufferTextures.normal)
+               .queueUpdate<3>(*gBufferTextures.pos)
+               .commitUpdates();
         }
     }
 }
@@ -719,23 +724,19 @@ void VulkanRenderer::createSsaoTextures() {
     };
 
     ssaoTexture = TextureBuilder()
-            .asUninitialized(extent)
-            .useFormat(vk::Format::eR8G8B8A8Unorm)
-            .useUsage(attachmentUsageFlags)
-            .create(ctx);
+                  .asUninitialized(extent)
+                  .useFormat(vk::Format::eR8G8B8A8Unorm)
+                  .useUsage(attachmentUsageFlags)
+                  .create(ctx);
 
     auto noise = makeSsaoNoise();
 
     ssaoNoiseTexture = TextureBuilder()
-            .fromMemory(noise.data(), {4, 4, 1})
-            .useFormat(vk::Format::eR32G32B32A32Sfloat)
-            .useUsage(attachmentUsageFlags)
-            .withSamplerAddressMode(vk::SamplerAddressMode::eRepeat)
-            .create(ctx);
-
-    if (debugQuadDescriptorSet) {
-        debugQuadDescriptorSet->updateBinding<0>(*ssaoTexture);
-    }
+                       .fromMemory(noise.data(), {4, 4, 1})
+                       .useFormat(vk::Format::eR32G32B32A32Sfloat)
+                       .useUsage(attachmentUsageFlags)
+                       .withSamplerAddressMode(vk::SamplerAddressMode::eRepeat)
+                       .create(ctx);
 
     for (auto &res: frameResources) {
         if (res.sceneDescriptorSet) {
@@ -758,14 +759,14 @@ void VulkanRenderer::createRtTargetTexture() {
     };
 
     rtTargetTexture = TextureBuilder()
-            .asUninitialized(extent)
-            .useFormat(vk::Format::eR32G32B32A32Sfloat)
-            .useUsage(vk::ImageUsageFlagBits::eStorage
-                      | vk::ImageUsageFlagBits::eSampled
-                      | vk::ImageUsageFlagBits::eTransferSrc
-                      | vk::ImageUsageFlagBits::eTransferDst)
-            .useLayout(vk::ImageLayout::eGeneral)
-            .create(ctx);
+                      .asUninitialized(extent)
+                      .useFormat(vk::Format::eR32G32B32A32Sfloat)
+                      .useUsage(vk::ImageUsageFlagBits::eStorage
+                                | vk::ImageUsageFlagBits::eSampled
+                                | vk::ImageUsageFlagBits::eTransferSrc
+                                | vk::ImageUsageFlagBits::eTransferDst)
+                      .useLayout(vk::ImageLayout::eGeneral)
+                      .create(ctx);
 }
 
 // ==================== swapchain ====================
@@ -855,8 +856,8 @@ void VulkanRenderer::createSceneDescriptorSets() {
 }
 
 void VulkanRenderer::createMaterialsDescriptorSet() {
-    constexpr auto scope           = vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eClosestHitKHR;
-    constexpr auto type            = vk::DescriptorType::eCombinedImageSampler;
+    constexpr auto scope = vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eClosestHitKHR;
+    constexpr auto type = vk::DescriptorType::eCombinedImageSampler;
     constexpr auto descriptorCount = MATERIAL_TEX_ARRAY_SIZE;
 
     materialsDescriptorSet = make_unique<MaterialsDescriptorSet>(
@@ -934,7 +935,7 @@ void VulkanRenderer::createDebugQuadDescriptorSet() {
     debugQuadDescriptorSet = make_unique<DebugQuadDescriptorSet>(
         ctx,
         *descriptorPool,
-        TextureResource{*ssaoTexture, vk::ShaderStageFlagBits::eFragment}
+        TextureResource{*rtTargetTexture, vk::ShaderStageFlagBits::eFragment}
     );
 }
 
@@ -1042,32 +1043,32 @@ void VulkanRenderer::createSceneRenderInfos() {
     sceneRenderInfos.clear();
 
     auto builder = GraphicsPipelineBuilder()
-            .withVertexShader("../shaders/obj/main-vert.spv")
-            .withFragmentShader("../shaders/obj/main-frag.spv")
-            .withVertices<ModelVertex>()
-            .withRasterizer({
-                .polygonMode = wireframeMode ? vk::PolygonMode::eLine : vk::PolygonMode::eFill,
-                .cullMode = cullBackFaces ? vk::CullModeFlagBits::eBack : vk::CullModeFlagBits::eNone,
-                .frontFace = vk::FrontFace::eCounterClockwise,
-                .lineWidth = 1.0f,
-            })
-            .withMultisampling({
-                .rasterizationSamples = getMsaaSampleCount(),
-                .minSampleShading = 1.0f,
-            })
-            .withDescriptorLayouts({
-                *frameResources[0].sceneDescriptorSet->getLayout(),
-                *materialsDescriptorSet->getLayout(),
-            })
-            .withPushConstants({
-                vk::PushConstantRange{
-                    .stageFlags = vk::ShaderStageFlagBits::eFragment,
-                    .offset = 0,
-                    .size = sizeof(ScenePushConstants),
-                }
-            })
-            .withColorFormats({swapChain->getImageFormat()})
-            .withDepthFormat(swapChain->getDepthFormat());
+                   .withVertexShader("../shaders/obj/main-vert.spv")
+                   .withFragmentShader("../shaders/obj/main-frag.spv")
+                   .withVertices<ModelVertex>()
+                   .withRasterizer({
+                       .polygonMode = wireframeMode ? vk::PolygonMode::eLine : vk::PolygonMode::eFill,
+                       .cullMode = cullBackFaces ? vk::CullModeFlagBits::eBack : vk::CullModeFlagBits::eNone,
+                       .frontFace = vk::FrontFace::eCounterClockwise,
+                       .lineWidth = 1.0f,
+                   })
+                   .withMultisampling({
+                       .rasterizationSamples = getMsaaSampleCount(),
+                       .minSampleShading = 1.0f,
+                   })
+                   .withDescriptorLayouts({
+                       *frameResources[0].sceneDescriptorSet->getLayout(),
+                       *materialsDescriptorSet->getLayout(),
+                   })
+                   .withPushConstants({
+                       vk::PushConstantRange{
+                           .stageFlags = vk::ShaderStageFlagBits::eFragment,
+                           .offset = 0,
+                           .size = sizeof(ScenePushConstants),
+                       }
+                   })
+                   .withColorFormats({swapChain->getImageFormat()})
+                   .withDepthFormat(swapChain->getDepthFormat());
 
     auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
@@ -1090,28 +1091,28 @@ void VulkanRenderer::createSkyboxRenderInfos() {
     skyboxRenderInfos.clear();
 
     auto builder = GraphicsPipelineBuilder()
-            .withVertexShader("../shaders/obj/skybox-vert.spv")
-            .withFragmentShader("../shaders/obj/skybox-frag.spv")
-            .withVertices<SkyboxVertex>()
-            .withRasterizer({
-                .polygonMode = vk::PolygonMode::eFill,
-                .cullMode = vk::CullModeFlagBits::eNone,
-                .frontFace = vk::FrontFace::eCounterClockwise,
-                .lineWidth = 1.0f,
-            })
-            .withMultisampling({
-                .rasterizationSamples = getMsaaSampleCount(),
-                .minSampleShading = 1.0f,
-            })
-            .withDepthStencil({
-                .depthTestEnable = vk::False,
-                .depthWriteEnable = vk::False,
-            })
-            .withDescriptorLayouts({
-                *frameResources[0].skyboxDescriptorSet->getLayout(),
-            })
-            .withColorFormats({swapChain->getImageFormat()})
-            .withDepthFormat(swapChain->getDepthFormat());
+                   .withVertexShader("../shaders/obj/skybox-vert.spv")
+                   .withFragmentShader("../shaders/obj/skybox-frag.spv")
+                   .withVertices<SkyboxVertex>()
+                   .withRasterizer({
+                       .polygonMode = vk::PolygonMode::eFill,
+                       .cullMode = vk::CullModeFlagBits::eNone,
+                       .frontFace = vk::FrontFace::eCounterClockwise,
+                       .lineWidth = 1.0f,
+                   })
+                   .withMultisampling({
+                       .rasterizationSamples = getMsaaSampleCount(),
+                       .minSampleShading = 1.0f,
+                   })
+                   .withDepthStencil({
+                       .depthTestEnable = vk::False,
+                       .depthWriteEnable = vk::False,
+                   })
+                   .withDescriptorLayouts({
+                       *frameResources[0].skyboxDescriptorSet->getLayout(),
+                   })
+                   .withColorFormats({swapChain->getImageFormat()})
+                   .withDepthFormat(swapChain->getDepthFormat());
 
     auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
@@ -1152,20 +1153,20 @@ void VulkanRenderer::createPrepassRenderInfo() {
     for (const auto &target: colorTargets) colorFormats.emplace_back(target.getFormat());
 
     auto builder = GraphicsPipelineBuilder()
-            .withVertexShader("../shaders/obj/prepass-vert.spv")
-            .withFragmentShader("../shaders/obj/prepass-frag.spv")
-            .withVertices<ModelVertex>()
-            .withRasterizer({
-                .polygonMode = vk::PolygonMode::eFill,
-                .cullMode = vk::CullModeFlagBits::eNone,
-                .frontFace = vk::FrontFace::eCounterClockwise,
-                .lineWidth = 1.0f,
-            })
-            .withDescriptorLayouts({
-                *frameResources[0].prepassDescriptorSet->getLayout(),
-            })
-            .withColorFormats(colorFormats)
-            .withDepthFormat(depthTarget.getFormat());
+                   .withVertexShader("../shaders/obj/prepass-vert.spv")
+                   .withFragmentShader("../shaders/obj/prepass-frag.spv")
+                   .withVertices<ModelVertex>()
+                   .withRasterizer({
+                       .polygonMode = vk::PolygonMode::eFill,
+                       .cullMode = vk::CullModeFlagBits::eNone,
+                       .frontFace = vk::FrontFace::eCounterClockwise,
+                       .lineWidth = 1.0f,
+                   })
+                   .withDescriptorLayouts({
+                       *frameResources[0].prepassDescriptorSet->getLayout(),
+                   })
+                   .withColorFormats(colorFormats)
+                   .withDepthFormat(depthTarget.getFormat());
 
     auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
@@ -1181,19 +1182,19 @@ void VulkanRenderer::createSsaoRenderInfo() {
     RenderTarget target{ctx, *ssaoTexture};
 
     auto builder = GraphicsPipelineBuilder()
-            .withVertexShader("../shaders/obj/ssao-vert.spv")
-            .withFragmentShader("../shaders/obj/ssao-frag.spv")
-            .withVertices<ScreenSpaceQuadVertex>()
-            .withRasterizer({
-                .polygonMode = vk::PolygonMode::eFill,
-                .cullMode = vk::CullModeFlagBits::eNone,
-                .frontFace = vk::FrontFace::eCounterClockwise,
-                .lineWidth = 1.0f,
-            })
-            .withDescriptorLayouts({
-                *frameResources[0].ssaoDescriptorSet->getLayout(),
-            })
-            .withColorFormats({target.getFormat()});
+                   .withVertexShader("../shaders/obj/ssao-vert.spv")
+                   .withFragmentShader("../shaders/obj/ssao-frag.spv")
+                   .withVertices<ScreenSpaceQuadVertex>()
+                   .withRasterizer({
+                       .polygonMode = vk::PolygonMode::eFill,
+                       .cullMode = vk::CullModeFlagBits::eNone,
+                       .frontFace = vk::FrontFace::eCounterClockwise,
+                       .lineWidth = 1.0f,
+                   })
+                   .withDescriptorLayouts({
+                       *frameResources[0].ssaoDescriptorSet->getLayout(),
+                   })
+                   .withColorFormats({target.getFormat()});
 
     auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
@@ -1214,24 +1215,24 @@ void VulkanRenderer::createCubemapCaptureRenderInfo() {
     };
 
     auto builder = GraphicsPipelineBuilder()
-            .withVertexShader("../shaders/obj/sphere-cube-vert.spv")
-            .withFragmentShader("../shaders/obj/sphere-cube-frag.spv")
-            .withVertices<SkyboxVertex>()
-            .withRasterizer({
-                .polygonMode = vk::PolygonMode::eFill,
-                .cullMode = vk::CullModeFlagBits::eNone,
-                .frontFace = vk::FrontFace::eCounterClockwise,
-                .lineWidth = 1.0f,
-            })
-            .withDepthStencil({
-                .depthTestEnable = vk::False,
-                .depthWriteEnable = vk::False,
-            })
-            .withDescriptorLayouts({
-                *cubemapCaptureDescriptorSet->getLayout(),
-            })
-            .forViews(6)
-            .withColorFormats({target.getFormat()});
+                   .withVertexShader("../shaders/obj/sphere-cube-vert.spv")
+                   .withFragmentShader("../shaders/obj/sphere-cube-frag.spv")
+                   .withVertices<SkyboxVertex>()
+                   .withRasterizer({
+                       .polygonMode = vk::PolygonMode::eFill,
+                       .cullMode = vk::CullModeFlagBits::eNone,
+                       .frontFace = vk::FrontFace::eCounterClockwise,
+                       .lineWidth = 1.0f,
+                   })
+                   .withDepthStencil({
+                       .depthTestEnable = vk::False,
+                       .depthWriteEnable = vk::False,
+                   })
+                   .withDescriptorLayouts({
+                       *cubemapCaptureDescriptorSet->getLayout(),
+                   })
+                   .forViews(6)
+                   .withColorFormats({target.getFormat()});
 
     auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
@@ -1249,28 +1250,28 @@ void VulkanRenderer::createDebugQuadRenderInfos() {
     debugQuadRenderInfos.clear();
 
     auto builder = GraphicsPipelineBuilder()
-            .withVertexShader("../shaders/obj/ss-quad-vert.spv")
-            .withFragmentShader("../shaders/obj/ss-quad-frag.spv")
-            .withVertices<ScreenSpaceQuadVertex>()
-            .withRasterizer({
-                .polygonMode = vk::PolygonMode::eFill,
-                .cullMode = vk::CullModeFlagBits::eNone,
-                .frontFace = vk::FrontFace::eCounterClockwise,
-                .lineWidth = 1.0f,
-            })
-            .withMultisampling({
-                .rasterizationSamples = getMsaaSampleCount(),
-                .minSampleShading = 1.0f,
-            })
-            .withDepthStencil({
-                .depthTestEnable = vk::False,
-                .depthWriteEnable = vk::False,
-            })
-            .withDescriptorLayouts({
-                *debugQuadDescriptorSet->getLayout(),
-            })
-            .withColorFormats({swapChain->getImageFormat()})
-            .withDepthFormat(swapChain->getDepthFormat());
+                   .withVertexShader("../shaders/obj/ss-quad-vert.spv")
+                   .withFragmentShader("../shaders/obj/ss-quad-frag.spv")
+                   .withVertices<ScreenSpaceQuadVertex>()
+                   .withRasterizer({
+                       .polygonMode = vk::PolygonMode::eFill,
+                       .cullMode = vk::CullModeFlagBits::eNone,
+                       .frontFace = vk::FrontFace::eCounterClockwise,
+                       .lineWidth = 1.0f,
+                   })
+                   .withMultisampling({
+                       .rasterizationSamples = getMsaaSampleCount(),
+                       .minSampleShading = 1.0f,
+                   })
+                   .withDepthStencil({
+                       .depthTestEnable = vk::False,
+                       .depthWriteEnable = vk::False,
+                   })
+                   .withDescriptorLayouts({
+                       *debugQuadDescriptorSet->getLayout(),
+                   })
+                   .withColorFormats({swapChain->getImageFormat()})
+                   .withDepthFormat(swapChain->getDepthFormat());
 
     auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
@@ -1428,6 +1429,36 @@ void VulkanRenderer::createCommandBuffers() {
 void VulkanRenderer::recordGraphicsCommandBuffer() {
     const auto &commandBuffer = *frameResources[currentFrameIdx].graphicsCmdBuffer;
 
+    const vk::ImageMemoryBarrier2 barrierTo{
+        .srcStageMask = vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
+        .srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
+        .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
+        .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
+        .oldLayout = vk::ImageLayout::eGeneral,
+        .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+        .image = **rtTargetTexture->getImage(),
+        .subresourceRange = {
+            .aspectMask = vk::ImageAspectFlagBits::eColor,
+            .levelCount = 1,
+            .layerCount = 1,
+        }
+    };
+
+    const vk::ImageMemoryBarrier2 barrierFrom{
+        .srcStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
+        .srcAccessMask = vk::AccessFlagBits2::eShaderRead,
+        .dstStageMask = vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
+        .dstAccessMask = vk::AccessFlagBits2::eShaderWrite,
+        .oldLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+        .newLayout = vk::ImageLayout::eGeneral,
+        .image = **rtTargetTexture->getImage(),
+        .subresourceRange = {
+            .aspectMask = vk::ImageAspectFlagBits::eColor,
+            .levelCount = 1,
+            .layerCount = 1,
+        }
+    };
+
     constexpr auto renderingFlags = vk::RenderingFlagBits::eContentsSecondaryCommandBuffers;
 
     constexpr vk::CommandBufferBeginInfo beginInfo;
@@ -1469,10 +1500,20 @@ void VulkanRenderer::recordGraphicsCommandBuffer() {
     // debug quad pass
 
     if (frameResources[currentFrameIdx].debugCmdBuffer.wasRecordedThisFrame) {
+        commandBuffer.pipelineBarrier2(vk::DependencyInfo{
+            .imageMemoryBarrierCount = 1u,
+            .pImageMemoryBarriers = &barrierTo
+        });
+
         const auto &renderInfo = sceneRenderInfos[swapChain->getCurrentImageIndex()];
         commandBuffer.beginRendering(renderInfo.get(swapChain->getExtent(), 1, renderingFlags));
         commandBuffer.executeCommands(**frameResources[currentFrameIdx].debugCmdBuffer);
         commandBuffer.endRendering();
+
+        commandBuffer.pipelineBarrier2(vk::DependencyInfo{
+            .imageMemoryBarrierCount = 1u,
+            .pImageMemoryBarriers = &barrierFrom
+        });
     }
 
     // gui pass
@@ -1517,7 +1558,7 @@ void VulkanRenderer::createSyncObjects() {
 
 void VulkanRenderer::createTLAS() {
     const uint32_t instanceCount = 1; // todo
-    std::vector<vk::AccelerationStructureInstanceKHR> instances(instanceCount);
+    std::vector<vk::AccelerationStructureInstanceKHR> instances;
 
     decltype(vk::TransformMatrixKHR::matrix) matrix;
     matrix[0] = {{1.0f, 0.0f, 0.0f, 0.0f}};
@@ -1527,7 +1568,6 @@ void VulkanRenderer::createTLAS() {
 
     const vk::AccelerationStructureDeviceAddressInfoKHR blasAddressInfo{.accelerationStructure = *model->getBLAS()};
     const vk::DeviceAddress blasReference = ctx.device->getAccelerationStructureAddressKHR(blasAddressInfo);
-
     constexpr auto flags = vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable; // todo
 
     instances.emplace_back(vk::AccelerationStructureInstanceKHR{
@@ -1608,7 +1648,7 @@ void VulkanRenderer::createTLAS() {
 
     buildInfo.srcAccelerationStructure = nullptr;
     buildInfo.dstAccelerationStructure = ***tlas;
-    buildInfo.scratchData              = ctx.device->getBufferAddress({.buffer = *scratchBuffer});
+    buildInfo.scratchData = ctx.device->getBufferAddress({.buffer = *scratchBuffer});
 
     static constexpr vk::AccelerationStructureBuildRangeInfoKHR rangeInfo{
         .primitiveCount = instanceCount,
@@ -1636,12 +1676,12 @@ void VulkanRenderer::createTLAS() {
 
 void VulkanRenderer::createRtPipeline() {
     const auto builder = RtPipelineBuilder()
-            .withRayGenShader("../shaders/obj/raytrace-rgen.spv")
-            .withMissShader("../shaders/obj/raytrace-rmiss.spv")
-            .withClosestHitShader("../shaders/obj/raytrace-rchit.spv")
-            .withDescriptorLayouts({
-                *frameResources[0].rtDescriptorSet->getLayout(),
-            });
+                         .withRayGenShader("../shaders/obj/raytrace-rgen.spv")
+                         .withMissShader("../shaders/obj/raytrace-rmiss.spv")
+                         .withClosestHitShader("../shaders/obj/raytrace-rchit.spv")
+                         .withDescriptorLayouts({
+                             *frameResources[0].rtDescriptorSet->getLayout(),
+                         });
 
     rtPipeline = make_unique<RtPipeline>(builder.create(ctx));
 }
@@ -1847,11 +1887,11 @@ bool VulkanRenderer::startFrame() {
         throw std::runtime_error("failed to acquire swap chain image!");
     }
 
-    frameResources[currentFrameIdx].sceneCmdBuffer.wasRecordedThisFrame   = false;
+    frameResources[currentFrameIdx].sceneCmdBuffer.wasRecordedThisFrame = false;
     frameResources[currentFrameIdx].prepassCmdBuffer.wasRecordedThisFrame = false;
-    frameResources[currentFrameIdx].ssaoCmdBuffer.wasRecordedThisFrame    = false;
-    frameResources[currentFrameIdx].guiCmdBuffer.wasRecordedThisFrame     = false;
-    frameResources[currentFrameIdx].debugCmdBuffer.wasRecordedThisFrame   = false;
+    frameResources[currentFrameIdx].ssaoCmdBuffer.wasRecordedThisFrame = false;
+    frameResources[currentFrameIdx].guiCmdBuffer.wasRecordedThisFrame = false;
+    frameResources[currentFrameIdx].debugCmdBuffer.wasRecordedThisFrame = false;
 
     return true;
 }
@@ -1949,11 +1989,8 @@ void VulkanRenderer::runPrepass() {
 
     const auto &commandBuffer = *frameResources[currentFrameIdx].prepassCmdBuffer.buffer;
 
-    const vk::StructureChain<
-        vk::CommandBufferInheritanceInfo,
-        vk::CommandBufferInheritanceRenderingInfo
-    > inheritanceInfo{
-        {},
+    const vk::StructureChain inheritanceInfo{
+        vk::CommandBufferInheritanceInfo {},
         prepassRenderInfo->getInheritanceRenderingInfo()
     };
 
@@ -1991,11 +2028,8 @@ void VulkanRenderer::runSsaoPass() {
 
     const auto &commandBuffer = *frameResources[currentFrameIdx].ssaoCmdBuffer.buffer;
 
-    const vk::StructureChain<
-        vk::CommandBufferInheritanceInfo,
-        vk::CommandBufferInheritanceRenderingInfo
-    > inheritanceInfo{
-        {},
+    const vk::StructureChain inheritanceInfo{
+        vk::CommandBufferInheritanceInfo {},
         ssaoRenderInfo->getInheritanceRenderingInfo()
     };
 
@@ -2031,6 +2065,14 @@ void VulkanRenderer::runSsaoPass() {
 void VulkanRenderer::raytrace() {
     const auto &commandBuffer = *frameResources[currentFrameIdx].rtCmdBuffer.buffer;
 
+    static constexpr vk::CommandBufferInheritanceInfo inheritanceInfo{};
+
+    static constexpr vk::CommandBufferBeginInfo beginInfo{
+        .pInheritanceInfo = &inheritanceInfo,
+    };
+
+    commandBuffer.begin(beginInfo);
+
     commandBuffer.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, ***rtPipeline);
 
     commandBuffer.bindDescriptorSets(
@@ -2041,7 +2083,7 @@ void VulkanRenderer::raytrace() {
         nullptr
     );
 
-    const auto &sbt    = rtPipeline->getSbt();
+    const auto &sbt = rtPipeline->getSbt();
     const auto &extent = rtTargetTexture->getImage().getExtent();
 
     commandBuffer.traceRaysKHR(
@@ -2053,6 +2095,8 @@ void VulkanRenderer::raytrace() {
         extent.height,
         extent.depth
     );
+
+    commandBuffer.end();
 
     frameResources[currentFrameIdx].rtCmdBuffer.wasRecordedThisFrame = true;
 }
@@ -2163,9 +2207,9 @@ void VulkanRenderer::drawDebugQuad() {
 
 void VulkanRenderer::drawModel(const vk::raii::CommandBuffer &commandBuffer, const bool doPushConstants,
                                const GraphicsPipeline &pipeline) const {
-    uint32_t indexOffset      = 0;
+    uint32_t indexOffset = 0;
     std::int32_t vertexOffset = 0;
-    uint32_t instanceOffset   = 0;
+    uint32_t instanceOffset = 0;
 
     model->bindBuffers(commandBuffer);
 
