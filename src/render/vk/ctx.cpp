@@ -1,5 +1,7 @@
 #include "ctx.hpp"
 
+#include <vma/vk_mem_alloc.h>
+
 namespace zrx {
 VmaAllocatorWrapper::VmaAllocatorWrapper(const vk::PhysicalDevice physicalDevice, const vk::Device device,
                                          const vk::Instance instance) {

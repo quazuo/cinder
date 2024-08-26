@@ -15,13 +15,11 @@
 #include "vk/ctx.hpp"
 #include "vk/descriptor.hpp"
 
+#include <vk-bootstrap/VkBootstrap.h>
+
 struct GLFWwindow;
 
-static constexpr std::array validationLayers{
-    "VK_LAYER_KHRONOS_validation"
-};
-
-static constexpr std::array deviceExtensions{
+static const std::vector deviceExtensions{
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
     VK_KHR_MAINTENANCE2_EXTENSION_NAME,
     VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
@@ -40,7 +38,6 @@ constexpr bool enableValidationLayers = true;
 #endif
 
 namespace zrx {
-
 class RenderTarget;
 class InputManager;
 class Model;
@@ -101,26 +98,14 @@ private:
 };
 
 class VulkanRenderer {
-    using CubemapCaptureDescriptorSet = DescriptorSet<BufferResource, TextureResource>;
-    using DebugQuadDescriptorSet      = DescriptorSet<TextureResource>;
-    using MaterialsDescriptorSet      = DescriptorSet<TextureResource, TextureResource, TextureResource>;
-    using SceneDescriptorSet          = DescriptorSet<BufferResource, TextureResource>;
-    using SkyboxDescriptorSet         = DescriptorSet<BufferResource, TextureResource>;
-    using PrepassDescriptorSet        = DescriptorSet<BufferResource>;
-
-    using RtDescriptorSet = DescriptorSet<
-        BufferResource,
-        AccelStructureResource,
-        TextureResource,
-        BufferResource,
-        BufferResource>;
-
-    using SsaoDescriptorSet = DescriptorSet<
-        BufferResource,
-        TextureResource,
-        TextureResource,
-        TextureResource,
-        TextureResource>;
+    using CubemapCaptureDescriptorSet = DescriptorSet<Buffer, Texture>;
+    using DebugQuadDescriptorSet      = DescriptorSet<Texture>;
+    using MaterialsDescriptorSet      = DescriptorSet<Texture, Texture, Texture>;
+    using SceneDescriptorSet          = DescriptorSet<Buffer, Texture>;
+    using SkyboxDescriptorSet         = DescriptorSet<Buffer, Texture>;
+    using PrepassDescriptorSet        = DescriptorSet<Buffer>;
+    using RtDescriptorSet             = DescriptorSet<Buffer, AccelerationStructure, Texture, Buffer, Buffer>;
+    using SsaoDescriptorSet           = DescriptorSet<Buffer, Texture, Texture, Texture, Texture>;
 
     GLFWwindow *window = nullptr;
 
@@ -314,44 +299,19 @@ private:
 
     void bindMouseDragActions();
 
-    // ==================== instance creation ====================
+    // ==================== startup ====================
 
-    void createInstance();
+    vkb::Instance createInstance();
 
     static std::vector<const char *> getRequiredExtensions();
 
-    // ==================== validation layers ====================
-
-    static bool checkValidationLayerSupport();
-
-    static vk::DebugUtilsMessengerCreateInfoEXT makeDebugMessengerCreateInfo();
-
-    void setupDebugMessenger();
-
-    static VKAPI_ATTR VkBool32 VKAPI_CALL debugCallback(
-        VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-        VkDebugUtilsMessageTypeFlagsEXT messageType,
-        const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-        void *pUserData
-    );
-
-    // ==================== window surface ====================
-
     void createSurface();
 
-    // ==================== physical device ====================
+    vkb::PhysicalDevice pickPhysicalDevice(const vkb::Instance& vkbInstance);
 
-    void pickPhysicalDevice();
-
-    [[nodiscard]] bool isDeviceSuitable(const vk::raii::PhysicalDevice &physicalDevice) const;
+    void createLogicalDevice(const vkb::PhysicalDevice& vkbPhysicalDevice);
 
     [[nodiscard]] QueueFamilyIndices findQueueFamilies(const vk::raii::PhysicalDevice &physicalDevice) const;
-
-    static bool checkDeviceExtensionSupport(const vk::raii::PhysicalDevice &physicalDevice);
-
-    // ==================== logical device ====================
-
-    void createLogicalDevice();
 
     // ==================== assets ====================
 

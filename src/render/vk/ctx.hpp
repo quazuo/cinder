@@ -3,14 +3,14 @@
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
 
-#include <vma/vk_mem_alloc.h>
+struct VmaAllocator_T;
 
 namespace zrx {
 /**
  * Simple RAII-preserving wrapper class for the VMA allocator.
  */
 class VmaAllocatorWrapper {
-    VmaAllocator allocator{};
+    VmaAllocator_T* allocator{};
 
 public:
     VmaAllocatorWrapper(vk::PhysicalDevice physicalDevice, vk::Device device, vk::Instance instance);
@@ -25,7 +25,7 @@ public:
 
     VmaAllocatorWrapper &operator=(VmaAllocatorWrapper &&other) = delete;
 
-    [[nodiscard]] VmaAllocator operator*() const { return allocator; }
+    [[nodiscard]] VmaAllocator_T* operator*() const { return allocator; }
 };
 
 /**

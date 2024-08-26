@@ -6,7 +6,7 @@
 namespace zrx {
 Buffer::Buffer(const VmaAllocator _allocator, const vk::DeviceSize size, const vk::BufferUsageFlags usage,
                const vk::MemoryPropertyFlags properties)
-    : allocator(_allocator) {
+    : allocator(_allocator), size(size) {
     const vk::BufferCreateInfo bufferInfo{
         .size = size,
         .usage = usage,

@@ -10,12 +10,10 @@ find_package(Vulkan REQUIRED)
 
 include_directories(
         deps/
+        deps/assimp/include/
         deps/glfw/include/
         deps/glm/
         deps/imGuIZMO.quat/
-        deps/stb/
-        deps/vma/
-        deps/assimp/include/
         cmake-build-debug/deps/assimp/include/
         .
 )
@@ -67,6 +65,12 @@ set(IMGUIZMO_QUAT_SRCS
     deps/imGuIZMO.quat/imGuIZMO.quat/imGuIZMOquat.cpp
 )
 
+# vk-bootstrap
+
+set(VK_BOOTSTRAP_SRCS
+    deps/vk-bootstrap/VkBootstrap.cpp
+)
+
 # header-only deps
 
 file(GLOB HEADER_ONLY_DEPS_SRCS
@@ -85,5 +89,11 @@ file(GLOB RAYZOR_SRCS
         "src/utils/*"
 )
 
-add_executable(rayzor ${RAYZOR_SRCS} ${IMGUI_SRCS} ${IMGUI_IMPL_SRCS} ${IMGUIZMO_QUAT_SRCS} ${HEADER_ONLY_DEPS_SRCS})
+add_executable(rayzor
+        ${RAYZOR_SRCS}
+        ${IMGUI_SRCS}
+        ${IMGUI_IMPL_SRCS}
+        ${IMGUIZMO_QUAT_SRCS}
+        ${VK_BOOTSTRAP_SRCS}
+        ${HEADER_ONLY_DEPS_SRCS})
 target_link_libraries(rayzor ${ALL_LIBS})

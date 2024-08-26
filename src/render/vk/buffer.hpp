@@ -14,9 +14,10 @@ namespace zrx {
  * buffer, e.g. for use as a staging buffer.
  */
 class Buffer {
-    VmaAllocator allocator{};
+    VmaAllocator allocator;
     vk::Buffer buffer;
     VmaAllocation allocation{};
+    vk::DeviceSize size;
     void *mapped = nullptr;
 
 public:
@@ -39,6 +40,8 @@ public:
          * @return Handle to the buffer.
          */
     [[nodiscard]] const vk::Buffer &operator*() const { return buffer; }
+
+    [[nodiscard]] vk::DeviceSize getSize() const { return size; }
 
     /**
      * Maps the buffer's memory to host memory. This requires the buffer to *not* be created
@@ -66,6 +69,19 @@ public:
      */
     void copyFromBuffer(const RendererContext &ctx, const Buffer &otherBuffer, vk::DeviceSize size,
                         vk::DeviceSize srcOffset = 0, vk::DeviceSize dstOffset = 0) const;
+};
+
+struct BufferSlice {
+    std::reference_wrapper<const Buffer> buffer;
+    vk::DeviceSize size;
+    vk::DeviceSize offset;
+
+    BufferSlice(const Buffer& buffer, const vk::DeviceSize size, const vk::DeviceSize offset = 0)
+        : buffer(buffer), size(size), offset(offset) {
+        if (size + offset > buffer.getSize()) {
+            throw std::invalid_argument("buffer slice extent out of range");
+        }
+    }
 };
 
 namespace utils::buf {

@@ -11,218 +11,131 @@
 #include "ctx.hpp"
 
 namespace zrx {
-/**
- * Builder class streamlining descriptor set layout creation.
- *
- * Methods which add bindings are order-dependent and the order in which they are called
- * defines which binding is used for a given resource, i.e. first call to `addBinding` will
- * use binding 0, second will use binding 1, and so on.
- */
-class DescriptorLayoutBuilder {
-    std::vector<vk::DescriptorSetLayoutBinding> bindings;
-
-public:
-    DescriptorLayoutBuilder &addBinding(vk::DescriptorType type, vk::ShaderStageFlags stages,
-                                        uint32_t descriptorCount = 1);
-
-    DescriptorLayoutBuilder &addRepeatedBindings(size_t count, vk::DescriptorType type, vk::ShaderStageFlags stages,
-                                                 uint32_t descriptorCount = 1);
-
-    [[nodiscard]] vk::raii::DescriptorSetLayout create(const RendererContext &ctx);
+template<typename ResourceType>
+struct DefaultDescriptorType {
 };
 
-struct Resource {
+template<>
+struct DefaultDescriptorType<Texture> {
+    static constexpr auto type = vk::DescriptorType::eCombinedImageSampler;
+};
+
+template<>
+struct DefaultDescriptorType<Buffer> {
+    static constexpr auto type = vk::DescriptorType::eUniformBuffer;
+};
+
+template<>
+struct DefaultDescriptorType<BufferSlice> {
+    static constexpr auto type = vk::DescriptorType::eUniformBuffer;
+};
+
+template<>
+struct DefaultDescriptorType<AccelerationStructure> {
+    static constexpr auto type = vk::DescriptorType::eAccelerationStructureKHR;
+};
+
+template<typename T>
+struct is_valid_for_resource : std::disjunction<
+            std::is_same<T, Texture>,
+            std::is_same<T, Buffer>,
+            std::is_same<T, BufferSlice>,
+            std::is_same<T, AccelerationStructure> > {
+};
+
+template<typename T>
+    requires is_valid_for_resource<T>::value
+struct ResourcePack final {
+    using ResourceSlot = std::optional<std::reference_wrapper<const T> >;
+
     vk::ShaderStageFlags scope;
     vk::DescriptorType type;
     uint32_t descriptorCount;
+    std::vector<ResourceSlot> resources;
 
-protected:
-    // not instantiable as-is, only possible with derived classes
-    explicit Resource(const vk::ShaderStageFlags scope, const vk::DescriptorType type,
-                      const uint32_t descriptorCount = 1)
-        : scope(scope), type(type), descriptorCount(descriptorCount) {
+    ResourcePack(const uint32_t descriptorCount, const vk::ShaderStageFlags scope,
+                 const vk::DescriptorType type = DefaultDescriptorType<T>::type)
+        : scope(scope), type(type), descriptorCount(descriptorCount), resources(descriptorCount) {
     }
 
-public:
-    virtual ~Resource() = default;
-};
-
-struct TextureResource final : Resource {
-    std::vector<std::optional<std::reference_wrapper<const Texture> > > textures;
-
-    explicit TextureResource(const Texture &texture, const vk::ShaderStageFlags scope,
-                             const vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler)
-        : Resource(scope, type, 1), textures({texture}) {
+    ResourcePack(const T &resource, const vk::ShaderStageFlags scope,
+                 const vk::DescriptorType type = DefaultDescriptorType<T>::type)
+        : scope(scope), type(type), descriptorCount(1), resources({resource}) {
     }
 
-    explicit TextureResource(
-        const std::initializer_list<std::optional<std::reference_wrapper<const Texture> > > textures,
-        const vk::ShaderStageFlags scope,
-        const vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler)
-        : Resource(scope, type, textures.size()), textures(textures) {
+    ResourcePack(const std::initializer_list<ResourceSlot> resources, const vk::ShaderStageFlags scope,
+                 const vk::DescriptorType type = DefaultDescriptorType<T>::type)
+        : scope(scope), type(type), descriptorCount(resources.size()), resources(resources) {
     }
-
-    TextureResource(const uint32_t descriptorCount, const vk::ShaderStageFlags scope,
-                    const vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler)
-        : Resource(scope, type, descriptorCount), textures(descriptorCount) {
-    }
-};
-
-struct BufferResource final : Resource {
-    std::reference_wrapper<const Buffer> buffer;
-    vk::DeviceSize size;
-    vk::DeviceSize offset;
-
-    BufferResource(const Buffer &buffer, const vk::ShaderStageFlags scope, const vk::DeviceSize size,
-                   const vk::DeviceSize offset = 0, const vk::DescriptorType type = vk::DescriptorType::eUniformBuffer)
-        : Resource(scope, type), buffer(buffer), size(size), offset(offset) {
-    }
-};
-
-struct AccelStructureResource final : Resource {
-    std::reference_wrapper<const AccelerationStructure> accelStructure;
-
-    AccelStructureResource(const AccelerationStructure &accelStructure, const vk::ShaderStageFlags scope)
-        : Resource(scope, vk::DescriptorType::eAccelerationStructureKHR), accelStructure(accelStructure) {
-    }
-};
-
-template<typename... Ts>
-struct are_all_resources : std::conjunction<std::is_base_of<Resource, Ts>...> {
 };
 
 template<int N, typename... Ts>
-using NthTypeOf = typename std::tuple_element_t<N, std::tuple<Ts...> >;
+using NthTypeOf = std::tuple_element_t<N, std::tuple<Ts...> >;
 
 /**
  * Convenience wrapper around Vulkan descriptor sets, mainly to pair them together with related layouts,
  * as well as provide an easy way to update them in a performant way.
  */
 template<typename... Ts>
-    requires are_all_resources<Ts...>::value
+    requires std::conjunction_v<is_valid_for_resource<Ts>...>
 class DescriptorSet {
     std::reference_wrapper<const RendererContext> ctx;
-    std::tuple<Ts...> resources;
+    std::tuple<ResourcePack<Ts>...> packs;
     shared_ptr<vk::raii::DescriptorSetLayout> layout;
     unique_ptr<vk::raii::DescriptorSet> set;
+
+    using WriteInfo = std::variant<
+        vk::DescriptorBufferInfo,
+        vk::DescriptorImageInfo,
+        vk::WriteDescriptorSetAccelerationStructureKHR>;
 
     struct DescriptorUpdate {
         uint32_t binding{};
         uint32_t arrayElement{};
         vk::DescriptorType type{};
-        std::variant<
-            vk::DescriptorBufferInfo,
-            vk::DescriptorImageInfo,
-            vk::WriteDescriptorSetAccelerationStructureKHR> info;
+        WriteInfo info;
     };
 
     std::vector<DescriptorUpdate> queuedUpdates;
 
 public:
-    explicit DescriptorSet(const RendererContext &ctx, const vk::raii::DescriptorPool &pool, Ts... elems)
-        : ctx(ctx), resources(elems...) {
+    explicit DescriptorSet(const RendererContext &ctx, const vk::raii::DescriptorPool &pool, ResourcePack<Ts>... elems)
+        : ctx(ctx), packs(elems...) {
         createLayout();
         createSet(pool);
         doFullUpdate();
     }
 
+private:
+    explicit DescriptorSet(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
+                           const shared_ptr<vk::raii::DescriptorSetLayout> &layout, ResourcePack<Ts>... elems)
+        : ctx(ctx), packs(elems...), layout(layout) {
+        createSet(pool);
+        doFullUpdate();
+    }
+
+public:
     [[nodiscard]] const vk::raii::DescriptorSet &operator*() const { return *set; }
 
     [[nodiscard]] const vk::raii::DescriptorSetLayout &getLayout() const { return *layout; }
 
     /**
-     * Queues an update to a given binding in this descriptor set, referencing a buffer.
+     * Queues an update to a given binding in this descriptor set.
      * To actually push the update, `commitUpdates` must be called after all desired updates are queued.
      */
-    template<uint32_t Binding>
-        requires std::is_same_v<BufferResource, NthTypeOf<Binding, Ts...> >
-    DescriptorSet &queueUpdate(const Buffer &buffer, const vk::DescriptorType type, const vk::DeviceSize size,
-                               const vk::DeviceSize offset = 0, const uint32_t arrayElement = 0) {
-        const vk::DescriptorBufferInfo bufferInfo{
-            .buffer = *buffer,
-            .offset = offset,
-            .range = size,
-        };
+    template<uint32_t Binding, typename ResourceType>
+        requires std::is_same_v<ResourceType, NthTypeOf<Binding, Ts...> >
+    DescriptorSet &queueUpdate(const ResourceType &resource, const uint32_t arrayElement = 0) {
+        const auto &pack = std::get<Binding>(packs);
 
-        queuedUpdates.emplace_back(DescriptorUpdate{
+        DescriptorUpdate update{
             .binding = Binding,
             .arrayElement = arrayElement,
-            .type = type,
-            .info = bufferInfo,
-        });
-
-        return *this;
-    }
-
-    /**
-     * Queues an update to a given binding in this descriptor set, referencing a texture.
-     * To actually push the update, `commitUpdates` must be called after all desired updates are queued.
-     */
-    template<uint32_t Binding>
-        requires std::is_same_v<TextureResource, NthTypeOf<Binding, Ts...> >
-    DescriptorSet &queueUpdate(const Texture &texture,
-                               const vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler,
-                               const uint32_t arrayElement = 0) {
-        const auto layout = type == vk::DescriptorType::eCombinedImageSampler
-                            ? vk::ImageLayout::eShaderReadOnlyOptimal
-                            : vk::ImageLayout::eGeneral;
-
-        const vk::DescriptorImageInfo imageInfo{
-            .sampler = *texture.getSampler(),
-            .imageView = **texture.getImage().getView(ctx),
-            .imageLayout = layout,
+            .type = pack.type,
+            .info = makeWriteInfo<Binding, ResourceType>(resource)
         };
 
-        queuedUpdates.emplace_back(DescriptorUpdate{
-            .binding = Binding,
-            .arrayElement = arrayElement,
-            .type = type,
-            .info = imageInfo,
-        });
-
-        return *this;
-    }
-
-    /**
-     * Queues an update to a given binding in this descriptor set, referencing a raw storage image.
-     * To actually push the update, `commitUpdates` must be called after all desired updates are queued.
-     */
-    template<uint32_t Binding>
-        requires std::is_same_v<TextureResource, NthTypeOf<Binding, Ts...> >
-    DescriptorSet &queueUpdate(const vk::raii::ImageView &view, const uint32_t arrayElement = 0) {
-        const vk::DescriptorImageInfo imageInfo{
-            .imageView = *view,
-            .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
-        };
-
-        queuedUpdates.emplace_back(DescriptorUpdate{
-            .binding = Binding,
-            .arrayElement = arrayElement,
-            .type = vk::DescriptorType::eStorageImage,
-            .info = imageInfo,
-        });
-
-        return *this;
-    }
-
-    /**
-    * Queues an update to a given binding in this descriptor set, referencing an acceleration structure.
-    * To actually push the update, `commitUpdates` must be called after all desired updates are queued.
-    */
-    template<uint32_t Binding>
-        requires std::is_same_v<AccelStructureResource, NthTypeOf<Binding, Ts...> >
-    DescriptorSet &queueUpdate(const AccelerationStructure &accel, const uint32_t arrayElement = 0) {
-        const vk::WriteDescriptorSetAccelerationStructureKHR accelInfo{
-            .accelerationStructureCount = 1u,
-            .pAccelerationStructures = &**accel, // todo - dangling pointer?
-        };
-
-        queuedUpdates.emplace_back(DescriptorUpdate{
-            .binding = Binding,
-            .arrayElement = arrayElement,
-            .type = vk::DescriptorType::eAccelerationStructureKHR,
-            .info = accelInfo,
-        });
+        queuedUpdates.push_back(update);
 
         return *this;
     }
@@ -258,104 +171,69 @@ public:
     }
 
     /**
-     * Immediately updates a single binding in this descriptor set, referencing a buffer.
+     * Immediately updates a single binding in this descriptor set.
      */
-    template<uint32_t Binding>
-        requires std::is_same_v<BufferResource, NthTypeOf<Binding, Ts...> >
-    void updateBinding(const Buffer &buffer, const vk::DescriptorType type, const vk::DeviceSize size,
-                       const vk::DeviceSize offset = 0, const uint32_t arrayElement = 0) const {
-        const vk::DescriptorBufferInfo bufferInfo{
-            .buffer = *buffer,
-            .offset = offset,
-            .range = size,
-        };
+    template<uint32_t Binding, typename ResourceType>
+        requires std::is_same_v<ResourceType, NthTypeOf<Binding, Ts...> >
+    DescriptorSet &updateBinding(const ResourceType &resource, const uint32_t arrayElement = 0) {
+        const auto &pack = std::get<Binding>(packs);
 
-        const vk::WriteDescriptorSet write{
+        if (arrayElement >= pack.descriptorCount) {
+            throw std::invalid_argument("descriptor set array element out of bounds");
+        }
+
+        vk::WriteDescriptorSet write{
             .dstSet = **set,
             .dstBinding = Binding,
             .dstArrayElement = arrayElement,
             .descriptorCount = 1,
-            .descriptorType = type,
-            .pBufferInfo = &bufferInfo,
+            .descriptorType = pack.type,
         };
 
+        const WriteInfo info = makeWriteInfo<Binding, ResourceType>(resource);
+
+        if constexpr (std::is_same_v<ResourceType, Buffer> || std::is_same_v<ResourceType, BufferSlice>) {
+            write.pBufferInfo = &std::get<vk::DescriptorBufferInfo>(info);
+        } else if constexpr (std::is_same_v<ResourceType, Texture>) {
+            write.pImageInfo = &std::get<vk::DescriptorImageInfo>(info);
+        } else if constexpr (std::is_same_v<ResourceType, AccelerationStructure>) {
+            write.pNext = &std::get<vk::WriteDescriptorSetAccelerationStructureKHR>(info);
+        } else if constexpr (true) {
+            throw std::runtime_error("unimplemented resource type handling");
+        }
+
         ctx.get().device->updateDescriptorSets(write, nullptr);
+
+        return *this;
     }
 
-    /**
-     * Immediately updates a single binding in this descriptor set, referencing a texture.
-     */
-    template<uint32_t Binding>
-        requires std::is_same_v<TextureResource, NthTypeOf<Binding, Ts...> >
-    void updateBinding(const Texture &texture,
-                       const vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler,
-                       const uint32_t arrayElement = 0) const {
-        const auto layout = type == vk::DescriptorType::eCombinedImageSampler
-                            ? vk::ImageLayout::eShaderReadOnlyOptimal
-                            : vk::ImageLayout::eGeneral;
+    template<uint32_t Binding, typename ResourceType>
+    WriteInfo makeWriteInfo(const ResourceType &resource) {
+        const auto &pack = std::get<Binding>(packs);
 
-        const vk::DescriptorImageInfo imageInfo{
-            .sampler = *texture.getSampler(),
-            .imageView = **texture.getImage().getView(ctx),
-            .imageLayout = layout,
-        };
+        if constexpr (std::is_same_v<ResourceType, Buffer> || std::is_same_v<ResourceType, BufferSlice>) {
+            return vk::DescriptorBufferInfo{
+                .buffer = *resource,
+                .range = resource.getSize(),
+            };
+        } else if constexpr (std::is_same_v<ResourceType, Texture>) {
+            const auto imageLayout = pack.type == vk::DescriptorType::eCombinedImageSampler
+                                         ? vk::ImageLayout::eShaderReadOnlyOptimal
+                                         : vk::ImageLayout::eGeneral;
 
-        const vk::WriteDescriptorSet write{
-            .dstSet = **set,
-            .dstBinding = Binding,
-            .dstArrayElement = arrayElement,
-            .descriptorCount = 1,
-            .descriptorType = type,
-            .pImageInfo = &imageInfo,
-        };
+            return vk::DescriptorImageInfo{
+                .sampler = *resource.getSampler(),
+                .imageView = **resource.getImage().getView(ctx),
+                .imageLayout = imageLayout,
+            };
+        } else if constexpr (std::is_same_v<ResourceType, AccelerationStructure>) {
+            return vk::WriteDescriptorSetAccelerationStructureKHR{
+                .accelerationStructureCount = 1u,
+                .pAccelerationStructures = &**resource, // todo - dangling pointer?
+            };
+        }
 
-        ctx.get().device->updateDescriptorSets(write, nullptr);
-    }
-
-    /**
-     * Immediately updates a single binding in this descriptor set, referencing a raw storage image.
-     */
-    template<uint32_t Binding>
-        requires std::is_same_v<TextureResource, NthTypeOf<Binding, Ts...> >
-    void updateBinding(const vk::raii::ImageView &view, const uint32_t arrayElement = 0) const {
-        const vk::DescriptorImageInfo imageInfo{
-            .imageView = *view,
-            .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
-        };
-
-        const vk::WriteDescriptorSet write{
-            .dstSet = **set,
-            .dstBinding = Binding,
-            .dstArrayElement = arrayElement,
-            .descriptorCount = 1,
-            .descriptorType = vk::DescriptorType::eStorageImage,
-            .pImageInfo = &imageInfo,
-        };
-
-        ctx.get().device->updateDescriptorSets(write, nullptr);
-    }
-
-    /**
-     * Immediately updates a single binding in this descriptor set, referencing an acceleration structure.
-     */
-    template<uint32_t Binding>
-        requires std::is_same_v<AccelStructureResource, NthTypeOf<Binding, Ts...> >
-    void updateBinding(const AccelerationStructure &accel, const uint32_t arrayElement = 0) const {
-        const vk::WriteDescriptorSetAccelerationStructureKHR accelInfo{
-            .accelerationStructureCount = 1,
-            .pAccelerationStructures = &**accel,
-        };
-
-        const vk::WriteDescriptorSet write{
-            .pNext = &accelInfo,
-            .dstSet = **set,
-            .dstBinding = Binding,
-            .dstArrayElement = arrayElement,
-            .descriptorCount = 1,
-            .descriptorType = vk::DescriptorType::eAccelerationStructureKHR,
-        };
-
-        ctx.get().device->updateDescriptorSets(write, nullptr);
+        throw std::runtime_error("unimplemented resource type handling");
     }
 
 private:
@@ -364,7 +242,7 @@ private:
             return std::vector<vk::DescriptorSetLayoutBinding>{
                 makeBinding(std::forward<decltype(elems)>(elems))...
             };
-        }, resources);
+        }, packs);
 
         for (uint32_t i = 0; i < bindings.size(); i++) {
             bindings[i].binding = i;
@@ -378,11 +256,12 @@ private:
         layout = make_shared<vk::raii::DescriptorSetLayout>(*ctx.get().device, setLayoutInfo);
     }
 
-    [[nodiscard]] static vk::DescriptorSetLayoutBinding makeBinding(const Resource &res) {
+    template<typename ResourceType>
+    [[nodiscard]] static vk::DescriptorSetLayoutBinding makeBinding(const ResourcePack<ResourceType> &pack) {
         return vk::DescriptorSetLayoutBinding{
-            .descriptorType = res.type,
-            .descriptorCount = res.descriptorCount,
-            .stageFlags = res.scope,
+            .descriptorType = pack.type,
+            .descriptorCount = pack.descriptorCount,
+            .stageFlags = pack.scope,
         };
     }
 
@@ -400,22 +279,14 @@ private:
 
     template<size_t I = 0>
     void updateSlot() {
-        auto resource = std::get<I>(resources);
+        auto pack = std::get<I>(packs);
 
-        if constexpr (std::is_same_v<NthTypeOf<I, Ts...>, BufferResource>) {
-            queueUpdate<I>(resource.buffer.get(), resource.type, resource.size, resource.offset);
-        }
+        for (uint32_t i = 0; i < pack.descriptorCount; i++) {
+            const auto &resource = pack.resources[i];
 
-        if constexpr (std::is_same_v<NthTypeOf<I, Ts...>, TextureResource>) {
-            for (uint32_t arrIndex = 0; arrIndex < resource.descriptorCount; arrIndex++) {
-                if (resource.textures[arrIndex].has_value()) {
-                    queueUpdate<I>(resource.textures[arrIndex]->get(), resource.type, arrIndex);
-                }
+            if (resource.has_value()) {
+                queueUpdate<I>(resource->get(), i);
             }
-        }
-
-        if constexpr (std::is_same_v<NthTypeOf<I, Ts...>, AccelStructureResource>) {
-            queueUpdate<I>(resource.accelStructure.get());
         }
 
         if constexpr (I + 1 < sizeof...(Ts)) {
@@ -434,8 +305,11 @@ class DescriptorSets {
     std::vector<DescriptorSet<Ts...> > sets;
 
 public:
-    DescriptorSets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool, Ts... elems) {
+    DescriptorSets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool) {
+        // todo - implement so that the sets share layouts
     }
+
+    [[nodiscard]] DescriptorSet<Ts...> &operator[](const size_t index) const { return sets[index]; }
 };
 
 static void usage_example() {
@@ -445,16 +319,23 @@ static void usage_example() {
     const unique_ptr<Texture> tex;
     const unique_ptr<Buffer> buf;
 
-    const TextureResource desc1{*tex, vk::ShaderStageFlagBits::eFragment};
-    const BufferResource desc2{*buf, vk::ShaderStageFlagBits::eVertex, 16};
+    const ResourcePack<Texture> desc1{*tex, vk::ShaderStageFlagBits::eFragment};
+    const ResourcePack<Buffer> desc2{*buf, vk::ShaderStageFlagBits::eVertex};
 
-    const DescriptorSet set{ctx, *pool, desc1, desc2};
+    DescriptorSet set{ctx, *pool, desc1, desc2};
 
     set.updateBinding<0>(*tex);
-    set.updateBinding<1>(*buf, vk::DescriptorType::eUniformBuffer, 16);
+    set.updateBinding<1>(*buf);
 
     // compile error
     // set.updateBinding<1>(*tex);
+
+    // DescriptorSets<Texture, Buffer> sets{
+    //     ctx,
+    //     *pool,
+    //     {desc1, desc2},
+    //     {desc1, desc2}
+    // };
 }
 
 namespace utils::desc {
