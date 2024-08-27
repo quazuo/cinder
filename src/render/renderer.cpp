@@ -267,13 +267,13 @@ void VulkanRenderer::createLogicalDevice(const vkb::PhysicalDevice &vkbPhysicalD
 
     ctx.device = make_unique<vk::raii::Device>(*ctx.physicalDevice, deviceResult.value().device);
 
-    auto graphicsQueueResult = deviceResult.value().get_queue(vkb::QueueType::graphics);
+    auto graphicsQueueResult      = deviceResult.value().get_queue(vkb::QueueType::graphics);
     auto graphicsQueueIndexResult = deviceResult.value().get_queue_index(vkb::QueueType::graphics);
     if (!graphicsQueueResult || !graphicsQueueIndexResult) {
         throw std::runtime_error("failed to get graphics queue: " + deviceResult.error().message());
     }
 
-    auto presentQueueResult = deviceResult.value().get_queue(vkb::QueueType::present);
+    auto presentQueueResult      = deviceResult.value().get_queue(vkb::QueueType::present);
     auto presentQueueIndexResult = deviceResult.value().get_queue_index(vkb::QueueType::present);
     if (!presentQueueResult || !presentQueueIndexResult) {
         throw std::runtime_error("failed to get present queue: " + deviceResult.error().message());
@@ -733,19 +733,31 @@ void VulkanRenderer::createRtDescriptorSets() {
                 *rtTargetTexture,
                 vk::ShaderStageFlagBits::eRaygenKHR,
                 vk::DescriptorType::eStorageImage
-            },
-            ResourcePack{
-                model->getVertexBuffer(),
-                vk::ShaderStageFlagBits::eClosestHitKHR,
-                vk::DescriptorType::eStorageBuffer
-            },
-            ResourcePack{
-                model->getIndexBuffer(),
-                vk::ShaderStageFlagBits::eClosestHitKHR,
-                vk::DescriptorType::eStorageBuffer
             }
         );
     }
+}
+
+void VulkanRenderer::createMeshesDescriptorSet() {
+    meshesDescriptorSet = make_unique<MeshesDescriptorSet>(
+        ctx,
+        *descriptorPool,
+        ResourcePack{
+            model->getMeshDescriptionsBuffer(),
+            vk::ShaderStageFlagBits::eClosestHitKHR,
+            vk::DescriptorType::eStorageBuffer
+        },
+        ResourcePack{
+            model->getVertexBuffer(),
+            vk::ShaderStageFlagBits::eClosestHitKHR,
+            vk::DescriptorType::eStorageBuffer
+        },
+        ResourcePack{
+            model->getIndexBuffer(),
+            vk::ShaderStageFlagBits::eClosestHitKHR,
+            vk::DescriptorType::eStorageBuffer
+        }
+    );
 }
 
 // ==================== render infos ====================
@@ -1452,6 +1464,8 @@ void VulkanRenderer::createRtPipeline() {
             .withClosestHitShader("../shaders/obj/raytrace-rchit.spv")
             .withDescriptorLayouts({
                 *frameResources[0].rtDescriptorSet->getLayout(),
+                *materialsDescriptorSet->getLayout(),
+                *meshesDescriptorSet->getLayout(),
             });
 
     rtPipeline = make_unique<RtPipeline>(builder.create(ctx));
@@ -1850,7 +1864,11 @@ void VulkanRenderer::raytrace() {
         vk::PipelineBindPoint::eRayTracingKHR,
         *rtPipeline->getLayout(),
         0,
-        ***frameResources[currentFrameIdx].rtDescriptorSet,
+        {
+            ***frameResources[currentFrameIdx].rtDescriptorSet,
+            ***materialsDescriptorSet,
+            ***meshesDescriptorSet,
+        },
         nullptr
     );
 
@@ -1978,9 +1996,9 @@ void VulkanRenderer::drawDebugQuad() {
 
 void VulkanRenderer::drawModel(const vk::raii::CommandBuffer &commandBuffer, const bool doPushConstants,
                                const GraphicsPipeline &pipeline) const {
-    uint32_t indexOffset      = 0;
-    std::int32_t vertexOffset = 0;
-    uint32_t instanceOffset   = 0;
+    uint32_t indexOffset    = 0;
+    int32_t vertexOffset    = 0;
+    uint32_t instanceOffset = 0;
 
     model->bindBuffers(commandBuffer);
 
@@ -2006,7 +2024,7 @@ void VulkanRenderer::drawModel(const vk::raii::CommandBuffer &commandBuffer, con
         );
 
         indexOffset += static_cast<uint32_t>(mesh.indices.size());
-        vertexOffset += static_cast<std::int32_t>(mesh.vertices.size());
+        vertexOffset += static_cast<int32_t>(mesh.vertices.size());
         instanceOffset += static_cast<uint32_t>(mesh.instances.size());
     }
 }

@@ -27,6 +27,12 @@ struct Mesh {
     explicit Mesh(const aiMesh *assimpMesh);
 };
 
+struct MeshDescription {
+    uint32_t materialID;
+    uint32_t vertexOffset;
+    uint32_t indexOffset;
+};
+
 struct Material {
     unique_ptr<Texture> baseColor;
     unique_ptr<Texture> normal;
@@ -45,6 +51,7 @@ class Model {
     unique_ptr<Buffer> vertexBuffer;
     unique_ptr<Buffer> instanceDataBuffer;
     unique_ptr<Buffer> indexBuffer;
+    unique_ptr<Buffer> meshDescriptionsBuffer;
 
     unique_ptr<AccelerationStructure> blas;
 
@@ -61,11 +68,15 @@ public:
 
     [[nodiscard]] const Buffer &getIndexBuffer() const { return *indexBuffer; }
 
+    [[nodiscard]] const Buffer &getMeshDescriptionsBuffer() const { return *meshDescriptionsBuffer; }
+
     [[nodiscard]] std::vector<ModelVertex> getVertices() const;
 
     [[nodiscard]] std::vector<uint32_t> getIndices() const;
 
     [[nodiscard]] std::vector<glm::mat4> getInstanceTransforms() const;
+
+    [[nodiscard]] std::vector<MeshDescription> getMeshDescriptions() const;
 
     [[nodiscard]] const vk::raii::AccelerationStructureKHR &getBLAS() const { return **blas; }
 

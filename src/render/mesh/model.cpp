@@ -66,7 +66,7 @@ Mesh::Mesh(const aiMesh *assimpMesh) : materialID(assimpMesh->mMaterialIndex) {
             }
 
             if (assimpMesh->HasTangentsAndBitangents()) {
-                vertex.tangent = assimpVecToGlm(assimpMesh->mTangents[face.mIndices[i]]);
+                vertex.tangent   = assimpVecToGlm(assimpMesh->mTangents[face.mIndices[i]]);
                 vertex.bitangent = assimpVecToGlm(assimpMesh->mBitangents[face.mIndices[i]]);
             }
 
@@ -285,6 +285,26 @@ std::vector<glm::mat4> Model::getInstanceTransforms() const {
     return result;
 }
 
+std::vector<MeshDescription> Model::getMeshDescriptions() const {
+    std::vector<MeshDescription> result;
+
+    uint32_t indexOffset = 0;
+    uint32_t vertexOffset = 0;
+
+    for (const auto &mesh: meshes) {
+        result.emplace_back(MeshDescription {
+            .materialID = mesh.materialID,
+            .vertexOffset = vertexOffset,
+            .indexOffset = indexOffset,
+        });
+
+        indexOffset += static_cast<uint32_t>(mesh.indices.size());
+        vertexOffset += static_cast<std::int32_t>(mesh.vertices.size());
+    }
+
+    return result;
+}
+
 void Model::bindBuffers(const vk::raii::CommandBuffer &commandBuffer) const {
     commandBuffer.bindVertexBuffers(0, **vertexBuffer, {0});
     commandBuffer.bindVertexBuffers(1, **instanceDataBuffer, {0});
@@ -313,11 +333,17 @@ void Model::createBuffers(const RendererContext &ctx) {
         getIndices(),
         vk::BufferUsageFlagBits::eIndexBuffer | rayTracingFlags
     );
+
+    meshDescriptionsBuffer = utils::buf::createLocalBuffer(
+        ctx,
+        getMeshDescriptions(),
+        rayTracingFlags
+    );
 }
 
 void Model::createBLAS(const RendererContext &ctx) {
     const vk::DeviceAddress vertexAddress = ctx.device->getBufferAddress({.buffer = **vertexBuffer});
-    const vk::DeviceAddress indexAddress = ctx.device->getBufferAddress({.buffer = **indexBuffer});
+    const vk::DeviceAddress indexAddress  = ctx.device->getBufferAddress({.buffer = **indexBuffer});
 
     const uint32_t maxPrimitiveCount = getIndices().size() / 3;
 
@@ -405,8 +431,8 @@ void Model::createBLAS(const RendererContext &ctx) {
 
 void Model::normalizeScale() {
     constexpr float standardScale = 10.0f;
-    const float largestDistance = getMaxVertexDistance();
-    const glm::mat4 scaleMatrix = glm::scale(glm::identity<glm::mat4>(), glm::vec3(standardScale / largestDistance));
+    const float largestDistance   = getMaxVertexDistance();
+    const glm::mat4 scaleMatrix   = glm::scale(glm::identity<glm::mat4>(), glm::vec3(standardScale / largestDistance));
 
     for (auto &mesh: meshes) {
         for (auto &transform: mesh.instances) {

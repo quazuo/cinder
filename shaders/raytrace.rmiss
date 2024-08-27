@@ -4,6 +4,8 @@
 
 layout (location = 0) rayPayloadInEXT vec3 hitValue;
 
+layout(binding = 0) uniform samplerCube skyboxTexSampler;
+
 void main() {
-    hitValue = vec3(0.0, 1.0, 0.0);
+    hitValue = texture(skyboxTexSampler, gl_WorldRayDirectionEXT).rgb;
 }

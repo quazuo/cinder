@@ -104,8 +104,9 @@ class VulkanRenderer {
     using SceneDescriptorSet          = DescriptorSet<Buffer, Texture>;
     using SkyboxDescriptorSet         = DescriptorSet<Buffer, Texture>;
     using PrepassDescriptorSet        = DescriptorSet<Buffer>;
-    using RtDescriptorSet             = DescriptorSet<Buffer, AccelerationStructure, Texture, Buffer, Buffer>;
+    using RtDescriptorSet             = DescriptorSet<Buffer, AccelerationStructure, Texture>;
     using SsaoDescriptorSet           = DescriptorSet<Buffer, Texture, Texture, Texture, Texture>;
+    using MeshesDescriptorSet         = DescriptorSet<Buffer, Buffer, Buffer>;
 
     GLFWwindow *window = nullptr;
 
@@ -149,6 +150,7 @@ class VulkanRenderer {
     unique_ptr<vk::raii::DescriptorPool> descriptorPool;
 
     unique_ptr<MaterialsDescriptorSet> materialsDescriptorSet;
+    unique_ptr<MeshesDescriptorSet> meshesDescriptorSet;
     unique_ptr<CubemapCaptureDescriptorSet> cubemapCaptureDescriptorSet;
     unique_ptr<DebugQuadDescriptorSet> debugQuadDescriptorSet;
 
@@ -345,6 +347,8 @@ private:
     void createDebugQuadDescriptorSet();
 
     void createRtDescriptorSets();
+
+    void createMeshesDescriptorSet();
 
     // ==================== render infos ====================
 
