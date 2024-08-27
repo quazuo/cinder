@@ -121,6 +121,7 @@ class VulkanRenderer {
     RendererContext ctx;
 
     unique_ptr<vk::raii::Queue> presentQueue;
+    QueueFamilyIndices queueFamilyIndices;
 
     unique_ptr<SwapChain> swapChain;
 
@@ -310,8 +311,6 @@ private:
     vkb::PhysicalDevice pickPhysicalDevice(const vkb::Instance& vkbInstance);
 
     void createLogicalDevice(const vkb::PhysicalDevice& vkbPhysicalDevice);
-
-    [[nodiscard]] QueueFamilyIndices findQueueFamilies(const vk::raii::PhysicalDevice &physicalDevice) const;
 
     // ==================== assets ====================
 

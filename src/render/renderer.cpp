@@ -94,7 +94,7 @@ VulkanRenderer::VulkanRenderer() {
     swapChain = make_unique<SwapChain>(
         ctx,
         *surface,
-        findQueueFamilies(*ctx.physicalDevice),
+        queueFamilyIndices,
         window,
         getMsaaSampleCount()
     );
@@ -258,37 +258,6 @@ vkb::PhysicalDevice VulkanRenderer::pickPhysicalDevice(const vkb::Instance &vkbI
     return physicalDeviceResult.value();
 }
 
-QueueFamilyIndices VulkanRenderer::findQueueFamilies(const vk::raii::PhysicalDevice &physicalDevice) const {
-    const std::vector<vk::QueueFamilyProperties> queueFamilies = physicalDevice.getQueueFamilyProperties();
-
-    std::optional<uint32_t> graphicsComputeFamily;
-    std::optional<uint32_t> presentFamily;
-
-    uint32_t i = 0;
-    for (const auto &queueFamily: queueFamilies) {
-        const bool hasGraphicsSupport = static_cast<bool>(queueFamily.queueFlags & vk::QueueFlagBits::eGraphics);
-        const bool hasComputeSupport  = static_cast<bool>(queueFamily.queueFlags & vk::QueueFlagBits::eCompute);
-        if (hasGraphicsSupport && hasComputeSupport) {
-            graphicsComputeFamily = i;
-        }
-
-        if (physicalDevice.getSurfaceSupportKHR(i, **surface)) {
-            presentFamily = i;
-        }
-
-        if (graphicsComputeFamily.has_value() && presentFamily.has_value()) {
-            break;
-        }
-
-        i++;
-    }
-
-    return {
-        .graphicsComputeFamily = graphicsComputeFamily,
-        .presentFamily = presentFamily
-    };
-}
-
 void VulkanRenderer::createLogicalDevice(const vkb::PhysicalDevice &vkbPhysicalDevice) {
     auto deviceResult = vkb::DeviceBuilder(vkbPhysicalDevice).build();
 
@@ -299,17 +268,24 @@ void VulkanRenderer::createLogicalDevice(const vkb::PhysicalDevice &vkbPhysicalD
     ctx.device = make_unique<vk::raii::Device>(*ctx.physicalDevice, deviceResult.value().device);
 
     auto graphicsQueueResult = deviceResult.value().get_queue(vkb::QueueType::graphics);
-    if (!graphicsQueueResult) {
+    auto graphicsQueueIndexResult = deviceResult.value().get_queue_index(vkb::QueueType::graphics);
+    if (!graphicsQueueResult || !graphicsQueueIndexResult) {
         throw std::runtime_error("failed to get graphics queue: " + deviceResult.error().message());
     }
 
     auto presentQueueResult = deviceResult.value().get_queue(vkb::QueueType::present);
-    if (!presentQueueResult) {
+    auto presentQueueIndexResult = deviceResult.value().get_queue_index(vkb::QueueType::present);
+    if (!presentQueueResult || !presentQueueIndexResult) {
         throw std::runtime_error("failed to get present queue: " + deviceResult.error().message());
     }
 
     ctx.graphicsQueue = make_unique<vk::raii::Queue>(*ctx.device, graphicsQueueResult.value());
     presentQueue      = make_unique<vk::raii::Queue>(*ctx.device, presentQueueResult.value());
+
+    queueFamilyIndices = {
+        .graphicsComputeFamily = graphicsQueueIndexResult.value(),
+        .presentFamily = presentQueueIndexResult.value()
+    };
 }
 
 // ==================== models ====================
@@ -593,7 +569,7 @@ void VulkanRenderer::recreateSwapChain() {
     swapChain = make_unique<SwapChain>(
         ctx,
         *surface,
-        findQueueFamilies(*ctx.physicalDevice),
+        queueFamilyIndices,
         window,
         getMsaaSampleCount()
     );
@@ -1173,8 +1149,6 @@ void VulkanRenderer::createUniformBuffers() {
 // ==================== commands ====================
 
 void VulkanRenderer::createCommandPool() {
-    const QueueFamilyIndices queueFamilyIndices = findQueueFamilies(*ctx.physicalDevice);
-
     const vk::CommandPoolCreateInfo poolInfo{
         .flags = vk::CommandPoolCreateFlagBits::eResetCommandBuffer,
         .queueFamilyIndex = queueFamilyIndices.graphicsComputeFamily.value()
