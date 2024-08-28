@@ -15,6 +15,7 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
     Matrices matrices;
     MiscData misc;
 } ubo;
+layout (set = 0, binding = 1) uniform accelerationStructureEXT topLevelAS;
 
 struct Vertex {
     vec3 pos;

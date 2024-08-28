@@ -346,7 +346,7 @@ RtPipelineBuilder::buildPipeline(const RendererContext &ctx) const {
         .pStages = shaderStages.data(),
         .groupCount = static_cast<uint32_t>(shaderGroups.size()),
         .pGroups = shaderGroups.data(),
-        .maxPipelineRayRecursionDepth = 1u,
+        .maxPipelineRayRecursionDepth = 2u,
         .layout = *layout,
     };
 
