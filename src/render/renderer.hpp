@@ -100,7 +100,7 @@ private:
 class VulkanRenderer {
     using CubemapCaptureDescriptorSet = DescriptorSet<Buffer, Texture>;
     using DebugQuadDescriptorSet      = DescriptorSet<Texture>;
-    using MaterialsDescriptorSet      = DescriptorSet<Texture, Texture, Texture>;
+    using MaterialsDescriptorSet      = DescriptorSet<Texture, Texture, Texture, Texture>;
     using SceneDescriptorSet          = DescriptorSet<Buffer, Texture>;
     using SkyboxDescriptorSet         = DescriptorSet<Buffer, Texture>;
     using PrepassDescriptorSet        = DescriptorSet<Buffer>;

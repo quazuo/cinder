@@ -19,6 +19,7 @@ void main() {
     vec2 pixel_center = gl_LaunchIDEXT.xy + vec2(0.5);
     vec2 in_uv = pixel_center / gl_LaunchSizeEXT.xy;
     vec2 d = in_uv * 2.0 - 1.0;
+    d.y *= -1;
 
     vec4 origin = ubo.matrices.view_inverse * vec4(0, 0, 0, 1);
     vec4 target = ubo.matrices.proj_inverse * vec4(d.x, d.y, 1, 1);

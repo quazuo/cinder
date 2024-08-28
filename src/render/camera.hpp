@@ -34,13 +34,13 @@ class Camera {
     float zNear = 0.01f;
     float zFar = 500.0f;
 
-    glm::vec3 pos = {0.0f, 0.0f, -15.0f};
+    glm::vec3 pos = {0.0f, 0.0f, -2.0f};
     Rotator rotator;
     glm::vec3 front{}, right{}, up{};
 
     bool isLockedCursor = false;
     bool isLockedCam = true;
-    float lockedRadius = 15.0f;
+    float lockedRadius = 2.0f;
     Rotator lockedRotator;
 
     float rotationSpeed = 2.5f;

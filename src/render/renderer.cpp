@@ -136,6 +136,8 @@ VulkanRenderer::VulkanRenderer() {
     loadOrmMap("../assets/example models/kettle/kettle-orm.png");
     createTLAS();
 
+    createMeshesDescriptorSet();
+
     createRtTargetTexture();
     createRtDescriptorSets();
     createRtPipeline();
@@ -233,6 +235,9 @@ vkb::PhysicalDevice VulkanRenderer::pickPhysicalDevice(const vkb::Instance &vkbI
             .set_required_features_12(vk::PhysicalDeviceVulkan12Features{
                 .timelineSemaphore = vk::True,
                 .bufferDeviceAddress = vk::True,
+            })
+            .add_required_extension_features(vk::PhysicalDeviceDynamicRenderingFeatures{
+                .dynamicRendering = vk::True,
             })
             .add_required_extension_features(vk::PhysicalDeviceSynchronization2FeaturesKHR{
                 .synchronization2 = vk::True,
@@ -645,9 +650,14 @@ void VulkanRenderer::createMaterialsDescriptorSet() {
     materialsDescriptorSet = make_unique<MaterialsDescriptorSet>(
         ctx,
         *descriptorPool,
-        ResourcePack<Texture>{descriptorCount, scope, type},
-        ResourcePack<Texture>{descriptorCount, scope, type},
-        ResourcePack<Texture>{descriptorCount, scope, type}
+        ResourcePack<Texture>{descriptorCount, scope, type}, // base colors
+        ResourcePack<Texture>{descriptorCount, scope, type}, // normals
+        ResourcePack<Texture>{descriptorCount, scope, type}, // orms
+        ResourcePack{ // skybox
+            *skyboxTexture,
+            vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eMissKHR,
+            type
+        }
     );
 }
 

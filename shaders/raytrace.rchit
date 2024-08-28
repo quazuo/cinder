@@ -43,7 +43,7 @@ layout (set = 2, binding = 1) readonly buffer Vertices {
     Vertex vertices[];
 };
 layout (set = 2, binding = 2) readonly buffer Indices {
-    ivec3 indices[];
+    uint indices[];
 };
 
 hitAttributeEXT vec3 attribs;
@@ -51,7 +51,11 @@ hitAttributeEXT vec3 attribs;
 void main() {
     Mesh mesh = meshes[gl_InstanceCustomIndexEXT];
 
-    ivec3 tri_indices = indices[mesh.index_offset + gl_PrimitiveID];
+    uvec3 tri_indices = uvec3(
+        indices[mesh.index_offset + 3 * gl_PrimitiveID],
+        indices[mesh.index_offset + 3 * gl_PrimitiveID + 1],
+        indices[mesh.index_offset + 3 * gl_PrimitiveID + 2]
+    );
 
     Vertex v0 = vertices[mesh.vertex_offset + tri_indices.x];
     Vertex v1 = vertices[mesh.vertex_offset + tri_indices.y];
@@ -69,5 +73,13 @@ void main() {
 
     vec4 base_color = texture(baseColorSamplers[mesh.material_id], tex_coord);
 
-    hitValue = base_color.rgb;
+    vec3 color = base_color.rgb;
+
+    // apply hdr tonemapping
+    color = color / (color + vec3(1.0));
+
+    // apply gamma correction
+    color = pow(color, vec3(1 / 2.2));
+
+    hitValue = color;
 }
