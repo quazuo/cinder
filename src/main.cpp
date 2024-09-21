@@ -7,13 +7,13 @@
 #include <random>
 #include <GLFW/glfw3native.h>
 
+#include "render/graph.hpp"
 #include "render/renderer.hpp"
 #include "render/gui/gui.hpp"
 #include "utils/input-manager.hpp"
 #include "utils/file-type.hpp"
 
 namespace zrx {
-
 class Engine {
     GLFWwindow *window = nullptr;
     VulkanRenderer renderer;
@@ -21,7 +21,7 @@ class Engine {
 
     float lastTime = 0.0f;
 
-    bool isGuiEnabled = false;
+    bool isGuiEnabled  = false;
     bool showDebugQuad = false;
 
     ImGui::FileBrowser fileBrowser;
@@ -52,8 +52,8 @@ public:
 private:
     void tick() {
         const auto currentTime = static_cast<float>(glfwGetTime());
-        const float deltaTime = currentTime - lastTime;
-        lastTime = currentTime;
+        const float deltaTime  = currentTime - lastTime;
+        lastTime               = currentTime;
 
         inputManager->tick(deltaTime);
         renderer.tick(deltaTime);
@@ -92,6 +92,106 @@ private:
         }
     }
 
+    void buildRenderGraph() {
+        RenderGraph renderGraph;
+
+        constexpr auto depthFormat = vk::Format::eD32SfloatS8Uint;
+
+        const auto sceneModel = Model(RendererContext() /* todo */, "model.gltf", true);
+
+        // ================== uniform buffers ==================
+
+        const auto uniformBuffer = renderGraph.addUniformBuffer<GraphicsUBO>({
+            "general-ubo",
+        });
+
+        // ================== external resources ==================
+
+        const auto baseColorTexture = renderGraph.addExternalResource({
+            "base-color-texture",
+        });
+
+        const auto normalTexture = renderGraph.addExternalResource({
+            "normal-texture",
+            vk::Format::eR8G8B8A8Unorm,
+        });
+
+        // ================== transient resources ==================
+
+        const auto gBufferNormal = renderGraph.addTransientResource({
+            "g-buffer-normal",
+            vk::Format::eR8G8B8A8Unorm,
+        });
+
+        const auto gBufferPos = renderGraph.addTransientResource({
+            "g-buffer-pos",
+            vk::Format::eR8G8B8A8Unorm,
+        });
+
+        const auto gBufferDepth = renderGraph.addTransientResource({
+            "g-buffer-depth",
+            depthFormat,
+        });
+
+        // ================== prepass ==================
+
+        const auto prepassVertexShader = std::make_shared<Shader>(Shader{
+            "../shaders/obj/prepass-vert.spv",
+            {
+                {uniformBuffer}
+            }
+        });
+
+        const auto prepassFragmentShader = std::make_shared<Shader>(Shader{
+            "../shaders/obj/prepass-frag.spv",
+            {
+                {uniformBuffer}
+            }
+        });
+
+        renderGraph.addNode({
+            "prepass",
+            prepassVertexShader,
+            prepassFragmentShader,
+            {gBufferNormal, gBufferPos},
+            gBufferDepth,
+            [&](RenderPassContext &ctx) {
+                ctx.drawModel(sceneModel);
+            }
+        });
+
+        // ================== main pass ==================
+
+        const auto mainVertexShader = std::make_shared<Shader>(Shader{
+            "../shaders/obj/main-vert.spv",
+            {
+                {uniformBuffer},
+            }
+        });
+
+        const auto mainFragmentShader = std::make_shared<Shader>(Shader{
+            "../shaders/obj/main-frag.spv",
+            {
+                {uniformBuffer},
+                {gBufferNormal, gBufferPos},
+                {baseColorTexture, normalTexture},
+            }
+        });
+
+        renderGraph.addNode({
+            "main",
+            mainVertexShader,
+            mainFragmentShader,
+            {FINAL_IMAGE_RESOURCE_HANDLE},
+            {},
+            [&](RenderPassContext &ctx) {
+                ctx.drawModel(sceneModel);
+            }
+        });
+
+        renderer.registerRenderGraph(renderGraph);
+    }
+
     void bindKeyActions() {
         inputManager->bindCallback(GLFW_KEY_GRAVE_ACCENT, EActivationType::PRESS_ONCE, [&](const float deltaTime) {
             (void) deltaTime;
@@ -105,7 +205,7 @@ private:
         static float fps = 1 / deltaTime;
 
         constexpr float smoothing = 0.95f;
-        fps = fps * smoothing + (1 / deltaTime) * (1.0f - smoothing);
+        fps                       = fps * smoothing + (1 / deltaTime) * (1.0f - smoothing);
 
         constexpr auto sectionFlags = ImGuiTreeNodeFlags_DefaultOpen;
 
@@ -232,13 +332,11 @@ private:
 
             if (reqs.contains(FileType::ORM_PNG)) {
                 renderer.loadOrmMap(chosenPaths.at(FileType::ORM_PNG));
-
             } else if (reqs.contains(FileType::RMA_PNG)) {
                 renderer.loadRmaMap(chosenPaths.at(FileType::RMA_PNG));
-
             } else if (reqs.contains(FileType::ROUGHNESS_PNG)) {
                 const auto roughnessPath = chosenPaths.at(FileType::ROUGHNESS_PNG);
-                const auto aoPath = chosenPaths.contains(FileType::AO_PNG)
+                const auto aoPath        = chosenPaths.contains(FileType::AO_PNG)
                                         ? chosenPaths.at(FileType::AO_PNG)
                                         : "";
                 const auto metallicPath = chosenPaths.contains(FileType::METALLIC_PNG)
@@ -268,7 +366,6 @@ private:
         }
     }
 };
-
 }
 
 static void showErrorBox(const std::string &message) {
@@ -293,14 +390,14 @@ void generateSsaoKernelSamples() {
         sample = glm::normalize(sample);
         sample *= randomFloats(generator);
 
-        float scale = (float)i / 64.0;
-        scale = glm::mix(0.1f, 1.0f, scale * scale);
+        float scale = (float) i / 64.0;
+        scale       = glm::mix(0.1f, 1.0f, scale * scale);
         sample *= scale;
 
         ssaoKernel.push_back(sample);
     }
 
-    for (auto &v : ssaoKernel) {
+    for (auto &v: ssaoKernel) {
         std::cout << "vec3(" << v.x << ", " << v.y << ", " << v.z << "),\n";
     }
 }

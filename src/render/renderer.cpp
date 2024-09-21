@@ -245,6 +245,14 @@ vkb::PhysicalDevice VulkanRenderer::pickPhysicalDevice(const vkb::Instance &vkbI
             .add_required_extension_features(vk::PhysicalDeviceMultiviewFeatures{
                 .multiview = vk::True,
             })
+            .add_required_extension_features(vk::PhysicalDeviceDescriptorIndexingFeatures{
+                .shaderUniformBufferArrayNonUniformIndexing = vk::True,
+                .shaderSampledImageArrayNonUniformIndexing = vk::True,
+                .shaderStorageBufferArrayNonUniformIndexing = vk::True,
+                .descriptorBindingUniformBufferUpdateAfterBind = vk::True,
+                .descriptorBindingSampledImageUpdateAfterBind = vk::True,
+                .descriptorBindingStorageBufferUpdateAfterBind = vk::True,
+            })
             .add_required_extension_features(vk::PhysicalDeviceAccelerationStructureFeaturesKHR{
                 .accelerationStructure = vk::True,
             })
@@ -598,19 +606,19 @@ void VulkanRenderer::createDescriptorPool() {
     const std::vector<vk::DescriptorPoolSize> poolSizes = {
         {
             .type = vk::DescriptorType::eUniformBuffer,
-            .descriptorCount = 100u,
+            .descriptorCount = BINDLESS_DESCRIPTOR_ARRAY_COUNT + 100u,
         },
         {
             .type = vk::DescriptorType::eCombinedImageSampler,
-            .descriptorCount = 1000u,
+            .descriptorCount = BINDLESS_DESCRIPTOR_ARRAY_COUNT + 1000u,
         },
         {
             .type = vk::DescriptorType::eStorageImage,
-            .descriptorCount = 100u,
+            .descriptorCount = BINDLESS_DESCRIPTOR_ARRAY_COUNT + 100u,
         },
         {
             .type = vk::DescriptorType::eStorageBuffer,
-            .descriptorCount = 100u,
+            .descriptorCount = BINDLESS_DESCRIPTOR_ARRAY_COUNT + 100u,
         },
         {
             .type = vk::DescriptorType::eAccelerationStructureKHR,
@@ -619,13 +627,42 @@ void VulkanRenderer::createDescriptorPool() {
     };
 
     const vk::DescriptorPoolCreateInfo poolInfo{
-        .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet,
+        .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet
+                 | vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind,
         .maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * 6 + 5,
         .poolSizeCount = static_cast<uint32_t>(poolSizes.size()),
         .pPoolSizes = poolSizes.data(),
     };
 
     descriptorPool = make_unique<vk::raii::DescriptorPool>(*ctx.device, poolInfo);
+}
+
+void VulkanRenderer::createBindlessDescriptorSets() {
+    const auto flags = vk::DescriptorBindingFlagBits::ePartiallyBound
+                       | vk::DescriptorBindingFlagBits::eUpdateAfterBind;
+
+    bindlessDescriptorSet = make_unique<DescriptorSet<Buffer, Buffer, Texture> >(
+        ctx,
+        *descriptorPool,
+        ResourcePack<Buffer>{
+            BINDLESS_DESCRIPTOR_ARRAY_COUNT,
+            vk::ShaderStageFlagBits::eAll,
+            vk::DescriptorType::eUniformBuffer,
+            flags
+        },
+        ResourcePack<Buffer>{
+            BINDLESS_DESCRIPTOR_ARRAY_COUNT,
+            vk::ShaderStageFlagBits::eAll,
+            vk::DescriptorType::eStorageBuffer,
+            flags
+        },
+        ResourcePack<Texture>{
+            BINDLESS_DESCRIPTOR_ARRAY_COUNT,
+            vk::ShaderStageFlagBits::eAll,
+            vk::DescriptorType::eCombinedImageSampler,
+            flags
+        }
+    );
 }
 
 void VulkanRenderer::createSceneDescriptorSets() {
@@ -653,7 +690,8 @@ void VulkanRenderer::createMaterialsDescriptorSet() {
         ResourcePack<Texture>{descriptorCount, scope, type}, // base colors
         ResourcePack<Texture>{descriptorCount, scope, type}, // normals
         ResourcePack<Texture>{descriptorCount, scope, type}, // orms
-        ResourcePack{ // skybox
+        ResourcePack{
+            // skybox
             *skyboxTexture,
             vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eMissKHR,
             type
@@ -1596,6 +1634,129 @@ void VulkanRenderer::renderGuiSection() {
     camera->renderGuiSection();
 }
 
+// ==================== render graph ====================
+
+void VulkanRenderer::registerRenderGraph(RenderGraph &&graph) {
+    renderGraphInfo.renderGraph = make_unique<RenderGraph>(graph);
+    bindlessParamSet = make_unique<BindlessParamSet>(ctx);
+
+    const auto topoSortedHandles = renderGraphInfo.renderGraph->getTopoSorted();
+    const uint32_t nNodes        = topoSortedHandles.size();
+
+    const vk::CommandBufferAllocateInfo secondaryAllocInfo{
+        .commandPool = **ctx.commandPool,
+        .level = vk::CommandBufferLevel::eSecondary,
+        .commandBufferCount = nNodes,
+    };
+
+    auto commandBuffers{*ctx.device, secondaryAllocInfo};
+
+    for (uint32_t i = 0; i < nNodes; i++) {
+        const auto handle = topoSortedHandles[i];
+
+        renderGraphInfo.topoSortedNodes.emplace_back(RenderNodeResources{
+            .handle = handle,
+            .commandBuffer = std::move(commandBuffers[i]),
+            .pipeline = createNodePipeline(handle),
+            .bindlessParamsOffset = bindlessParamSet->addRange(), // todo
+        });
+    }
+
+    bindlessParamSet->build(*descriptorPool);
+}
+
+GraphicsPipeline VulkanRenderer::createNodePipeline(const RenderNodeHandle handle) const {
+    const auto nodeInfo = renderGraphInfo.renderGraph->getNodeInfo(handle);
+
+    std::vector<vk::Format> colorFormats;
+    for (const auto &target: nodeInfo.colorTargets) {
+        colorFormats.push_back(renderGraphInfo.renderGraph->getTransientTextureFormat(target));
+    }
+
+    auto builder = GraphicsPipelineBuilder()
+            .withVertexShader(nodeInfo.vertexShader->path)
+            .withFragmentShader(nodeInfo.fragmentShader->path)
+            .withVertices<ModelVertex>()
+            .withRasterizer({
+                .polygonMode = vk::PolygonMode::eFill,
+                .cullMode = nodeInfo.customConfig.cullMode,
+                .frontFace = vk::FrontFace::eCounterClockwise,
+                .lineWidth = 1.0f,
+            })
+            .withMultisampling({
+                .rasterizationSamples = nodeInfo.customConfig.useMsaa
+                                            ? getMsaaSampleCount()
+                                            : vk::SampleCountFlagBits::e1,
+                .minSampleShading = 1.0f,
+            })
+            .withDescriptorLayouts({
+                *bindlessDescriptorSet->getLayout(),
+                *bindlessParamSet->getDescriptorSet().getLayout(),
+            })
+            .withColorFormats(colorFormats);
+
+    if (nodeInfo.depthTarget) {
+        builder.withDepthFormat(renderGraphInfo.renderGraph->getTransientTextureFormat(*nodeInfo.depthTarget));
+    } else {
+        builder.withDepthStencil({
+            .depthTestEnable = vk::False,
+            .depthWriteEnable = vk::False,
+        });
+    }
+
+    return builder.create(ctx);
+}
+
+void VulkanRenderer::runRenderGraph() {
+    const size_t nPasses = renderGraphInfo.topoSortedNodes.size();
+
+    for (size_t i = 0; i < nPasses; i++) {
+        const auto &nodeResources = renderGraphInfo.topoSortedNodes[i];
+        recordRenderGraphNodeCommands(nodeResources);
+    }
+}
+
+void VulkanRenderer::recordRenderGraphNodeCommands(const RenderNodeResources &nodeResources) {
+    const auto &[handle, commandBuffer, pipeline, bindlessParamsOffset] = nodeResources;
+
+    const auto &nodeInfo = renderGraphInfo.renderGraph->getNodeInfo(handle);
+
+    const vk::StructureChain inheritanceInfo{
+        vk::CommandBufferInheritanceInfo{},
+        debugQuadRenderInfos[0].getInheritanceRenderingInfo()
+    };
+
+    const vk::CommandBufferBeginInfo beginInfo{
+        .flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue,
+        .pInheritanceInfo = &inheritanceInfo.get<vk::CommandBufferInheritanceInfo>(),
+    };
+
+    commandBuffer.begin(beginInfo);
+
+    utils::cmd::setDynamicStates(commandBuffer, swapChain->getExtent());
+
+    commandBuffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
+
+    commandBuffer.bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics,
+        *pipeline.getLayout(),
+        0,
+        {
+            ***bindlessDescriptorSet,
+            **bindlessParamSet->getDescriptorSet(),
+        },
+        {
+            0,
+            bindlessParamsOffset,
+        }
+    );
+
+    RenderPassContext passCtx{commandBuffer};
+    nodeInfo.body(passCtx);
+
+    commandBuffer.end();
+}
+
 // ==================== render loop ====================
 
 void VulkanRenderer::tick(const float deltaTime) {
@@ -1907,11 +2068,8 @@ void VulkanRenderer::drawScene() {
 
     const auto &commandBuffer = *frameResources[currentFrameIdx].sceneCmdBuffer.buffer;
 
-    const vk::StructureChain<
-        vk::CommandBufferInheritanceInfo,
-        vk::CommandBufferInheritanceRenderingInfo
-    > inheritanceInfo{
-        {},
+    const vk::StructureChain inheritanceInfo{
+        vk::CommandBufferInheritanceInfo{},
         sceneRenderInfos[0].getInheritanceRenderingInfo()
     };
 
@@ -1967,11 +2125,8 @@ void VulkanRenderer::drawScene() {
 void VulkanRenderer::drawDebugQuad() {
     const auto &commandBuffer = *frameResources[currentFrameIdx].debugCmdBuffer.buffer;
 
-    const vk::StructureChain<
-        vk::CommandBufferInheritanceInfo,
-        vk::CommandBufferInheritanceRenderingInfo
-    > inheritanceInfo{
-        {},
+    const vk::StructureChain inheritanceInfo{
+        vk::CommandBufferInheritanceInfo{},
         debugQuadRenderInfos[0].getInheritanceRenderingInfo()
     };
 

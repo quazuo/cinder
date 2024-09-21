@@ -2,6 +2,8 @@
 
 #include <utility>
 #include <variant>
+#include <algorithm>
+#include <numeric>
 
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
@@ -50,22 +52,26 @@ struct ResourcePack final {
 
     vk::ShaderStageFlags scope;
     vk::DescriptorType type;
+    vk::DescriptorBindingFlags flags;
     uint32_t descriptorCount;
     std::vector<ResourceSlot> resources;
 
     ResourcePack(const uint32_t descriptorCount, const vk::ShaderStageFlags scope,
-                 const vk::DescriptorType type = DefaultDescriptorType<T>::type)
-        : scope(scope), type(type), descriptorCount(descriptorCount), resources(descriptorCount) {
+                 const vk::DescriptorType type          = DefaultDescriptorType<T>::type,
+                 const vk::DescriptorBindingFlags flags = {})
+        : scope(scope), type(type), flags(flags), descriptorCount(descriptorCount), resources(descriptorCount) {
     }
 
     ResourcePack(const T &resource, const vk::ShaderStageFlags scope,
-                 const vk::DescriptorType type = DefaultDescriptorType<T>::type)
-        : scope(scope), type(type), descriptorCount(1), resources({resource}) {
+                 const vk::DescriptorType type          = DefaultDescriptorType<T>::type,
+                 const vk::DescriptorBindingFlags flags = {})
+        : scope(scope), type(type), flags(flags), descriptorCount(1), resources({resource}) {
     }
 
     ResourcePack(const std::initializer_list<ResourceSlot> resources, const vk::ShaderStageFlags scope,
-                 const vk::DescriptorType type = DefaultDescriptorType<T>::type)
-        : scope(scope), type(type), descriptorCount(resources.size()), resources(resources) {
+                 const vk::DescriptorType type          = DefaultDescriptorType<T>::type,
+                 const vk::DescriptorBindingFlags flags = {})
+        : scope(scope), type(type), flags(flags), descriptorCount(resources.size()), resources(resources) {
     }
 };
 
@@ -208,7 +214,7 @@ public:
     }
 
     template<uint32_t Binding, typename ResourceType>
-    WriteInfo makeWriteInfo(const ResourceType &resource) {
+    [[nodiscard]] WriteInfo makeWriteInfo(const ResourceType &resource) {
         const auto &pack = std::get<Binding>(packs);
 
         if constexpr (std::is_same_v<ResourceType, Buffer> || std::is_same_v<ResourceType, BufferSlice>) {
@@ -248,12 +254,28 @@ private:
             bindings[i].binding = i;
         }
 
-        const vk::DescriptorSetLayoutCreateInfo setLayoutInfo{
-            .bindingCount = static_cast<uint32_t>(bindings.size()),
-            .pBindings = bindings.data(),
+        auto bindingFlags = std::apply([](auto &&... elems) {
+            return std::vector<vk::DescriptorBindingFlags>{
+                extractFlags(std::forward<decltype(elems)>(elems))...
+            };
+        }, packs);
+
+        const vk::StructureChain setLayoutInfoChain{
+            vk::DescriptorSetLayoutCreateInfo{
+                .flags = vk::DescriptorSetLayoutCreateFlagBits::eUpdateAfterBindPool,
+                .bindingCount = static_cast<uint32_t>(bindings.size()),
+                .pBindings = bindings.data(),
+            },
+            vk::DescriptorSetLayoutBindingFlagsCreateInfo{
+                .bindingCount = static_cast<uint32_t>(bindingFlags.size()),
+                .pBindingFlags = bindingFlags.data(),
+            }
         };
 
-        layout = make_shared<vk::raii::DescriptorSetLayout>(*ctx.get().device, setLayoutInfo);
+        layout = make_shared<vk::raii::DescriptorSetLayout>(
+            *ctx.get().device,
+            setLayoutInfoChain.get<vk::DescriptorSetLayoutCreateInfo>()
+        );
     }
 
     template<typename ResourceType>
@@ -263,6 +285,11 @@ private:
             .descriptorCount = pack.descriptorCount,
             .stageFlags = pack.scope,
         };
+    }
+
+    template<typename ResourceType>
+    [[nodiscard]] static vk::DescriptorBindingFlags extractFlags(const ResourcePack<ResourceType> &pack) {
+        return pack.flags;
     }
 
     void createSet(const vk::raii::DescriptorPool &pool) {
@@ -312,31 +339,79 @@ public:
     [[nodiscard]] DescriptorSet<Ts...> &operator[](const size_t index) const { return sets[index]; }
 };
 
-static void usage_example() {
-    const RendererContext ctx;
-    const unique_ptr<vk::raii::DescriptorPool> pool;
+class BindlessParamSet {
+    struct Range {
+        uint32_t offset;
+        uint32_t size;
+        void *data;
+    };
 
-    const unique_ptr<Texture> tex;
-    const unique_ptr<Buffer> buf;
+    std::reference_wrapper<const RendererContext> ctx;
 
-    const ResourcePack<Texture> desc1{*tex, vk::ShaderStageFlagBits::eFragment};
-    const ResourcePack<Buffer> desc2{*buf, vk::ShaderStageFlagBits::eVertex};
+    uint32_t minAlignment;
+    uint32_t lastOffset = 0;
+    std::vector<Range> ranges;
 
-    DescriptorSet set{ctx, *pool, desc1, desc2};
+    unique_ptr<Buffer> buffer;
+    unique_ptr<DescriptorSet<Buffer> > descriptorSet;
 
-    set.updateBinding<0>(*tex);
-    set.updateBinding<1>(*buf);
+public:
+    explicit BindlessParamSet(const RendererContext &ctx)
+        : ctx(ctx), minAlignment(ctx.physicalDevice->getProperties().limits.minUniformBufferOffsetAlignment) {
+    }
 
-    // compile error
-    // set.updateBinding<1>(*tex);
+    [[nodiscard]] const auto& getBuffer() const { return *buffer; }
 
-    // DescriptorSets<Texture, Buffer> sets{
-    //     ctx,
-    //     *pool,
-    //     {desc1, desc2},
-    //     {desc1, desc2}
-    // };
-}
+    [[nodiscard]] const auto& getDescriptorSet() const { return *descriptorSet; }
+
+    template <typename T>
+    [[nodiscard]] uint32_t addRange(T&& data) {
+        const size_t dataSize = sizeof(T);
+        auto *bytes = new T;
+        *bytes = data;
+
+        const uint32_t currentOffset = lastOffset;
+        ranges.push_back({ currentOffset, dataSize, bytes });
+        lastOffset += padSizeToMinAlignment(dataSize);
+
+        return currentOffset;
+    }
+
+    void build(const vk::raii::DescriptorPool &pool) {
+        buffer.reset();
+        descriptorSet.reset();
+
+        const auto bufferSize = std::accumulate(ranges.begin(), ranges.end(), 0, [&](const Range &a, const Range &b) {
+            return std::max(a.size + a.offset, b.size + b.offset);
+        });
+
+        buffer = make_unique<Buffer>(
+            **ctx.get().allocator,
+            bufferSize,
+            vk::BufferUsageFlagBits::eUniformBuffer,
+            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+        );
+
+        void *mapped = buffer->map();
+
+        for (const auto& [offset, size, data]: ranges) {
+            memcpy(mapped + offset, data, size);
+        }
+
+        buffer->unmap();
+
+        descriptorSet = make_unique<DescriptorSet<Buffer> >(
+            ctx.get(),
+            pool,
+            ResourcePack{*buffer, vk::ShaderStageFlagBits::eAll}
+        );
+    }
+
+private:
+    [[nodiscard]] uint32_t padSizeToMinAlignment(const uint32_t originalSize) const {
+        return (originalSize + minAlignment - 1) & ~(minAlignment - 1);
+    }
+};
 
 namespace utils::desc {
     template<typename... Ts>
