@@ -3,6 +3,7 @@
 #extension GL_ARB_separate_shader_objects : enable
 
 #include "utils/ubo.glsl"
+#include "utils/bindless.glsl"
 
 layout (location = 0) in vec3 worldPosition;
 layout (location = 1) in vec2 fragTexCoord;
@@ -14,19 +15,22 @@ layout (push_constant) uniform PushConstants {
     uint material_id;
 } constants;
 
-layout (set = 0, binding = 0) uniform UniformBufferObject {
+layout (set = BINDLESS_DESCRIPTOR_SET, binding = BINDLESS_UNIFORM_BUFFER_BINDING) \
+uniform UniformBufferObject {
     WindowRes window;
     Matrices matrices;
     MiscData misc;
-} ubo;
+} ubo[];
 
-layout (set = 0, binding = 1) uniform sampler2D ssaoSampler;
+layout (set = BINDLESS_DESCRIPTOR_SET, binding = BINDLESS_TEXTURE_SAMPLER_BINDING) \
+uniform sampler2D globalTextures2d[];
 
-#define MATERIAL_TEX_ARRAY_SIZE 32
-
-layout (set = 1, binding = 0) uniform sampler2D baseColorSamplers[MATERIAL_TEX_ARRAY_SIZE];
-layout (set = 1, binding = 1) uniform sampler2D normalSamplers[MATERIAL_TEX_ARRAY_SIZE];
-layout (set = 1, binding = 2) uniform sampler2D ormSamplers[MATERIAL_TEX_ARRAY_SIZE];
+layout (set = FRAGMENT_BINDLESS_PARAM_SET, binding = 0) uniform Params {
+    uint uniformBuffer;
+    uint gBufferNormal;
+    uint gBufferPos;
+    uint ssaoSampler;
+} params;
 
 float getBlurredSsao() {
     vec2 texCoord = gl_FragCoord.xy / vec2(ubo.window.width, ubo.window.height);
@@ -45,19 +49,18 @@ float getBlurredSsao() {
 }
 
 void main() {
-    vec4 base_color = texture(baseColorSamplers[constants.material_id], fragTexCoord);
+    vec4 base_color = texture(globalTextures2d[...], fragTexCoord);
 
     if (base_color.a < 0.1) discard;
 
-    vec3 normal = texture(normalSamplers[constants.material_id], fragTexCoord).rgb;
+    vec3 normal = texture(globalTextures2d[...], fragTexCoord).rgb;
     normal = normalize(normal * 2.0 - 1.0);
     normal = normalize(TBN * normal);
 
-    float ao = ubo.misc.use_ssao == 1u
-        ? getBlurredSsao()
-        : texture(ormSamplers[constants.material_id], fragTexCoord).r;
-    float roughness = texture(ormSamplers[constants.material_id], fragTexCoord).g;
-    float metallic = texture(ormSamplers[constants.material_id], fragTexCoord).b;
+    vec3 orm = texture(globalTextures2d[...], fragTexCoord).rgb;
+    float ao = ubo.misc.use_ssao == 1u ? getBlurredSsao() : orm.r;
+    float roughness = orm.g;
+    float metallic = orm.b;
 
     // light related values
     vec3 light_dir = normalize(ubo.misc.light_direction);

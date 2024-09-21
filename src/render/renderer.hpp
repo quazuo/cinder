@@ -8,6 +8,7 @@
 
 #include "libs.hpp"
 #include "globals.hpp"
+#include "graph.hpp"
 #include "mesh/model.hpp"
 #include "vk/cmd.hpp"
 #include "vk/image.hpp"
@@ -21,7 +22,6 @@ struct GLFWwindow;
 
 static const std::vector deviceExtensions{
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-    VK_KHR_MAINTENANCE2_EXTENSION_NAME,
     VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
     VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
     VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
@@ -29,6 +29,7 @@ static const std::vector deviceExtensions{
     VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
     VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
     VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+    VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
 };
 
 #ifdef NDEBUG
@@ -46,6 +47,7 @@ class GraphicsPipeline;
 class SwapChain;
 class GuiRenderer;
 class AccelerationStructure;
+class Camera;
 
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphicsComputeFamily;
@@ -59,8 +61,6 @@ struct QueueFamilyIndices {
 struct ScenePushConstants {
     uint32_t materialID;
 };
-
-class Camera;
 
 class RenderInfo {
     GraphicsPipelineBuilder cachedPipelineBuilder;
@@ -126,6 +126,19 @@ class VulkanRenderer {
 
     unique_ptr<SwapChain> swapChain;
 
+    struct RenderNodeResources {
+        RenderNodeHandle handle;
+        vk::raii::CommandBuffer commandBuffer;
+        GraphicsPipeline pipeline;
+        uint32_t vertexParamsOffset;
+        uint32_t fragmentParamsOffset;
+    };
+
+    struct {
+        unique_ptr<RenderGraph> renderGraph;
+        std::vector<RenderNodeResources> topoSortedNodes;
+    } renderGraphInfo;
+
     unique_ptr<Model> model;
     Material separateMaterial;
 
@@ -148,6 +161,10 @@ class VulkanRenderer {
     // descriptors
 
     unique_ptr<vk::raii::DescriptorPool> descriptorPool;
+
+    static constexpr uint32_t BINDLESS_DESCRIPTOR_ARRAY_COUNT = 1000;
+    unique_ptr<DescriptorSet<Buffer, Buffer, Texture>> bindlessDescriptorSet;
+    unique_ptr<BindlessParamSet> bindlessParamSet;
 
     unique_ptr<MaterialsDescriptorSet> materialsDescriptorSet;
     unique_ptr<MeshesDescriptorSet> meshesDescriptorSet;
@@ -273,10 +290,9 @@ public:
 
     void tick(float deltaTime);
 
-    /**
-     * Waits until the device has completed all previously submitted commands.
-     */
     void waitIdle() const { ctx.device->waitIdle(); }
+
+    void registerRenderGraph(RenderGraph&& graph);
 
     void loadModelWithMaterials(const std::filesystem::path &path);
 
@@ -331,6 +347,8 @@ private:
     // ==================== descriptors ====================
 
     void createDescriptorPool();
+
+    void createBindlessDescriptorSets();
 
     void createSceneDescriptorSets();
 
@@ -405,6 +423,16 @@ private:
 
 public:
     void renderGuiSection();
+
+    // ==================== render graph ====================
+
+private:
+    [[nodiscard]] GraphicsPipeline VulkanRenderer::createNodePipeline(RenderNodeHandle handle) const;
+
+    void recordRenderGraphNodeCommands(const RenderNodeResources& nodeResources);
+
+public:
+    void runRenderGraph();
 
     // ==================== render loop ====================
 
