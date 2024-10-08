@@ -147,6 +147,8 @@ VulkanRenderer::VulkanRenderer() {
     createDebugQuadDescriptorSet();
     createDebugQuadRenderInfos();
 
+    createBindlessDescriptorSets();
+
     createSyncObjects();
 
     initImgui();
@@ -181,7 +183,25 @@ vkb::Instance VulkanRenderer::createInstance() {
     auto instanceResult = vkb::InstanceBuilder().set_app_name("Rayzor")
             .request_validation_layers()
             .enable_layer("VK_LAYER_KHRONOS_validation")
-            .use_default_debug_messenger()
+            .set_debug_callback([](const VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+                                   const VkDebugUtilsMessageTypeFlagsEXT messageType,
+                                   const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+                                   void *pUserData) -> VkBool32 {
+                    const auto severity = vkb::to_string_message_severity(messageSeverity);
+                    const auto type = vkb::to_string_message_type(messageType);
+
+                    std::stringstream ss;
+                    ss << "[" << severity << ": " << type << "]\n" << pCallbackData->pMessage << "\n\n";
+
+                    if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+                        std::cerr << ss.str();
+                    } else {
+                        std::cout << ss.str();
+                    }
+
+                    return VK_FALSE;
+                }
+            )
             .require_api_version(1, 3)
             .set_minimum_instance_version(1, 3)
             .enable_extensions(getRequiredExtensions())
@@ -233,6 +253,14 @@ vkb::PhysicalDevice VulkanRenderer::pickPhysicalDevice(const vkb::Instance &vkbI
                 .samplerAnisotropy = vk::True,
             })
             .set_required_features_12(vk::PhysicalDeviceVulkan12Features{
+                .descriptorIndexing = vk::True,
+                .shaderUniformBufferArrayNonUniformIndexing = vk::True,
+                .shaderSampledImageArrayNonUniformIndexing = vk::True,
+                .shaderStorageBufferArrayNonUniformIndexing = vk::True,
+                //.descriptorBindingUniformBufferUpdateAfterBind = vk::True,
+                .descriptorBindingSampledImageUpdateAfterBind = vk::True,
+                .descriptorBindingStorageBufferUpdateAfterBind = vk::True,
+                .descriptorBindingPartiallyBound = vk::True,
                 .timelineSemaphore = vk::True,
                 .bufferDeviceAddress = vk::True,
             })
@@ -244,14 +272,6 @@ vkb::PhysicalDevice VulkanRenderer::pickPhysicalDevice(const vkb::Instance &vkbI
             })
             .add_required_extension_features(vk::PhysicalDeviceMultiviewFeatures{
                 .multiview = vk::True,
-            })
-            .add_required_extension_features(vk::PhysicalDeviceDescriptorIndexingFeatures{
-                .shaderUniformBufferArrayNonUniformIndexing = vk::True,
-                .shaderSampledImageArrayNonUniformIndexing = vk::True,
-                .shaderStorageBufferArrayNonUniformIndexing = vk::True,
-                .descriptorBindingUniformBufferUpdateAfterBind = vk::True,
-                .descriptorBindingSampledImageUpdateAfterBind = vk::True,
-                .descriptorBindingStorageBufferUpdateAfterBind = vk::True,
             })
             .add_required_extension_features(vk::PhysicalDeviceAccelerationStructureFeaturesKHR{
                 .accelerationStructure = vk::True,
@@ -1636,7 +1656,7 @@ void VulkanRenderer::renderGuiSection() {
 
 // ==================== render graph ====================
 
-void VulkanRenderer::registerRenderGraph(RenderGraph &&graph) {
+void VulkanRenderer::registerRenderGraph(const RenderGraph &graph) {
     renderGraphInfo.renderGraph = make_unique<RenderGraph>(graph);
     bindlessParamSet = make_unique<BindlessParamSet>(ctx);
 
@@ -1649,22 +1669,32 @@ void VulkanRenderer::registerRenderGraph(RenderGraph &&graph) {
         .commandBufferCount = nNodes,
     };
 
-    auto commandBuffers{*ctx.device, secondaryAllocInfo};
+    vk::raii::CommandBuffers commandBuffers{*ctx.device, secondaryAllocInfo};
+
+    std::vector<uint32_t> vertexRangeOffsets;
+    std::vector<uint32_t> fragmentRangeOffsets;
 
     for (uint32_t i = 0; i < nNodes; i++) {
         const auto handle = topoSortedHandles[i];
         const auto& nodeInfo = renderGraphInfo.renderGraph->getNodeInfo(handle);
 
+        vertexRangeOffsets.emplace_back(bindlessParamSet->addRange(nodeInfo.vertexShader->bindings));
+        fragmentRangeOffsets.emplace_back(bindlessParamSet->addRange(nodeInfo.fragmentShader->bindings));
+    }
+
+    bindlessParamSet->build(*descriptorPool);
+
+    for (uint32_t i = 0; i < nNodes; i++) {
+        const auto handle = topoSortedHandles[i];
+
         renderGraphInfo.topoSortedNodes.emplace_back(RenderNodeResources{
             .handle = handle,
             .commandBuffer = std::move(commandBuffers[i]),
             .pipeline = createNodePipeline(handle),
-            .vertexParamsOffset = bindlessParamSet->addRange(nodeInfo.vertexShader->bindings),
-            .fragmentParamsOffset = bindlessParamSet->addRange(nodeInfo.fragmentShader->bindings),
+            .vertexParamsOffset = vertexRangeOffsets[i],
+            .fragmentParamsOffset = fragmentRangeOffsets[i],
         });
     }
-
-    bindlessParamSet->build(*descriptorPool);
 }
 
 GraphicsPipeline VulkanRenderer::createNodePipeline(const RenderNodeHandle handle) const {
@@ -1745,13 +1775,13 @@ void VulkanRenderer::recordRenderGraphNodeCommands(const RenderNodeResources &no
         0,
         {
             ***bindlessDescriptorSet,
-            **bindlessParamSet->getDescriptorSet(),
-            **bindlessParamSet->getDescriptorSet(),
+            // **bindlessParamSet->getDescriptorSet(),
+            // **bindlessParamSet->getDescriptorSet(),
         },
         {
-            0,
-            vertexParamsOffset,
-            fragmentParamsOffset
+            // 0,
+            // vertexParamsOffset,
+            // fragmentParamsOffset
         }
     );
 

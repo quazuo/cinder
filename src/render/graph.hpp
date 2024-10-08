@@ -8,9 +8,7 @@
 #include <memory>
 #include <set>
 
-#include "renderer.hpp"
 #include "mesh/model.hpp"
-#include "vk/ctx.hpp"
 
 namespace zrx {
 namespace detail {
@@ -20,9 +18,8 @@ namespace detail {
             return !s2.contains(elem);
         });
     }
-}
+} // detail
 
-using ResourceHandle   = uint32_t;
 using RenderNodeHandle = uint32_t;
 
 static constexpr ResourceHandle FINAL_IMAGE_RESOURCE_HANDLE = -1;
@@ -61,8 +58,8 @@ public:
     }
 
     void drawModel(const Model &model) const {
-        uint32_t indexOffset    = 0;
-        int32_t vertexOffset    = 0;
+        uint32_t indexOffset = 0;
+        int32_t vertexOffset = 0;
         uint32_t instanceOffset = 0;
 
         model.bindBuffers(commandBuffer);
@@ -92,6 +89,7 @@ struct RenderNode {
     std::vector<ResourceHandle> colorTargets;
     std::optional<ResourceHandle> depthTarget;
     RenderNodeBodyFn body;
+
     struct {
         bool useMsaa = false;
         vk::CullModeFlagBits cullMode = vk::CullModeFlagBits::eBack;
@@ -123,13 +121,17 @@ class RenderGraph {
     std::map<ResourceHandle, ExternalTextureResource> externalResources;
     std::map<ResourceHandle, TransientTextureResource> transientResources;
 
-    RenderNodeHandle nextFreeNodeHandle   = 0;
+    RenderNodeHandle nextFreeNodeHandle = 0;
     ResourceHandle nextFreeResourceHandle = 0;
 
 public:
-    [[nodiscard]] const RenderNode& getNodeInfo(const RenderNodeHandle handle) { return nodes.at(handle); }
+    [[nodiscard]] const RenderNode &getNodeInfo(const RenderNodeHandle handle) { return nodes.at(handle); }
 
-    [[nodiscard]] vk::Format getTransientTextureFormat(const ResourceHandle handle) {
+    [[nodiscard]] vk::Format getTransientTextureFormat(const ResourceHandle handle) const {
+        if (handle == FINAL_IMAGE_RESOURCE_HANDLE) {
+            return vk::Format::eB8G8R8A8Srgb; // todo
+        }
+
         try {
             return transientResources.at(handle).format;
         } catch (...) {
@@ -165,7 +167,7 @@ public:
         const auto handle = nextFreeNodeHandle++;
         nodes.emplace(handle, node);
 
-        const auto targetsSet      = node.getAllTargetsSet();
+        const auto targetsSet = node.getAllTargetsSet();
         const auto shaderResources = node.getAllShaderResourcesSet();
 
         if (!detail::empty_intersection(targetsSet, shaderResources)) {
@@ -176,7 +178,7 @@ public:
 
         // for each existing node A...
         for (const auto &[otherHandle, otherNode]: nodes) {
-            const auto otherTargetsSet      = otherNode.getAllTargetsSet();
+            const auto otherTargetsSet = otherNode.getAllTargetsSet();
             const auto otherShaderResources = otherNode.getAllShaderResourcesSet();
 
             // ...if any of the new node's targets is sampled in A,
@@ -219,29 +221,30 @@ public:
     }
 
 private:
+    void cyclesHelper(const RenderNodeHandle handle, std::set<RenderNodeHandle> &discovered,
+                      std::set<RenderNodeHandle> &finished) const {
+        discovered.emplace(handle);
+
+        for (const auto &neighbour: dependencyGraph.at(handle)) {
+            if (discovered.contains(neighbour)) {
+                throw std::invalid_argument("invalid render graph: illegal cycle in dependency graph!");
+            }
+
+            if (!finished.contains(neighbour)) {
+                cyclesHelper(neighbour, discovered, finished);
+            }
+        }
+
+        discovered.erase(handle);
+        finished.emplace(handle);
+    };
+
     void checkDependencyCycles() const {
         std::set<RenderNodeHandle> discovered, finished;
 
-        auto cyclesHelper = [&](const RenderNodeHandle handle) {
-            discovered.emplace(handle);
-
-            for (const auto &neighbour: dependencyGraph.at(handle)) {
-                if (discovered.contains(neighbour)) {
-                    throw std::invalid_argument("invalid render graph: illegal cycle in dependency graph!");
-                }
-
-                if (!finished.contains(neighbour)) {
-                    cyclesHelper(neighbour);
-                }
-            }
-
-            discovered.erase(handle);
-            finished.emplace(handle);
-        };
-
         for (const auto &[handle, _]: nodes) {
             if (!discovered.contains(handle) && !finished.contains(handle)) {
-                cyclesHelper(handle);
+                cyclesHelper(handle, discovered, finished);
             }
         }
     }

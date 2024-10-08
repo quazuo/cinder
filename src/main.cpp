@@ -37,6 +37,8 @@ public:
 
         inputManager = std::make_unique<InputManager>(window);
         bindKeyActions();
+
+        buildRenderGraph();
     }
 
     [[nodiscard]] GLFWwindow *getWindow() const { return window; }
@@ -57,6 +59,8 @@ private:
 
         inputManager->tick(deltaTime);
         renderer.tick(deltaTime);
+
+        renderer.runRenderGraph();
 
         if (renderer.startFrame()) {
             if (isGuiEnabled) {
@@ -97,7 +101,7 @@ private:
 
         constexpr auto depthFormat = vk::Format::eD32SfloatS8Uint;
 
-        const auto sceneModel = Model(RendererContext() /* todo */, "model.gltf", true);
+        // const auto sceneModel = Model(RendererContext() /* todo */, "model.gltf", true);
 
         // ================== uniform buffers ==================
 
@@ -156,7 +160,7 @@ private:
             {gBufferNormal, gBufferPos},
             gBufferDepth,
             [&](RenderPassContext &ctx) {
-                ctx.drawModel(sceneModel);
+                // ctx.drawModel(sceneModel);
             }
         });
 
@@ -179,7 +183,7 @@ private:
             {FINAL_IMAGE_RESOURCE_HANDLE},
             {},
             [&](RenderPassContext &ctx) {
-                ctx.drawModel(sceneModel);
+                // ctx.drawModel(sceneModel);
             }
         });
 

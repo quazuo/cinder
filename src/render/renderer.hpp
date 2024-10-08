@@ -116,7 +116,6 @@ class VulkanRenderer {
 
     vk::raii::Context vkCtx;
     unique_ptr<vk::raii::Instance> instance;
-    unique_ptr<vk::raii::DebugUtilsMessengerEXT> debugMessenger;
     unique_ptr<vk::raii::SurfaceKHR> surface;
 
     RendererContext ctx;
@@ -162,7 +161,7 @@ class VulkanRenderer {
 
     unique_ptr<vk::raii::DescriptorPool> descriptorPool;
 
-    static constexpr uint32_t BINDLESS_DESCRIPTOR_ARRAY_COUNT = 1000;
+    static constexpr uint32_t BINDLESS_DESCRIPTOR_ARRAY_COUNT = 10;
     unique_ptr<DescriptorSet<Buffer, Buffer, Texture>> bindlessDescriptorSet;
     unique_ptr<BindlessParamSet> bindlessParamSet;
 
@@ -292,7 +291,7 @@ public:
 
     void waitIdle() const { ctx.device->waitIdle(); }
 
-    void registerRenderGraph(RenderGraph&& graph);
+    void registerRenderGraph(const RenderGraph &graph);
 
     void loadModelWithMaterials(const std::filesystem::path &path);
 
@@ -427,7 +426,7 @@ public:
     // ==================== render graph ====================
 
 private:
-    [[nodiscard]] GraphicsPipeline VulkanRenderer::createNodePipeline(RenderNodeHandle handle) const;
+    [[nodiscard]] GraphicsPipeline createNodePipeline(RenderNodeHandle handle) const;
 
     void recordRenderGraphNodeCommands(const RenderNodeResources& nodeResources);
 

@@ -4,10 +4,10 @@
 #include <variant>
 #include <algorithm>
 #include <numeric>
-#include <src/render/graph.hpp>
 
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
+#include "src/render/graph.hpp"
 #include "buffer.hpp"
 #include "image.hpp"
 #include "accel-struct.hpp"
@@ -58,19 +58,19 @@ struct ResourcePack final {
     std::vector<ResourceSlot> resources;
 
     ResourcePack(const uint32_t descriptorCount, const vk::ShaderStageFlags scope,
-                 const vk::DescriptorType type          = DefaultDescriptorType<T>::type,
+                 const vk::DescriptorType type = DefaultDescriptorType<T>::type,
                  const vk::DescriptorBindingFlags flags = {})
         : scope(scope), type(type), flags(flags), descriptorCount(descriptorCount), resources(descriptorCount) {
     }
 
     ResourcePack(const T &resource, const vk::ShaderStageFlags scope,
-                 const vk::DescriptorType type          = DefaultDescriptorType<T>::type,
+                 const vk::DescriptorType type = DefaultDescriptorType<T>::type,
                  const vk::DescriptorBindingFlags flags = {})
         : scope(scope), type(type), flags(flags), descriptorCount(1), resources({resource}) {
     }
 
     ResourcePack(const std::initializer_list<ResourceSlot> resources, const vk::ShaderStageFlags scope,
-                 const vk::DescriptorType type          = DefaultDescriptorType<T>::type,
+                 const vk::DescriptorType type = DefaultDescriptorType<T>::type,
                  const vk::DescriptorBindingFlags flags = {})
         : scope(scope), type(type), flags(flags), descriptorCount(resources.size()), resources(resources) {
     }
@@ -225,8 +225,8 @@ public:
             };
         } else if constexpr (std::is_same_v<ResourceType, Texture>) {
             const auto imageLayout = pack.type == vk::DescriptorType::eCombinedImageSampler
-                                         ? vk::ImageLayout::eShaderReadOnlyOptimal
-                                         : vk::ImageLayout::eGeneral;
+                                     ? vk::ImageLayout::eShaderReadOnlyOptimal
+                                     : vk::ImageLayout::eGeneral;
 
             return vk::DescriptorImageInfo{
                 .sampler = *resource.getSampler(),
@@ -346,7 +346,7 @@ class BindlessParamSet {
 
     uint32_t minAlignment;
     uint32_t lastOffset = 0;
-    std::map<uint32_t, std::vector<ResourceHandle>> ranges; // [offset -> range] mapping
+    std::map<uint32_t, std::vector<ResourceHandle> > ranges; // [offset -> range] mapping
 
     unique_ptr<Buffer> buffer;
     unique_ptr<DescriptorSet<Buffer> > descriptorSet;
@@ -356,11 +356,11 @@ public:
         : ctx(ctx), minAlignment(ctx.physicalDevice->getProperties().limits.minUniformBufferOffsetAlignment) {
     }
 
-    [[nodiscard]] const auto& getBuffer() const { return *buffer; }
+    [[nodiscard]] const auto &getBuffer() const { return *buffer; }
 
-    [[nodiscard]] const auto& getDescriptorSet() const { return *descriptorSet; }
+    [[nodiscard]] const auto &getDescriptorSet() const { return *descriptorSet; }
 
-    [[nodiscard]] uint32_t addRange(const std::vector<ResourceHandle>& handles) {
+    [[nodiscard]] uint32_t addRange(const std::vector<ResourceHandle> &handles) {
         const uint32_t currentOffset = lastOffset;
         ranges.emplace(currentOffset, handles);
         lastOffset += padSizeToMinAlignment(handles.size() * sizeof(handles[0]));
@@ -371,13 +371,12 @@ public:
         buffer.reset();
         descriptorSet.reset();
 
-        const auto bufferSize = std::accumulate(ranges.begin(), ranges.end(), 0, [&](const auto &a, const auto &b) {
-            constexpr auto elemSize = sizeof(ranges.begin()->second[0]);
-            return std::max(
-                a.first + a.second.size() * elemSize,
-                b.first + b.second.size() * elemSize
-            );
-        });
+        const auto accumulateFn = [&](const uint32_t val, const auto &a) {
+            constexpr auto elemSize = sizeof(decltype(ranges)::mapped_type::value_type);
+            return std::max(val, static_cast<uint32_t>(a.first + a.second.size() * elemSize));
+        };
+
+        const uint32_t bufferSize = std::accumulate(ranges.begin(), ranges.end(), 0, accumulateFn);
 
         buffer = make_unique<Buffer>(
             **ctx.get().allocator,
@@ -388,8 +387,9 @@ public:
 
         void *mapped = buffer->map();
 
-        for (const auto& [offset, handles]: ranges) {
-            memcpy(mapped + offset, handles.data(), handles.size() * sizeof(handles[0]));
+        for (const auto &[offset, handles]: ranges) {
+            memcpy(static_cast<char *>(mapped) + offset, handles.data(),
+                   handles.size() * sizeof(decltype(handles)::value_type));
         }
 
         buffer->unmap();
