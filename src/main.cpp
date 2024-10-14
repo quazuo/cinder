@@ -62,25 +62,25 @@ private:
 
         renderer.runRenderGraph();
 
-        if (renderer.startFrame()) {
-            if (isGuiEnabled) {
-                renderer.renderGui([&] {
-                    renderGuiSection(deltaTime);
-                    renderer.renderGuiSection();
-                });
-            }
-
-            renderer.runPrepass();
-            renderer.runSsaoPass();
-            renderer.drawScene();
-            renderer.raytrace();
-
-            if (showDebugQuad) {
-                renderer.drawDebugQuad();
-            }
-
-            renderer.endFrame();
-        }
+        // if (renderer.startFrame()) {
+        //     if (isGuiEnabled) {
+        //         renderer.renderGui([&] {
+        //             renderGuiSection(deltaTime);
+        //             renderer.renderGuiSection();
+        //         });
+        //     }
+        //
+        //     renderer.runPrepass();
+        //     renderer.runSsaoPass();
+        //     renderer.drawScene();
+        //     renderer.raytrace();
+        //
+        //     if (showDebugQuad) {
+        //         renderer.drawDebugQuad();
+        //     }
+        //
+        //     renderer.endFrame();
+        // }
 
         if (fileBrowser.HasSelected()) {
             const std::filesystem::path path = fileBrowser.GetSelected().string();

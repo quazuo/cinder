@@ -20,7 +20,7 @@ uniform UniformBufferObject {
     WindowRes window;
     Matrices matrices;
     MiscData misc;
-} ubo[];
+} ubo;
 
 layout (set = BINDLESS_DESCRIPTOR_SET, binding = BINDLESS_TEXTURE_SAMPLER_BINDING) \
 uniform sampler2D globalTextures2d[];
@@ -35,13 +35,13 @@ layout (set = FRAGMENT_BINDLESS_PARAM_SET, binding = 0) uniform Params {
 float getBlurredSsao() {
     vec2 texCoord = gl_FragCoord.xy / vec2(ubo.window.width, ubo.window.height);
 
-    vec2 texelSize = vec2(1.0) / vec2(textureSize(ssaoSampler, 0));
+    vec2 texelSize = vec2(1.0) / vec2(textureSize(globalTextures2d[0], 0));
     float result = 0.0;
 
     for (int x = -2; x < 2; x++) {
         for (int y = -2; y < 2; y++) {
             vec2 offset = vec2(x, y) * texelSize;
-            result += texture(ssaoSampler, texCoord + offset).r;
+            result += texture(globalTextures2d[0], texCoord + offset).r;
         }
     }
 
@@ -49,15 +49,15 @@ float getBlurredSsao() {
 }
 
 void main() {
-    vec4 base_color = texture(globalTextures2d[...], fragTexCoord);
+    vec4 base_color = texture(globalTextures2d[0], fragTexCoord);
 
     if (base_color.a < 0.1) discard;
 
-    vec3 normal = texture(globalTextures2d[...], fragTexCoord).rgb;
+    vec3 normal = texture(globalTextures2d[0], fragTexCoord).rgb;
     normal = normalize(normal * 2.0 - 1.0);
     normal = normalize(TBN * normal);
 
-    vec3 orm = texture(globalTextures2d[...], fragTexCoord).rgb;
+    vec3 orm = texture(globalTextures2d[0], fragTexCoord).rgb;
     float ao = ubo.misc.use_ssao == 1u ? getBlurredSsao() : orm.r;
     float roughness = orm.g;
     float metallic = orm.b;

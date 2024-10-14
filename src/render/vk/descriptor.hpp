@@ -218,10 +218,16 @@ public:
     [[nodiscard]] WriteInfo makeWriteInfo(const ResourceType &resource) {
         const auto &pack = std::get<Binding>(packs);
 
-        if constexpr (std::is_same_v<ResourceType, Buffer> || std::is_same_v<ResourceType, BufferSlice>) {
+        if constexpr (std::is_same_v<ResourceType, Buffer>) {
             return vk::DescriptorBufferInfo{
                 .buffer = *resource,
                 .range = resource.getSize(),
+            };
+        } else if constexpr (std::is_same_v<ResourceType, BufferSlice>) {
+            return vk::DescriptorBufferInfo{
+                .buffer = **resource,
+                .offset = resource.offset,
+                .range = resource.size,
             };
         } else if constexpr (std::is_same_v<ResourceType, Texture>) {
             const auto imageLayout = pack.type == vk::DescriptorType::eCombinedImageSampler
@@ -349,7 +355,7 @@ class BindlessParamSet {
     std::map<uint32_t, std::vector<ResourceHandle> > ranges; // [offset -> range] mapping
 
     unique_ptr<Buffer> buffer;
-    unique_ptr<DescriptorSet<Buffer> > descriptorSet;
+    unique_ptr<DescriptorSet<BufferSlice> > descriptorSet;
 
 public:
     explicit BindlessParamSet(const RendererContext &ctx)
@@ -371,12 +377,15 @@ public:
         buffer.reset();
         descriptorSet.reset();
 
-        const auto accumulateFn = [&](const uint32_t val, const auto &a) {
+        const uint32_t bufferSize = std::accumulate(ranges.begin(), ranges.end(), 0u, [&](auto val, auto x) {
             constexpr auto elemSize = sizeof(decltype(ranges)::mapped_type::value_type);
-            return std::max(val, static_cast<uint32_t>(a.first + a.second.size() * elemSize));
-        };
+            return std::max(val, static_cast<uint32_t>(x.first + x.second.size() * elemSize));
+        });
 
-        const uint32_t bufferSize = std::accumulate(ranges.begin(), ranges.end(), 0, accumulateFn);
+        const uint32_t maxRangeSize = std::accumulate(ranges.begin(), ranges.end(), 0u, [&](auto val, auto x) {
+            constexpr auto elemSize = sizeof(decltype(ranges)::mapped_type::value_type);
+            return std::max(val, static_cast<uint32_t>(x.second.size() * elemSize));
+        });
 
         buffer = make_unique<Buffer>(
             **ctx.get().allocator,
@@ -394,10 +403,14 @@ public:
 
         buffer->unmap();
 
-        descriptorSet = make_unique<DescriptorSet<Buffer> >(
+        descriptorSet = make_unique<DescriptorSet<BufferSlice> >(
             ctx.get(),
             pool,
-            ResourcePack{*buffer, vk::ShaderStageFlagBits::eAll}
+            ResourcePack{
+                BufferSlice { *buffer, maxRangeSize, 0 },
+                vk::ShaderStageFlagBits::eAll,
+                vk::DescriptorType::eUniformBufferDynamic
+            }
         );
     }
 

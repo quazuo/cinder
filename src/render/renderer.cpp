@@ -108,27 +108,27 @@ VulkanRenderer::VulkanRenderer() {
     updateGraphicsUniformBuffer();
 
     createPrepassTextures();
-    createPrepassDescriptorSets();
-    createPrepassRenderInfo();
-
+    // createPrepassDescriptorSets();
+    // createPrepassRenderInfo();
+    //
     createSsaoTextures();
-    createSsaoDescriptorSets();
-    createSsaoRenderInfo();
-
+    // createSsaoDescriptorSets();
+    // createSsaoRenderInfo();
+    //
     createSkyboxVertexBuffer();
     createSkyboxTexture();
-    createSkyboxDescriptorSets();
-    createSkyboxRenderInfos();
-
-    createCubemapCaptureDescriptorSet();
-    createCubemapCaptureRenderInfo();
-
+    // createSkyboxDescriptorSets();
+    // createSkyboxRenderInfos();
+    //
+    // createCubemapCaptureDescriptorSet();
+    // createCubemapCaptureRenderInfo();
+    //
     createScreenSpaceQuadVertexBuffer();
-
+    //
     createMaterialsDescriptorSet();
-    createSceneDescriptorSets();
-    createSceneRenderInfos();
-    createGuiRenderInfos();
+    // createSceneDescriptorSets();
+    // createSceneRenderInfos();
+    // createGuiRenderInfos();
 
     loadModel("../assets/example models/kettle/kettle.obj");
     loadBaseColorTexture("../assets/example models/kettle/kettle-albedo.png");
@@ -136,16 +136,16 @@ VulkanRenderer::VulkanRenderer() {
     loadOrmMap("../assets/example models/kettle/kettle-orm.png");
     createTLAS();
 
-    createMeshesDescriptorSet();
-
-    createRtTargetTexture();
-    createRtDescriptorSets();
-    createRtPipeline();
-
-    loadEnvironmentMap("../assets/envmaps/vienna.hdr");
-
-    createDebugQuadDescriptorSet();
-    createDebugQuadRenderInfos();
+    // createMeshesDescriptorSet();
+    //
+    // createRtTargetTexture();
+    // createRtDescriptorSets();
+    // createRtPipeline();
+    //
+    // loadEnvironmentMap("../assets/envmaps/vienna.hdr");
+    //
+    // createDebugQuadDescriptorSet();
+    // createDebugQuadRenderInfos();
 
     createBindlessDescriptorSets();
 
@@ -257,7 +257,7 @@ vkb::PhysicalDevice VulkanRenderer::pickPhysicalDevice(const vkb::Instance &vkbI
                 .shaderUniformBufferArrayNonUniformIndexing = vk::True,
                 .shaderSampledImageArrayNonUniformIndexing = vk::True,
                 .shaderStorageBufferArrayNonUniformIndexing = vk::True,
-                //.descriptorBindingUniformBufferUpdateAfterBind = vk::True,
+                // .descriptorBindingUniformBufferUpdateAfterBind = vk::True,
                 .descriptorBindingSampledImageUpdateAfterBind = vk::True,
                 .descriptorBindingStorageBufferUpdateAfterBind = vk::True,
                 .descriptorBindingPartiallyBound = vk::True,
@@ -868,8 +868,8 @@ vk::RenderingInfo RenderInfo::get(const vk::Extent2D extent, const uint32_t view
     };
 }
 
-vk::CommandBufferInheritanceRenderingInfo RenderInfo::getInheritanceRenderingInfo() {
-    return {
+vk::CommandBufferInheritanceRenderingInfo RenderInfo::getInheritanceRenderingInfo() const {
+    return vk::CommandBufferInheritanceRenderingInfo {
         .colorAttachmentCount = static_cast<uint32_t>(cachedColorAttachmentFormats.size()),
         .pColorAttachmentFormats = cachedColorAttachmentFormats.data(),
         .depthAttachmentFormat = depthTarget ? depthTarget->getFormat() : static_cast<vk::Format>(0),
@@ -1724,6 +1724,7 @@ GraphicsPipeline VulkanRenderer::createNodePipeline(const RenderNodeHandle handl
             .withDescriptorLayouts({
                 *bindlessDescriptorSet->getLayout(),
                 *bindlessParamSet->getDescriptorSet().getLayout(),
+                *bindlessParamSet->getDescriptorSet().getLayout(),
             })
             .withColorFormats(colorFormats);
 
@@ -1753,9 +1754,23 @@ void VulkanRenderer::recordRenderGraphNodeCommands(const RenderNodeResources &no
 
     const auto &nodeInfo = renderGraphInfo.renderGraph->getNodeInfo(handle);
 
+    std::vector<vk::Format> colorFormats;
+    for (const auto &target: nodeInfo.colorTargets) {
+        colorFormats.push_back(renderGraphInfo.renderGraph->getTransientTextureFormat(target));
+    }
+
+    const vk::Format depthFormat = nodeInfo.depthTarget
+        ? renderGraphInfo.renderGraph->getTransientTextureFormat(*nodeInfo.depthTarget)
+        : static_cast<vk::Format>(0);
+
     const vk::StructureChain inheritanceInfo{
         vk::CommandBufferInheritanceInfo{},
-        debugQuadRenderInfos[0].getInheritanceRenderingInfo()
+        vk::CommandBufferInheritanceRenderingInfo {
+            .colorAttachmentCount = static_cast<uint32_t>(nodeInfo.colorTargets.size()),
+            .pColorAttachmentFormats = colorFormats.data(),
+            .depthAttachmentFormat = depthFormat,
+            .rasterizationSamples = nodeInfo.customConfig.useMsaa ? getMsaaSampleCount() : vk::SampleCountFlagBits::e1,
+        }
     };
 
     const vk::CommandBufferBeginInfo beginInfo{
@@ -1775,13 +1790,12 @@ void VulkanRenderer::recordRenderGraphNodeCommands(const RenderNodeResources &no
         0,
         {
             ***bindlessDescriptorSet,
-            // **bindlessParamSet->getDescriptorSet(),
-            // **bindlessParamSet->getDescriptorSet(),
+            **bindlessParamSet->getDescriptorSet(),
+            **bindlessParamSet->getDescriptorSet(),
         },
         {
-            // 0,
-            // vertexParamsOffset,
-            // fragmentParamsOffset
+            vertexParamsOffset,
+            fragmentParamsOffset
         }
     );
 

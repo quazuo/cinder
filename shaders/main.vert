@@ -13,11 +13,20 @@ layout (location = 0) out vec3 worldPosition;
 layout (location = 1) out vec2 fragTexCoord;
 layout (location = 2) out mat3 TBN;
 
-layout(binding = 0) uniform UniformBufferObject {
+layout (set = BINDLESS_DESCRIPTOR_SET, binding = BINDLESS_UNIFORM_BUFFER_BINDING) \
+uniform UniformBufferObject {
     WindowRes window;
     Matrices matrices;
     MiscData misc;
 } ubo;
+
+layout (set = BINDLESS_DESCRIPTOR_SET, binding = BINDLESS_TEXTURE_SAMPLER_BINDING) \
+uniform sampler2D globalTextures2d[];
+
+layout (set = FRAGMENT_BINDLESS_PARAM_SET, binding = 0) uniform Params {
+    uint uniformBuffer;
+    uvec3 unused; // padding
+} params;
 
 void main() {
     const mat4 model = ubo.matrices.model * inInstanceTransform;

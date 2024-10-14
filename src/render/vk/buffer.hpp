@@ -82,6 +82,8 @@ struct BufferSlice {
             throw std::invalid_argument("buffer slice extent out of range");
         }
     }
+
+    [[nodiscard]] const Buffer& operator*() const { return buffer.get(); }
 };
 
 namespace utils::buf {

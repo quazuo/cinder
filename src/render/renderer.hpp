@@ -89,7 +89,7 @@ public:
 
     [[nodiscard]] const GraphicsPipeline &getPipeline() const { return *pipeline; }
 
-    [[nodiscard]] vk::CommandBufferInheritanceRenderingInfo getInheritanceRenderingInfo();
+    [[nodiscard]] vk::CommandBufferInheritanceRenderingInfo getInheritanceRenderingInfo() const;
 
     void reloadShaders(const RendererContext &ctx) const;
 
