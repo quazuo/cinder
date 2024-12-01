@@ -13,6 +13,40 @@
 #include "utils/input-manager.hpp"
 #include "utils/file-type.hpp"
 
+struct GraphicsUBO {
+    struct WindowRes {
+        uint32_t windowWidth;
+        uint32_t windowHeight;
+    };
+
+    struct Matrices {
+        glm::mat4 model;
+        glm::mat4 view;
+        glm::mat4 proj;
+        glm::mat4 viewInverse;
+        glm::mat4 projInverse;
+        glm::mat4 vpInverse;
+        glm::mat4 staticView;
+        glm::mat4 cubemapCaptureViews[6];
+        glm::mat4 cubemapCaptureProj;
+    };
+
+    struct MiscData {
+        float debugNumber;
+        float zNear;
+        float zFar;
+        uint32_t useSsao;
+        float lightIntensity;
+        glm::vec3 lightDir;
+        glm::vec3 lightColor;
+        glm::vec3 cameraPos;
+    };
+
+    alignas(16) WindowRes window{};
+    alignas(16) Matrices matrices{};
+    alignas(16) MiscData misc{};
+};
+
 namespace zrx {
 class Engine {
     GLFWwindow *window = nullptr;
@@ -111,30 +145,36 @@ private:
 
         // ================== external resources ==================
 
-        const auto baseColorTexture = renderGraph.addExternalResource({
+        const auto baseColorTexture = renderGraph.addExternalResource(ExternalTextureResource{
             "base-color-texture",
+            vk::Format::eR8G8B8A8Srgb
         });
 
-        const auto normalTexture = renderGraph.addExternalResource({
+        const auto normalTexture = renderGraph.addExternalResource(ExternalTextureResource{
             "normal-texture",
             vk::Format::eR8G8B8A8Unorm,
         });
 
         // ================== transient resources ==================
 
-        const auto gBufferNormal = renderGraph.addTransientResource({
+        const auto gBufferNormal = renderGraph.addTransientResource(TransientTextureResource{
             "g-buffer-normal",
             vk::Format::eR8G8B8A8Unorm,
         });
 
-        const auto gBufferPos = renderGraph.addTransientResource({
+        const auto gBufferPos = renderGraph.addTransientResource(TransientTextureResource{
             "g-buffer-pos",
             vk::Format::eR8G8B8A8Unorm,
         });
 
-        const auto gBufferDepth = renderGraph.addTransientResource({
+        const auto gBufferDepth = renderGraph.addTransientResource(TransientTextureResource{
             "g-buffer-depth",
             depthFormat,
+        });
+
+        const auto ssaoTexture = renderGraph.addTransientResource(TransientTextureResource{
+            "ssao-texture",
+            vk::Format::eR8G8B8A8Unorm,
         });
 
         // ================== prepass ==================
@@ -168,12 +208,17 @@ private:
 
         const auto mainVertexShader = std::make_shared<Shader>(Shader{
             "../shaders/obj/main-vert.spv",
-            {uniformBuffer}
+            {
+                {uniformBuffer}
+            }
         });
 
         const auto mainFragmentShader = std::make_shared<Shader>(Shader{
             "../shaders/obj/main-frag.spv",
-            {uniformBuffer, gBufferNormal, gBufferPos}
+            {
+                {uniformBuffer, ssaoTexture},
+                {}
+            }
         });
 
         renderGraph.addNode({

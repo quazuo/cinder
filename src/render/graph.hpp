@@ -30,22 +30,27 @@ struct UniformBuffer {
 
 struct ExternalTextureResource {
     std::string name;
-    vk::Format format = vk::Format::eR8G8B8A8Srgb;
+    vk::Format format;
 };
 
 struct TransientTextureResource {
     std::string name;
-    vk::Format format = vk::Format::eR8G8B8A8Srgb;
+    vk::Format format;
 };
 
 struct Shader {
     using ShaderBindingSet = std::vector<ResourceHandle>;
 
     std::filesystem::path path;
-    ShaderBindingSet bindings;
+    std::vector<ShaderBindingSet> descriptorSets;
 
     [[nodiscard]] std::set<ResourceHandle> getBoundResourcesSet() const {
-        const std::set result(bindings.begin(), bindings.end());
+        std::set<ResourceHandle> result;
+
+        for (const auto &set : descriptorSets) {
+            result.insert(set.begin(), set.end());
+        }
+
         return result;
     }
 };
@@ -267,38 +272,4 @@ private:
  * - jeśli tekstura: render target jednego passa i zbindowane deskryptorem w drugim passie
  * - jeśli bufor: zbindowane deskryptorem w jednym i drugim
  */
-
-struct GraphicsUBO {
-    struct WindowRes {
-        uint32_t windowWidth;
-        uint32_t windowHeight;
-    };
-
-    struct Matrices {
-        glm::mat4 model;
-        glm::mat4 view;
-        glm::mat4 proj;
-        glm::mat4 viewInverse;
-        glm::mat4 projInverse;
-        glm::mat4 vpInverse;
-        glm::mat4 staticView;
-        glm::mat4 cubemapCaptureViews[6];
-        glm::mat4 cubemapCaptureProj;
-    };
-
-    struct MiscData {
-        float debugNumber;
-        float zNear;
-        float zFar;
-        uint32_t useSsao;
-        float lightIntensity;
-        glm::vec3 lightDir;
-        glm::vec3 lightColor;
-        glm::vec3 cameraPos;
-    };
-
-    alignas(16) WindowRes window{};
-    alignas(16) Matrices matrices{};
-    alignas(16) MiscData misc{};
-};
 }; // zrx

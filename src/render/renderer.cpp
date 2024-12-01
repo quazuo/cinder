@@ -147,8 +147,6 @@ VulkanRenderer::VulkanRenderer() {
     // createDebugQuadDescriptorSet();
     // createDebugQuadRenderInfos();
 
-    createBindlessDescriptorSets();
-
     createSyncObjects();
 
     initImgui();
@@ -626,19 +624,19 @@ void VulkanRenderer::createDescriptorPool() {
     const std::vector<vk::DescriptorPoolSize> poolSizes = {
         {
             .type = vk::DescriptorType::eUniformBuffer,
-            .descriptorCount = BINDLESS_DESCRIPTOR_ARRAY_COUNT + 100u,
+            .descriptorCount = 100u,
         },
         {
             .type = vk::DescriptorType::eCombinedImageSampler,
-            .descriptorCount = BINDLESS_DESCRIPTOR_ARRAY_COUNT + 1000u,
+            .descriptorCount = 1000u,
         },
         {
             .type = vk::DescriptorType::eStorageImage,
-            .descriptorCount = BINDLESS_DESCRIPTOR_ARRAY_COUNT + 100u,
+            .descriptorCount = 100u,
         },
         {
             .type = vk::DescriptorType::eStorageBuffer,
-            .descriptorCount = BINDLESS_DESCRIPTOR_ARRAY_COUNT + 100u,
+            .descriptorCount = 100u,
         },
         {
             .type = vk::DescriptorType::eAccelerationStructureKHR,
@@ -655,34 +653,6 @@ void VulkanRenderer::createDescriptorPool() {
     };
 
     descriptorPool = make_unique<vk::raii::DescriptorPool>(*ctx.device, poolInfo);
-}
-
-void VulkanRenderer::createBindlessDescriptorSets() {
-    const auto flags = vk::DescriptorBindingFlagBits::ePartiallyBound
-                       | vk::DescriptorBindingFlagBits::eUpdateAfterBind;
-
-    bindlessDescriptorSet = make_unique<DescriptorSet<Buffer, Buffer, Texture> >(
-        ctx,
-        *descriptorPool,
-        ResourcePack<Buffer>{
-            BINDLESS_DESCRIPTOR_ARRAY_COUNT,
-            vk::ShaderStageFlagBits::eAll,
-            vk::DescriptorType::eUniformBuffer,
-            flags
-        },
-        ResourcePack<Buffer>{
-            BINDLESS_DESCRIPTOR_ARRAY_COUNT,
-            vk::ShaderStageFlagBits::eAll,
-            vk::DescriptorType::eStorageBuffer,
-            flags
-        },
-        ResourcePack<Texture>{
-            BINDLESS_DESCRIPTOR_ARRAY_COUNT,
-            vk::ShaderStageFlagBits::eAll,
-            vk::DescriptorType::eCombinedImageSampler,
-            flags
-        }
-    );
 }
 
 void VulkanRenderer::createSceneDescriptorSets() {
@@ -1658,7 +1628,6 @@ void VulkanRenderer::renderGuiSection() {
 
 void VulkanRenderer::registerRenderGraph(const RenderGraph &graph) {
     renderGraphInfo.renderGraph = make_unique<RenderGraph>(graph);
-    bindlessParamSet = make_unique<BindlessParamSet>(ctx);
 
     const auto topoSortedHandles = renderGraphInfo.renderGraph->getTopoSorted();
     const uint32_t nNodes        = topoSortedHandles.size();
@@ -1671,19 +1640,6 @@ void VulkanRenderer::registerRenderGraph(const RenderGraph &graph) {
 
     vk::raii::CommandBuffers commandBuffers{*ctx.device, secondaryAllocInfo};
 
-    std::vector<uint32_t> vertexRangeOffsets;
-    std::vector<uint32_t> fragmentRangeOffsets;
-
-    for (uint32_t i = 0; i < nNodes; i++) {
-        const auto handle = topoSortedHandles[i];
-        const auto& nodeInfo = renderGraphInfo.renderGraph->getNodeInfo(handle);
-
-        vertexRangeOffsets.emplace_back(bindlessParamSet->addRange(nodeInfo.vertexShader->bindings));
-        fragmentRangeOffsets.emplace_back(bindlessParamSet->addRange(nodeInfo.fragmentShader->bindings));
-    }
-
-    bindlessParamSet->build(*descriptorPool);
-
     for (uint32_t i = 0; i < nNodes; i++) {
         const auto handle = topoSortedHandles[i];
 
@@ -1691,8 +1647,6 @@ void VulkanRenderer::registerRenderGraph(const RenderGraph &graph) {
             .handle = handle,
             .commandBuffer = std::move(commandBuffers[i]),
             .pipeline = createNodePipeline(handle),
-            .vertexParamsOffset = vertexRangeOffsets[i],
-            .fragmentParamsOffset = fragmentRangeOffsets[i],
         });
     }
 }
@@ -1722,9 +1676,7 @@ GraphicsPipeline VulkanRenderer::createNodePipeline(const RenderNodeHandle handl
                 .minSampleShading = 1.0f,
             })
             .withDescriptorLayouts({
-                *bindlessDescriptorSet->getLayout(),
-                *bindlessParamSet->getDescriptorSet().getLayout(),
-                *bindlessParamSet->getDescriptorSet().getLayout(),
+                // todo - shader's descriptor sets! (layouts)
             })
             .withColorFormats(colorFormats);
 
@@ -1750,7 +1702,7 @@ void VulkanRenderer::runRenderGraph() {
 }
 
 void VulkanRenderer::recordRenderGraphNodeCommands(const RenderNodeResources &nodeResources) {
-    const auto &[handle, commandBuffer, pipeline, vertexParamsOffset, fragmentParamsOffset] = nodeResources;
+    const auto &[handle, commandBuffer, pipeline] = nodeResources;
 
     const auto &nodeInfo = renderGraphInfo.renderGraph->getNodeInfo(handle);
 
@@ -1789,14 +1741,9 @@ void VulkanRenderer::recordRenderGraphNodeCommands(const RenderNodeResources &no
         *pipeline.getLayout(),
         0,
         {
-            ***bindlessDescriptorSet,
-            **bindlessParamSet->getDescriptorSet(),
-            **bindlessParamSet->getDescriptorSet(),
+            // todo - shader's descriptor sets!
         },
-        {
-            vertexParamsOffset,
-            fragmentParamsOffset
-        }
+        nullptr
     );
 
     RenderPassContext passCtx{commandBuffer};

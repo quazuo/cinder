@@ -129,8 +129,6 @@ class VulkanRenderer {
         RenderNodeHandle handle;
         vk::raii::CommandBuffer commandBuffer;
         GraphicsPipeline pipeline;
-        uint32_t vertexParamsOffset;
-        uint32_t fragmentParamsOffset;
     };
 
     struct {
@@ -160,10 +158,6 @@ class VulkanRenderer {
     // descriptors
 
     unique_ptr<vk::raii::DescriptorPool> descriptorPool;
-
-    static constexpr uint32_t BINDLESS_DESCRIPTOR_ARRAY_COUNT = 10;
-    unique_ptr<DescriptorSet<Buffer, Buffer, Texture>> bindlessDescriptorSet;
-    unique_ptr<BindlessParamSet> bindlessParamSet;
 
     unique_ptr<MaterialsDescriptorSet> materialsDescriptorSet;
     unique_ptr<MeshesDescriptorSet> meshesDescriptorSet;
@@ -346,8 +340,6 @@ private:
     // ==================== descriptors ====================
 
     void createDescriptorPool();
-
-    void createBindlessDescriptorSets();
 
     void createSceneDescriptorSets();
 
