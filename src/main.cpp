@@ -273,13 +273,13 @@ private:
         }
 
         if (ImGui::CollapsingHeader("Environment ", section_flags)) {
-            renderTexLoadButton("Choose environment map...", FileType::ENVMAP_HDR, {".hdr"});
+            render_tex_load_button("Choose environment map...", FileType::ENVMAP_HDR, {".hdr"});
 
             file_browser.Display();
         }
     }
 
-    void renderTexLoadButton(const std::string &label, const FileType file_type,
+    void render_tex_load_button(const std::string &label, const FileType file_type,
                              const std::vector<std::string> &type_filters) {
         if (ImGui::Button(label.c_str(), ImVec2(180, 0))) {
             current_type_being_chosen = file_type;
@@ -318,7 +318,7 @@ private:
             ImGui::Separator();
 
             for (const auto &type: file_load_schemes[load_scheme_idx].requirements) {
-                renderTexLoadButton(
+                render_tex_load_button(
                     get_file_type_load_label(type),
                     type,
                     get_file_type_extensions(type)

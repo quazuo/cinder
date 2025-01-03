@@ -4,23 +4,15 @@
 
 namespace zrx {
 namespace utils::cmd {
+    [[nodiscard]]
     vk::raii::CommandBuffer begin_single_time_commands(const RendererContext &ctx) {
-        const vk::CommandBufferAllocateInfo alloc_info{
-            .commandPool = **ctx.command_pool,
-            .level = vk::CommandBufferLevel::ePrimary,
-            .commandBufferCount = 1U,
-        };
+        auto command_buffer = create_command_buffer(ctx, vk::CommandBufferLevel::ePrimary);
 
-        vk::raii::CommandBuffers command_buffers{*ctx.device, alloc_info};
-        vk::raii::CommandBuffer buffer{std::move(command_buffers[0])};
-
-        constexpr vk::CommandBufferBeginInfo begin_info{
+        command_buffer.begin(vk::CommandBufferBeginInfo {
             .flags = vk::CommandBufferUsageFlagBits::eOneTimeSubmit,
-        };
+        });
 
-        buffer.begin(begin_info);
-
-        return buffer;
+        return command_buffer;
     }
 
     void end_single_time_commands(const vk::raii::CommandBuffer &command_buffer, const vk::raii::Queue &queue) {
@@ -36,7 +28,7 @@ namespace utils::cmd {
     }
 
     void do_single_time_commands(const RendererContext &ctx,
-                              const std::function<void(const vk::raii::CommandBuffer &)> &func) {
+                                 const std::function<void(const vk::raii::CommandBuffer &)> &func) {
         const vk::raii::CommandBuffer cmd_buffer = begin_single_time_commands(ctx);
         func(cmd_buffer);
         end_single_time_commands(cmd_buffer, *ctx.graphics_queue);
@@ -59,6 +51,22 @@ namespace utils::cmd {
 
         command_buffer.setViewport(0, viewport);
         command_buffer.setScissor(0, scissor);
+    }
+
+    vk::raii::CommandBuffers create_command_buffers(const RendererContext &ctx, const vk::CommandBufferLevel level,
+                                                    const uint32_t count) {
+        const vk::CommandBufferAllocateInfo alloc_info{
+            .commandPool = **ctx.command_pool,
+            .level = level,
+            .commandBufferCount = count,
+        };
+
+        return {*ctx.device, alloc_info};
+    }
+
+    vk::raii::CommandBuffer create_command_buffer(const RendererContext &ctx, const vk::CommandBufferLevel level) {
+        auto command_buffers = create_command_buffers(ctx, level, 1);
+        return std::move(command_buffers[0]);
     }
 } // utils::cmd
 } // zrx

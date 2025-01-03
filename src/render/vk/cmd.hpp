@@ -47,5 +47,11 @@ namespace utils::cmd {
      * This currently includes only viewport and scissor, but might be extended later.
      */
     void set_dynamic_states(const vk::raii::CommandBuffer &command_buffer, vk::Extent2D draw_extent);
+
+    [[nodiscard]] vk::raii::CommandBuffers
+    create_command_buffers(const RendererContext& ctx, vk::CommandBufferLevel level, uint32_t count);
+
+    [[nodiscard]] vk::raii::CommandBuffer
+    create_command_buffer(const RendererContext &ctx, vk::CommandBufferLevel level);
 }
 } // zrx

@@ -166,7 +166,7 @@ void VulkanRenderer::framebuffer_resize_callback(GLFWwindow *window, const int w
 void VulkanRenderer::bind_mouse_drag_actions() {
     input_manager->bind_mouse_drag_callback(GLFW_MOUSE_BUTTON_RIGHT, [&](const double dx, const double dy) {
         static constexpr float speed = 0.002;
-        const float camera_distance   = glm::length(camera->get_pos());
+        const float camera_distance  = glm::length(camera->get_pos());
 
         const auto view_vectors = camera->get_view_vectors();
 
@@ -186,7 +186,7 @@ vkb::Instance VulkanRenderer::create_instance() {
                                    const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
                                    void *p_user_data) -> VkBool32 {
                     const auto severity = vkb::to_string_message_severity(messageSeverity);
-                    const auto type = vkb::to_string_message_type(messageType);
+                    const auto type     = vkb::to_string_message_type(messageType);
 
                     std::stringstream ss;
                     ss << "[" << severity << ": " << type << "]\n" << pCallbackData->pMessage << "\n\n";
@@ -216,7 +216,7 @@ vkb::Instance VulkanRenderer::create_instance() {
 
 std::vector<const char *> VulkanRenderer::get_required_extensions() {
     uint32_t glfw_extension_count = 0;
-    const char **glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
+    const char **glfw_extensions  = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
 
     std::vector extensions(glfw_extensions, glfw_extensions + glfw_extension_count);
 
@@ -283,8 +283,9 @@ vkb::PhysicalDevice VulkanRenderer::pick_physical_device(const vkb::Instance &vk
         throw std::runtime_error("failed to select physical device: " + physical_device_result.error().message());
     }
 
-    ctx.physical_device = make_unique<vk::raii::PhysicalDevice>(*instance, physical_device_result.value().physical_device);
-    msaa_sample_count    = get_max_usable_sample_count();
+    ctx.physical_device = make_unique<vk::raii::PhysicalDevice>(
+        *instance, physical_device_result.value().physical_device);
+    msaa_sample_count = get_max_usable_sample_count();
 
     return physical_device_result.value();
 }
@@ -298,13 +299,13 @@ void VulkanRenderer::create_logical_device(const vkb::PhysicalDevice &vkb_physic
 
     ctx.device = make_unique<vk::raii::Device>(*ctx.physical_device, device_result.value().device);
 
-    auto graphics_queue_result      = device_result.value().get_queue(vkb::QueueType::graphics);
+    auto graphics_queue_result       = device_result.value().get_queue(vkb::QueueType::graphics);
     auto graphics_queue_index_result = device_result.value().get_queue_index(vkb::QueueType::graphics);
     if (!graphics_queue_result || !graphics_queue_index_result) {
         throw std::runtime_error("failed to get graphics queue: " + device_result.error().message());
     }
 
-    auto present_queue_result      = device_result.value().get_queue(vkb::QueueType::present);
+    auto present_queue_result       = device_result.value().get_queue(vkb::QueueType::present);
     auto present_queue_index_result = device_result.value().get_queue_index(vkb::QueueType::present);
     if (!present_queue_result || !present_queue_index_result) {
         throw std::runtime_error("failed to get present queue: " + device_result.error().message());
@@ -394,7 +395,7 @@ void VulkanRenderer::load_orm_map(const std::filesystem::path &path) {
 }
 
 void VulkanRenderer::load_orm_map(const std::filesystem::path &ao_path, const std::filesystem::path &roughness_path,
-                                const std::filesystem::path &metallic_path) {
+                                  const std::filesystem::path &metallic_path) {
     wait_idle();
 
     separate_material.orm.reset();
@@ -458,27 +459,27 @@ void VulkanRenderer::create_prepass_textures() {
             .as_uninitialized(extent)
             .use_format(prepass_color_format)
             .use_usage(vk::ImageUsageFlagBits::eTransferSrc
-                      | vk::ImageUsageFlagBits::eTransferDst
-                      | vk::ImageUsageFlagBits::eSampled
-                      | vk::ImageUsageFlagBits::eColorAttachment)
+                       | vk::ImageUsageFlagBits::eTransferDst
+                       | vk::ImageUsageFlagBits::eSampled
+                       | vk::ImageUsageFlagBits::eColorAttachment)
             .create(ctx);
 
     g_buffer_textures.normal = TextureBuilder()
             .as_uninitialized(extent)
             .use_format(prepass_color_format)
             .use_usage(vk::ImageUsageFlagBits::eTransferSrc
-                      | vk::ImageUsageFlagBits::eTransferDst
-                      | vk::ImageUsageFlagBits::eSampled
-                      | vk::ImageUsageFlagBits::eColorAttachment)
+                       | vk::ImageUsageFlagBits::eTransferDst
+                       | vk::ImageUsageFlagBits::eSampled
+                       | vk::ImageUsageFlagBits::eColorAttachment)
             .create(ctx);
 
     g_buffer_textures.depth = TextureBuilder()
             .as_uninitialized(extent)
             .use_format(swap_chain->get_depth_format())
             .use_usage(vk::ImageUsageFlagBits::eTransferSrc
-                      | vk::ImageUsageFlagBits::eTransferDst
-                      | vk::ImageUsageFlagBits::eSampled
-                      | vk::ImageUsageFlagBits::eDepthStencilAttachment)
+                       | vk::ImageUsageFlagBits::eTransferDst
+                       | vk::ImageUsageFlagBits::eSampled
+                       | vk::ImageUsageFlagBits::eDepthStencilAttachment)
             .create(ctx);
 
     for (auto &res: frame_resources) {
@@ -498,9 +499,9 @@ void VulkanRenderer::create_skybox_texture() {
             .as_hdr()
             .use_format(hdr_envmap_format)
             .use_usage(vk::ImageUsageFlagBits::eTransferSrc
-                      | vk::ImageUsageFlagBits::eTransferDst
-                      | vk::ImageUsageFlagBits::eSampled
-                      | vk::ImageUsageFlagBits::eColorAttachment)
+                       | vk::ImageUsageFlagBits::eTransferDst
+                       | vk::ImageUsageFlagBits::eSampled
+                       | vk::ImageUsageFlagBits::eColorAttachment)
             .make_mipmaps()
             .create(ctx);
 }
@@ -525,9 +526,9 @@ static std::vector<glm::vec4> make_ssao_noise() {
 
 void VulkanRenderer::create_ssao_textures() {
     const auto attachment_usage_flags = vk::ImageUsageFlagBits::eTransferSrc
-                                      | vk::ImageUsageFlagBits::eTransferDst
-                                      | vk::ImageUsageFlagBits::eSampled
-                                      | vk::ImageUsageFlagBits::eColorAttachment;
+                                        | vk::ImageUsageFlagBits::eTransferDst
+                                        | vk::ImageUsageFlagBits::eSampled
+                                        | vk::ImageUsageFlagBits::eColorAttachment;
 
     const auto &[width, height] = swap_chain->get_extent();
 
@@ -576,9 +577,9 @@ void VulkanRenderer::create_rt_target_texture() {
             .as_uninitialized(extent)
             .use_format(vk::Format::eR32G32B32A32Sfloat)
             .use_usage(vk::ImageUsageFlagBits::eStorage
-                      | vk::ImageUsageFlagBits::eSampled
-                      | vk::ImageUsageFlagBits::eTransferSrc
-                      | vk::ImageUsageFlagBits::eTransferDst)
+                       | vk::ImageUsageFlagBits::eSampled
+                       | vk::ImageUsageFlagBits::eTransferSrc
+                       | vk::ImageUsageFlagBits::eTransferDst)
             .use_layout(vk::ImageLayout::eGeneral)
             .create(ctx);
 }
@@ -670,8 +671,8 @@ void VulkanRenderer::create_scene_descriptor_sets() {
 }
 
 void VulkanRenderer::create_materials_descriptor_set() {
-    constexpr auto scope           = vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eClosestHitKHR;
-    constexpr auto type            = vk::DescriptorType::eCombinedImageSampler;
+    constexpr auto scope            = vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eClosestHitKHR;
+    constexpr auto type             = vk::DescriptorType::eCombinedImageSampler;
     constexpr auto descriptor_count = MATERIAL_TEX_ARRAY_SIZE;
 
     materials_descriptor_set = make_unique<MaterialsDescriptorSet>(
@@ -839,7 +840,7 @@ vk::RenderingInfo RenderInfo::get(const vk::Extent2D extent, const uint32_t view
 }
 
 vk::CommandBufferInheritanceRenderingInfo RenderInfo::get_inheritance_rendering_info() const {
-    return vk::CommandBufferInheritanceRenderingInfo {
+    return vk::CommandBufferInheritanceRenderingInfo{
         .colorAttachmentCount = static_cast<uint32_t>(cached_color_attachment_formats.size()),
         .pColorAttachmentFormats = cached_color_attachment_formats.data(),
         .depthAttachmentFormat = depth_target ? depth_target->get_format() : static_cast<vk::Format>(0),
@@ -1208,26 +1209,23 @@ void VulkanRenderer::create_command_pool() {
 }
 
 void VulkanRenderer::create_command_buffers() {
-    const vk::CommandBufferAllocateInfo primary_alloc_info{
-        .commandPool = **ctx.command_pool,
-        .level = vk::CommandBufferLevel::ePrimary,
-        .commandBufferCount = static_cast<uint32_t>(frame_resources.size()),
-    };
+    constexpr uint32_t n_buffers = frame_resources.size();
 
-    const vk::CommandBufferAllocateInfo secondary_alloc_info{
-        .commandPool = **ctx.command_pool,
-        .level = vk::CommandBufferLevel::eSecondary,
-        .commandBufferCount = static_cast<uint32_t>(frame_resources.size()),
-    };
+    auto graphics_command_buffers =
+        utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::ePrimary, n_buffers);
 
-    vk::raii::CommandBuffers graphics_command_buffers{*ctx.device, primary_alloc_info};
-
-    vk::raii::CommandBuffers scene_command_buffers{*ctx.device, secondary_alloc_info};
-    vk::raii::CommandBuffers rt_command_buffers{*ctx.device, secondary_alloc_info};
-    vk::raii::CommandBuffers gui_command_buffers{*ctx.device, secondary_alloc_info};
-    vk::raii::CommandBuffers prepass_command_buffers{*ctx.device, secondary_alloc_info};
-    vk::raii::CommandBuffers debug_command_buffers{*ctx.device, secondary_alloc_info};
-    vk::raii::CommandBuffers ssao_command_buffers{*ctx.device, secondary_alloc_info};
+    auto scene_command_buffers =
+        utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
+    auto rt_command_buffers =
+        utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
+    auto gui_command_buffers =
+        utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
+    auto prepass_command_buffers =
+        utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
+    auto debug_command_buffers =
+        utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
+    auto ssao_command_buffers =
+        utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
 
     for (size_t i = 0; i < graphics_command_buffers.size(); i++) {
         frame_resources[i].graphics_cmd_buffer =
@@ -1389,7 +1387,7 @@ void VulkanRenderer::create_tlas() {
 
     const vk::AccelerationStructureDeviceAddressInfoKHR blas_address_info{.accelerationStructure = *model->get_blas()};
     const vk::DeviceAddress blas_reference = ctx.device->getAccelerationStructureAddressKHR(blas_address_info);
-    constexpr auto flags                  = vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable; // todo
+    constexpr auto flags                   = vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable; // todo
 
     instances.emplace_back(vk::AccelerationStructureInstanceKHR{
         .transform = transform_matrix,
@@ -1630,17 +1628,11 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
     render_graph_info.render_graph = make_unique<RenderGraph>(graph);
 
     const auto topo_sorted_handles = render_graph_info.render_graph->get_topo_sorted();
-    const uint32_t nNodes        = topo_sorted_handles.size();
+    const uint32_t n_nodes         = topo_sorted_handles.size();
 
-    const vk::CommandBufferAllocateInfo secondary_alloc_info{
-        .commandPool = **ctx.command_pool,
-        .level = vk::CommandBufferLevel::eSecondary,
-        .commandBufferCount = nNodes,
-    };
+    auto command_buffers = utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_nodes);
 
-    vk::raii::CommandBuffers command_buffers{*ctx.device, secondary_alloc_info};
-
-    for (uint32_t i = 0; i < nNodes; i++) {
+    for (uint32_t i = 0; i < n_nodes; i++) {
         const auto handle = topo_sorted_handles[i];
 
         render_graph_info.topo_sorted_nodes.emplace_back(RenderNodeResources{
@@ -1652,7 +1644,7 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
 }
 
 GraphicsPipeline VulkanRenderer::create_node_pipeline(const RenderNodeHandle handle) const {
-    const auto& node_info = render_graph_info.render_graph->get_node_info(handle);
+    const auto &node_info = render_graph_info.render_graph->get_node_info(handle);
 
     std::vector<vk::Format> color_formats;
     for (const auto &target: node_info.color_targets) {
@@ -1681,7 +1673,8 @@ GraphicsPipeline VulkanRenderer::create_node_pipeline(const RenderNodeHandle han
             .with_color_formats(color_formats);
 
     if (node_info.depth_target) {
-        builder.with_depth_format(render_graph_info.render_graph->get_transient_texture_format(*node_info.depth_target));
+        builder.with_depth_format(
+            render_graph_info.render_graph->get_transient_texture_format(*node_info.depth_target));
     } else {
         builder.with_depth_stencil({
             .depthTestEnable = vk::False,
@@ -1712,16 +1705,19 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
     }
 
     const vk::Format depth_format = node_info.depth_target
-        ? render_graph_info.render_graph->get_transient_texture_format(*node_info.depth_target)
-        : static_cast<vk::Format>(0);
+                                        ? render_graph_info.render_graph->get_transient_texture_format(
+                                            *node_info.depth_target)
+                                        : static_cast<vk::Format>(0);
 
     const vk::StructureChain inheritance_info{
         vk::CommandBufferInheritanceInfo{},
-        vk::CommandBufferInheritanceRenderingInfo {
+        vk::CommandBufferInheritanceRenderingInfo{
             .colorAttachmentCount = static_cast<uint32_t>(node_info.color_targets.size()),
             .pColorAttachmentFormats = color_formats.data(),
             .depthAttachmentFormat = depth_format,
-            .rasterizationSamples = node_info.custom_config.use_msaa ? get_msaa_sample_count() : vk::SampleCountFlagBits::e1,
+            .rasterizationSamples = node_info.custom_config.use_msaa
+                                        ? get_msaa_sample_count()
+                                        : vk::SampleCountFlagBits::e1,
         }
     };
 
@@ -1921,8 +1917,8 @@ void VulkanRenderer::end_frame() {
     }
 
     const bool did_resize = present_result == vk::Result::eErrorOutOfDateKHR
-                           || present_result == vk::Result::eSuboptimalKHR
-                           || framebuffer_resized;
+                            || present_result == vk::Result::eSuboptimalKHR
+                            || framebuffer_resized;
     if (did_resize) {
         framebuffer_resized = false;
         recreate_swap_chain();
@@ -2155,7 +2151,7 @@ void VulkanRenderer::draw_debug_quad() {
 }
 
 void VulkanRenderer::draw_model(const vk::raii::CommandBuffer &command_buffer, const bool do_push_constants,
-                               const GraphicsPipeline &pipeline) const {
+                                const GraphicsPipeline &pipeline) const {
     uint32_t index_offset    = 0;
     int32_t vertex_offset    = 0;
     uint32_t instance_offset = 0;
