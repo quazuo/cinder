@@ -80,12 +80,12 @@ template<int N, typename... Ts>
 using NthTypeOf = std::tuple_element_t<N, std::tuple<Ts...> >;
 
 /**
- * Convenience wrapper around Vulkan descriptor sets, mainly to pair them together with related layouts,
- * as well as provide an easy way to update them in a performant way.
+ * Fixed (or in other words, static) version of `DescriptorSet`.
+ * Enables compile-time checks to typing of its bindings and doesn't allow changes in layout.
  */
 template<typename... Ts>
     requires std::conjunction_v<is_valid_for_resource<Ts>...>
-class DescriptorSet {
+class FixedDescriptorSet {
     std::reference_wrapper<const RendererContext> ctx;
     std::tuple<ResourcePack<Ts>...> packs;
     shared_ptr<vk::raii::DescriptorSetLayout> layout;
@@ -106,7 +106,8 @@ class DescriptorSet {
     std::vector<DescriptorUpdate> queued_updates;
 
 public:
-    explicit DescriptorSet(const RendererContext &ctx, const vk::raii::DescriptorPool &pool, ResourcePack<Ts>... elems)
+    explicit FixedDescriptorSet(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
+                                ResourcePack<Ts>... elems)
         : ctx(ctx), packs(elems...) {
         create_layout();
         create_set(pool);
@@ -114,8 +115,8 @@ public:
     }
 
 private:
-    explicit DescriptorSet(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
-                           const shared_ptr<vk::raii::DescriptorSetLayout> &layout, ResourcePack<Ts>... elems)
+    explicit FixedDescriptorSet(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
+                                const shared_ptr<vk::raii::DescriptorSetLayout> &layout, ResourcePack<Ts>... elems)
         : ctx(ctx), packs(elems...), layout(layout) {
         create_set(pool);
         do_full_update();
@@ -132,7 +133,7 @@ public:
      */
     template<uint32_t Binding, typename ResourceType>
         requires std::is_same_v<ResourceType, NthTypeOf<Binding, Ts...> >
-    DescriptorSet &queue_update(const ResourceType &resource, const uint32_t array_element = 0) {
+    FixedDescriptorSet &queue_update(const ResourceType &resource, const uint32_t array_element = 0) {
         const auto &pack = std::get<Binding>(packs);
 
         DescriptorUpdate update{
@@ -182,7 +183,7 @@ public:
      */
     template<uint32_t Binding, typename ResourceType>
         requires std::is_same_v<ResourceType, NthTypeOf<Binding, Ts...> >
-    DescriptorSet &update_binding(const ResourceType &resource, const uint32_t array_element = 0) {
+    FixedDescriptorSet &update_binding(const ResourceType &resource, const uint32_t array_element = 0) {
         const auto &pack = std::get<Binding>(packs);
 
         if (array_element >= pack.descriptor_count) {
@@ -335,23 +336,127 @@ private:
 };
 
 template<typename... Ts>
-class DescriptorSets {
-    std::vector<DescriptorSet<Ts...> > sets;
+class FixedDescriptorSets {
+    std::vector<FixedDescriptorSet<Ts...> > sets;
 
 public:
-    DescriptorSets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool) {
+    FixedDescriptorSets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool) {
         throw std::runtime_error("unimplemented");
         // todo - implement so that the sets share layouts
     }
 
-    [[nodiscard]] DescriptorSet<Ts...> &operator[](const size_t index) const { return sets[index]; }
+    [[nodiscard]] FixedDescriptorSet<Ts...> &operator[](const size_t index) const { return sets[index]; }
+};
+
+/**
+ * Builder class streamlining descriptor set layout creation.
+ *
+ * Methods which add bindings are order-dependent and the order in which they are called
+ * defines which binding is used for a given resource, i.e. first call to `addBinding` will
+ * use binding 0, second will use binding 1, and so on.
+ */
+class DescriptorLayoutBuilder {
+    std::vector<vk::DescriptorSetLayoutBinding> bindings;
+
+public:
+    DescriptorLayoutBuilder &add_binding(vk::DescriptorType type, vk::ShaderStageFlags stages,
+                                        uint32_t descriptor_count = 1);
+
+    DescriptorLayoutBuilder &add_repeated_bindings(size_t count, vk::DescriptorType type, vk::ShaderStageFlags stages,
+                                                 uint32_t descriptor_count = 1);
+
+    [[nodiscard]] vk::raii::DescriptorSetLayout create(const RendererContext &ctx);
+};
+
+/**
+ * Convenience wrapper around Vulkan descriptor sets, mainly to pair them together with related layouts,
+ * as well as provide an easy way to update them in a performant way.
+ */
+class DescriptorSet {
+    shared_ptr<vk::raii::DescriptorSetLayout> layout;
+    unique_ptr<vk::raii::DescriptorSet> set;
+
+    struct DescriptorUpdate {
+        uint32_t binding{};
+        uint32_t array_element{};
+        vk::DescriptorType type{};
+        std::variant<
+            vk::DescriptorBufferInfo,
+            vk::DescriptorImageInfo,
+            vk::WriteDescriptorSetAccelerationStructureKHR> info;
+    };
+
+    std::vector<DescriptorUpdate> queued_updates;
+
+public:
+    explicit DescriptorSet(decltype(layout) l, vk::raii::DescriptorSet &&s)
+        : layout(std::move(l)), set(make_unique<vk::raii::DescriptorSet>(std::move(s))) {
+    }
+
+    [[nodiscard]] const vk::raii::DescriptorSet &operator*() const { return *set; }
+
+    [[nodiscard]] const vk::raii::DescriptorSetLayout &get_layout() const { return *layout; }
+
+    /**
+     * Queues an update to a given binding in this descriptor set, referencing a buffer.
+     * To actually push the update, `commitUpdates` must be called after all desired updates are queued.
+     */
+    DescriptorSet &queue_update(uint32_t binding, const Buffer &buffer, vk::DescriptorType type,
+                                vk::DeviceSize size, vk::DeviceSize offset = 0, uint32_t array_element = 0);
+
+    /**
+     * Queues an update to a given binding in this descriptor set, referencing a texture.
+     * To actually push the update, `commitUpdates` must be called after all desired updates are queued.
+     */
+    DescriptorSet &queue_update(const RendererContext &ctx, uint32_t binding, const Texture &texture,
+                                vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler,
+                                uint32_t array_element  = 0);
+
+    /**
+     * Queues an update to a given binding in this descriptor set, referencing a raw storage image.
+     * To actually push the update, `commitUpdates` must be called after all desired updates are queued.
+     */
+    DescriptorSet &queue_update(uint32_t binding, const vk::raii::ImageView &view, uint32_t array_element = 0);
+
+    /**
+    * Queues an update to a given binding in this descriptor set, referencing an acceleration structure.
+    * To actually push the update, `commitUpdates` must be called after all desired updates are queued.
+    */
+    DescriptorSet &queue_update(uint32_t binding, const AccelerationStructure &accel, uint32_t array_element = 0);
+
+    void commit_updates(const RendererContext &ctx);
+
+    /**
+     * Immediately updates a single binding in this descriptor set, referencing a buffer.
+     */
+    void update_binding(const RendererContext &ctx, uint32_t binding, const Buffer &buffer, vk::DescriptorType type,
+                        vk::DeviceSize size, vk::DeviceSize offset = 0, uint32_t array_element = 0) const;
+
+    /**
+     * Immediately updates a single binding in this descriptor set, referencing a texture.
+     */
+    void update_binding(const RendererContext &ctx, uint32_t binding, const Texture &texture,
+                        vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler,
+                        uint32_t array_element  = 0) const;
+
+    /**
+     * Immediately updates a single binding in this descriptor set, referencing a raw storage image.
+     */
+    void update_binding(const RendererContext &ctx, uint32_t binding, const vk::raii::ImageView &view,
+                        uint32_t array_element = 0) const;
+
+    /**
+     * Immediately updates a single binding in this descriptor set, referencing an acceleration structure.
+     */
+    void update_binding(const RendererContext &ctx, uint32_t binding, const AccelerationStructure &accel,
+                        uint32_t array_element = 0) const;
 };
 
 namespace utils::desc {
     template<typename... Ts>
-    [[nodiscard]] std::vector<DescriptorSet<Ts...> >
-    create_descriptor_sets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
-                         const shared_ptr<vk::raii::DescriptorSetLayout> &layout, const uint32_t count) {
+    [[nodiscard]] std::vector<FixedDescriptorSet<Ts...> >
+    create_fixed_descriptor_sets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
+                                 const shared_ptr<vk::raii::DescriptorSetLayout> &layout, const uint32_t count) {
         const std::vector set_layouts(count, **layout);
 
         const vk::DescriptorSetAllocateInfo alloc_info{
@@ -362,7 +467,7 @@ namespace utils::desc {
 
         std::vector<vk::raii::DescriptorSet> descriptor_sets = ctx.device->allocateDescriptorSets(alloc_info);
 
-        std::vector<DescriptorSet<Ts...> > final_sets;
+        std::vector<FixedDescriptorSet<Ts...> > final_sets;
 
         for (size_t i = 0; i < count; i++) {
             final_sets.emplace_back(layout, std::move(descriptor_sets[i]));
@@ -372,10 +477,14 @@ namespace utils::desc {
     }
 
     template<typename... Ts>
-    [[nodiscard]] std::vector<DescriptorSet<Ts...> >
-    createDescriptorSet(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
-                        const shared_ptr<vk::raii::DescriptorSetLayout> &layout) {
-        return create_descriptor_sets<Ts>(ctx, pool, layout, 1);
+    [[nodiscard]] std::vector<FixedDescriptorSet<Ts...> >
+    create_fixed_descriptor_set(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
+                                const shared_ptr<vk::raii::DescriptorSetLayout> &layout) {
+        return create_fixed_descriptor_sets<Ts>(ctx, pool, layout, 1);
     }
+
+    [[nodiscard]] std::vector<DescriptorSet>
+    create_descriptor_sets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
+                           const shared_ptr<vk::raii::DescriptorSetLayout> &layout, uint32_t count);
 } // utils::desc
 } // zrx

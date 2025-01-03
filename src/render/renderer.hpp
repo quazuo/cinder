@@ -98,15 +98,15 @@ private:
 };
 
 class VulkanRenderer {
-    using CubemapCaptureDescriptorSet = DescriptorSet<Buffer, Texture>;
-    using DebugQuadDescriptorSet      = DescriptorSet<Texture>;
-    using MaterialsDescriptorSet      = DescriptorSet<Texture, Texture, Texture, Texture>;
-    using SceneDescriptorSet          = DescriptorSet<Buffer, Texture>;
-    using SkyboxDescriptorSet         = DescriptorSet<Buffer, Texture>;
-    using PrepassDescriptorSet        = DescriptorSet<Buffer>;
-    using RtDescriptorSet             = DescriptorSet<Buffer, AccelerationStructure, Texture>;
-    using SsaoDescriptorSet           = DescriptorSet<Buffer, Texture, Texture, Texture, Texture>;
-    using MeshesDescriptorSet         = DescriptorSet<Buffer, Buffer, Buffer>;
+    using CubemapCaptureDescriptorSet = FixedDescriptorSet<Buffer, Texture>;
+    using DebugQuadDescriptorSet      = FixedDescriptorSet<Texture>;
+    using MaterialsDescriptorSet      = FixedDescriptorSet<Texture, Texture, Texture, Texture>;
+    using SceneDescriptorSet          = FixedDescriptorSet<Buffer, Texture>;
+    using SkyboxDescriptorSet         = FixedDescriptorSet<Buffer, Texture>;
+    using PrepassDescriptorSet        = FixedDescriptorSet<Buffer>;
+    using RtDescriptorSet             = FixedDescriptorSet<Buffer, AccelerationStructure, Texture>;
+    using SsaoDescriptorSet           = FixedDescriptorSet<Buffer, Texture, Texture, Texture, Texture>;
+    using MeshesDescriptorSet         = FixedDescriptorSet<Buffer, Buffer, Buffer>;
 
     GLFWwindow *window = nullptr;
 
