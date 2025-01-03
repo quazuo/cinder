@@ -125,6 +125,8 @@ class VulkanRenderer {
 
     unique_ptr<SwapChain> swap_chain;
 
+    // render graph
+
     struct RenderNodeResources {
         RenderNodeHandle handle;
         vk::raii::CommandBuffer command_buffer;
@@ -135,6 +137,11 @@ class VulkanRenderer {
         unique_ptr<RenderGraph> render_graph;
         std::vector<RenderNodeResources> topo_sorted_nodes;
     } render_graph_info;
+
+    std::map<ResourceHandle, unique_ptr<Buffer>> render_graph_ubos;
+    std::map<ResourceHandle, unique_ptr<Texture>> render_graph_textures;
+
+    // model
 
     unique_ptr<Model> model;
     Material separate_material;
@@ -358,6 +365,12 @@ private:
     void create_rt_descriptor_sets();
 
     void create_meshes_descriptor_set();
+
+    // ==================== render graph ====================
+
+    void create_render_graph_resources();
+
+    void create_render_graph_descriptor_sets();
 
     // ==================== render infos ====================
 

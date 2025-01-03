@@ -78,4 +78,15 @@ void Buffer::copy_from_buffer(const RendererContext &ctx, const Buffer &other_bu
 
     utils::cmd::end_single_time_commands(command_buffer, *ctx.graphics_queue);
 }
+
+namespace utils::buf {
+    unique_ptr<Buffer> create_uniform_buffer(const RendererContext &ctx, const vk::DeviceSize size) {
+        return make_unique<Buffer>(
+            **ctx.allocator,
+            size,
+            vk::BufferUsageFlagBits::eUniformBuffer,
+            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+        );
+    }
+}
 } // zrx

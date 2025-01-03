@@ -1186,14 +1186,8 @@ VulkanRenderer::create_local_buffer(const std::vector<ElemType> &contents, const
 
 void VulkanRenderer::create_uniform_buffers() {
     for (auto &res: frame_resources) {
-        res.graphics_uniform_buffer = make_unique<Buffer>(
-            **ctx.allocator,
-            sizeof(GraphicsUBO),
-            vk::BufferUsageFlagBits::eUniformBuffer,
-            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-        );
-
-        res.graphics_ubo_mapped = res.graphics_uniform_buffer->map();
+        res.graphics_uniform_buffer = utils::buf::create_uniform_buffer(ctx, sizeof(GraphicsUBO));
+        res.graphics_ubo_mapped     = res.graphics_uniform_buffer->map();
     }
 }
 
@@ -1212,20 +1206,20 @@ void VulkanRenderer::create_command_buffers() {
     constexpr uint32_t n_buffers = frame_resources.size();
 
     auto graphics_command_buffers =
-        utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::ePrimary, n_buffers);
+            utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::ePrimary, n_buffers);
 
     auto scene_command_buffers =
-        utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
+            utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
     auto rt_command_buffers =
-        utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
+            utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
     auto gui_command_buffers =
-        utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
+            utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
     auto prepass_command_buffers =
-        utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
+            utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
     auto debug_command_buffers =
-        utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
+            utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
     auto ssao_command_buffers =
-        utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
+            utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
 
     for (size_t i = 0; i < graphics_command_buffers.size(); i++) {
         frame_resources[i].graphics_cmd_buffer =
@@ -1627,9 +1621,11 @@ void VulkanRenderer::render_gui_section() {
 void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
     render_graph_info.render_graph = make_unique<RenderGraph>(graph);
 
-    const auto topo_sorted_handles = render_graph_info.render_graph->get_topo_sorted();
-    const uint32_t n_nodes         = topo_sorted_handles.size();
+    create_render_graph_resources();
+    create_render_graph_descriptor_sets();
 
+    const auto topo_sorted_handles = render_graph_info.render_graph->get_topo_sorted();
+    const uint32_t n_nodes = topo_sorted_handles.size();
     auto command_buffers = utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_nodes);
 
     for (uint32_t i = 0; i < n_nodes; i++) {
@@ -1643,8 +1639,63 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
     }
 }
 
+void VulkanRenderer::create_render_graph_resources() {
+    const auto &uniform_buffers     = render_graph_info.render_graph->get_uniform_buffers();
+    const auto &external_resources  = render_graph_info.render_graph->get_external_resources();
+    const auto &transient_resources = render_graph_info.render_graph->get_transient_resources();
+
+    for (const auto &[handle, description]: uniform_buffers) {
+        render_graph_ubos.emplace(handle, utils::buf::create_uniform_buffer(ctx, description.size));
+    }
+
+    for (const auto &[handle, description]: external_resources) {
+        const auto attachment_type = utils::img::is_depth_format(description.format)
+                                         ? vk::ImageUsageFlagBits::eDepthStencilAttachment
+                                         : vk::ImageUsageFlagBits::eColorAttachment;
+
+        auto builder = TextureBuilder()
+                .from_paths(description.paths)
+                .use_format(description.format)
+                .use_usage(vk::ImageUsageFlagBits::eTransferDst
+                           | vk::ImageUsageFlagBits::eSampled
+                           | attachment_type);
+
+        if (description.use_mipmaps) builder.make_mipmaps();
+        if (description.paths.size() > 1) builder.as_separate_channels();
+        if (description.swizzle) builder.with_swizzle(*description.swizzle);
+        if (description.is_cubemap) builder.as_cubemap();
+        if (description.is_hdr) builder.as_hdr();
+
+        render_graph_textures.emplace(handle, builder.create(ctx));
+    }
+
+    for (const auto &[handle, description]: transient_resources) {
+        const auto attachment_type = utils::img::is_depth_format(description.format)
+                                         ? vk::ImageUsageFlagBits::eDepthStencilAttachment
+                                         : vk::ImageUsageFlagBits::eColorAttachment;
+
+        auto builder = TextureBuilder()
+                .as_uninitialized({description.extent.width, description.extent.height, 1u})
+                .use_format(description.format)
+                .use_usage(vk::ImageUsageFlagBits::eTransferSrc
+                           | vk::ImageUsageFlagBits::eTransferDst
+                           | vk::ImageUsageFlagBits::eSampled
+                           | attachment_type);
+
+        if (description.use_mipmaps) builder.make_mipmaps();
+        if (description.is_cubemap) builder.as_cubemap();
+        if (description.is_hdr) builder.as_hdr();
+
+        render_graph_textures.emplace(handle, builder.create(ctx));
+    }
+}
+
+void VulkanRenderer::create_render_graph_descriptor_sets() {
+
+}
+
 GraphicsPipeline VulkanRenderer::create_node_pipeline(const RenderNodeHandle handle) const {
-    const auto &node_info = render_graph_info.render_graph->get_node_info(handle);
+    const auto &node_info = render_graph_info.render_graph->node(handle);
 
     std::vector<vk::Format> color_formats;
     for (const auto &target: node_info.color_targets) {
@@ -1697,7 +1748,7 @@ void VulkanRenderer::run_render_graph() {
 void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources &node_resources) {
     const auto &[handle, command_buffer, pipeline] = node_resources;
 
-    const auto &node_info = render_graph_info.render_graph->get_node_info(handle);
+    const auto &node_info = render_graph_info.render_graph->node(handle);
 
     std::vector<vk::Format> color_formats;
     for (const auto &target: node_info.color_targets) {

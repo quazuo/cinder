@@ -639,7 +639,7 @@ TextureBuilder &TextureBuilder::as_uninitialized(const vk::Extent3D extent) {
     return *this;
 }
 
-TextureBuilder &TextureBuilder::with_swizzle(const std::array<SwizzleComponent, 4> sw) {
+TextureBuilder &TextureBuilder::with_swizzle(const SwizzleDesc& sw) {
     swizzle = sw;
     return *this;
 }

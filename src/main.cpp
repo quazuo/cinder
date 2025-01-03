@@ -139,8 +139,9 @@ private:
 
         // ================== uniform buffers ==================
 
-        const auto uniform_buffer = render_graph.add_uniform_buffer<GraphicsUBO>({
+        const auto uniform_buffer = render_graph.add_uniform_buffer({
             "general-ubo",
+            sizeof(GraphicsUBO)
         });
 
         // ================== external resources ==================

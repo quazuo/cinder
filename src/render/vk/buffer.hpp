@@ -88,8 +88,9 @@ struct BufferSlice {
 
 namespace utils::buf {
     template<typename ElemType>
-    unique_ptr<Buffer> create_local_buffer(const RendererContext &ctx, const std::vector<ElemType> &contents,
-                                           const vk::BufferUsageFlags usage) {
+    [[nodiscard]] unique_ptr<Buffer>
+    create_local_buffer(const RendererContext &ctx, const std::vector<ElemType> &contents,
+                        const vk::BufferUsageFlags usage) {
         const vk::DeviceSize buffer_size = sizeof(contents[0]) * contents.size();
 
         Buffer staging_buffer{
@@ -114,5 +115,7 @@ namespace utils::buf {
 
         return result_buffer;
     }
+
+    [[nodiscard]] unique_ptr<Buffer> create_uniform_buffer(const RendererContext &ctx, vk::DeviceSize size);
 } // utils::buf
 } // zrx

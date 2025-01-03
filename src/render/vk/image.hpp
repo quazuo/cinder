@@ -198,6 +198,15 @@ enum class SwizzleComponent {
     HALF_MAX
 };
 
+using SwizzleDesc = std::array<SwizzleComponent, 4>;
+
+static constexpr SwizzleDesc default_swizzle = {
+    SwizzleComponent::R,
+    SwizzleComponent::G,
+    SwizzleComponent::B,
+    SwizzleComponent::A
+};
+
 /**
  * Builder used to streamline texture creation due to a huge amount of different parameters.
  * Currently only some specific scenarios are supported and some parameter combinations
@@ -215,9 +224,7 @@ class TextureBuilder {
     bool has_mipmaps          = false;
     bool is_uninitialized     = false;
 
-    std::optional<std::array<SwizzleComponent, 4> > swizzle{
-        {SwizzleComponent::R, SwizzleComponent::G, SwizzleComponent::B, SwizzleComponent::A}
-    };
+    std::optional<SwizzleDesc> swizzle = default_swizzle;
 
     vk::SamplerAddressMode address_mode = vk::SamplerAddressMode::eRepeat;
 
@@ -252,7 +259,7 @@ public:
 
     TextureBuilder &as_uninitialized(vk::Extent3D extent);
 
-    TextureBuilder &with_swizzle(std::array<SwizzleComponent, 4> sw);
+    TextureBuilder &with_swizzle(const SwizzleDesc& sw);
 
     /**
      * Designates the texture's contents to be initialized with data stored in a given file.

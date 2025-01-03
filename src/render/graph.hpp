@@ -9,6 +9,7 @@
 #include <set>
 
 #include "mesh/model.hpp"
+#include "vk/image.hpp"
 
 namespace zrx {
 namespace detail {
@@ -26,16 +27,26 @@ static constexpr ResourceHandle FINAL_IMAGE_RESOURCE_HANDLE = -1;
 
 struct UniformBuffer {
     std::string name;
+    vk::DeviceSize size;
 };
 
 struct ExternalTextureResource {
     std::string name;
+    std::vector<std::filesystem::path> paths;
     vk::Format format;
+    bool use_mipmaps = true;
+    bool is_cubemap = false;
+    bool is_hdr = false;
+    std::optional<SwizzleDesc> swizzle = {};
 };
 
 struct TransientTextureResource {
     std::string name;
+    vk::Extent2D extent;
     vk::Format format;
+    bool use_mipmaps = false;
+    bool is_cubemap = false;
+    bool is_hdr = false;
 };
 
 struct Shader {
@@ -126,11 +137,14 @@ class RenderGraph {
     std::map<ResourceHandle, ExternalTextureResource> external_resources;
     std::map<ResourceHandle, TransientTextureResource> transient_resources;
 
-    RenderNodeHandle next_free_node_handle = 0;
-    ResourceHandle next_free_resource_handle = 0;
-
 public:
-    [[nodiscard]] const RenderNode &get_node_info(const RenderNodeHandle handle) { return nodes.at(handle); }
+    [[nodiscard]] const RenderNode &node(const RenderNodeHandle handle) { return nodes.at(handle); }
+
+    [[nodiscard]] const auto& get_uniform_buffers() const { return uniform_buffers; }
+
+    [[nodiscard]] const auto& get_external_resources() const { return external_resources; }
+
+    [[nodiscard]] const auto& get_transient_resources() const { return transient_resources; }
 
     [[nodiscard]] vk::Format get_transient_texture_format(const ResourceHandle handle) const {
         if (handle == FINAL_IMAGE_RESOURCE_HANDLE) {
@@ -169,7 +183,7 @@ public:
     }
 
     RenderNodeHandle add_node(const RenderNode &node) {
-        const auto handle = next_free_node_handle++;
+        const auto handle = get_new_node_handle();
         nodes.emplace(handle, node);
 
         const auto targets_set = node.get_all_targets_set();
@@ -206,21 +220,20 @@ public:
         return handle;
     }
 
-    template<typename T>
     ResourceHandle add_uniform_buffer(UniformBuffer &&buffer) {
-        const auto handle = next_free_resource_handle++;
+        const auto handle = get_new_resource_handle();
         uniform_buffers.emplace(handle, buffer);
         return handle;
     }
 
     ResourceHandle add_external_resource(ExternalTextureResource &&resource) {
-        const auto handle = next_free_resource_handle++;
+        const auto handle = get_new_resource_handle();
         external_resources.emplace(handle, resource);
         return handle;
     }
 
     ResourceHandle add_transient_resource(TransientTextureResource &&resource) {
-        const auto handle = next_free_resource_handle++;
+        const auto handle = get_new_resource_handle();
         transient_resources.emplace(handle, resource);
         return handle;
     }
@@ -252,6 +265,16 @@ private:
                 cycles_helper(handle, discovered, finished);
             }
         }
+    }
+
+    [[nodiscard]] static ResourceHandle get_new_node_handle() {
+        static RenderNodeHandle next_free_node_handle = 0;
+        return next_free_node_handle++;
+    }
+
+    [[nodiscard]] static ResourceHandle get_new_resource_handle() {
+        static ResourceHandle next_free_resource_handle = 0;
+        return next_free_resource_handle++;
     }
 };
 
