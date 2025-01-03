@@ -13,13 +13,13 @@ Rotator &Rotator::operator=(const glm::vec2 other) {
 }
 
 Rotator &Rotator::operator+=(const glm::vec2 other) {
-    static constexpr float yAngleLimit = glm::pi<float>() / 2 - 0.1f;
+    static constexpr float y_angle_limit = glm::pi<float>() / 2 - 0.1f;
 
     rot.x += other.x;
     rot.y = std::clamp(
         rot.y + other.y,
-        -yAngleLimit,
-        yAngleLimit
+        -y_angle_limit,
+        y_angle_limit
     );
 
     return *this;
@@ -30,7 +30,7 @@ Rotator &Rotator::operator-=(const glm::vec2 other) {
     return *this;
 }
 
-Rotator::ViewVectors Rotator::getViewVectors() const {
+Rotator::ViewVectors Rotator::get_view_vectors() const {
     const glm::vec3 front = {
         std::cos(rot.y) * std::sin(rot.x),
         std::sin(rot.y),
@@ -50,57 +50,57 @@ Rotator::ViewVectors Rotator::getViewVectors() const {
     };
 }
 
-Camera::Camera(GLFWwindow *w) : window(w), inputManager(make_unique<InputManager>(w)) {
-    bindCameraLockKey();
-    bindFreecamMovementKeys();
-    bindFreecamRotationKeys();
-    bindMouseDragCallback();
+Camera::Camera(GLFWwindow *w) : window(w), input_manager(make_unique<InputManager>(w)) {
+    bind_camera_lock_key();
+    bind_freecam_movement_keys();
+    bind_freecam_rotation_keys();
+    bind_mouse_drag_callback();
 
-    initGlfwUserPointer(window);
-    auto *userData = static_cast<GlfwStaticUserData *>(glfwGetWindowUserPointer(window));
-    if (!userData) throw std::runtime_error("unexpected null window user pointer");
-    userData->camera = this;
+    init_glfw_user_pointer(window);
+    auto *user_data = static_cast<GlfwStaticUserData *>(glfwGetWindowUserPointer(window));
+    if (!user_data) throw std::runtime_error("unexpected null window user pointer");
+    user_data->camera = this;
 
-    glfwSetScrollCallback(window, &scrollCallback);
+    glfwSetScrollCallback(window, &scroll_callback);
 }
 
-void Camera::tick(const float deltaTime) {
+void Camera::tick(const float delta_time) {
     if (
         !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow)
         && !ImGui::IsAnyItemActive()
         && !ImGui::IsAnyItemFocused()
     ) {
-        inputManager->tick(deltaTime);
+        input_manager->tick(delta_time);
     }
 
-    if (isLockedCam) {
-        tickLockedMode();
-    } else if (isLockedCursor) {
-        tickMouseMovement(deltaTime);
+    if (is_locked_cam) {
+        tick_locked_mode();
+    } else if (is_locked_cursor) {
+        tick_mouse_movement(delta_time);
     }
 
-    updateAspectRatio();
-    updateVecs();
+    update_aspect_ratio();
+    update_vecs();
 }
 
-glm::mat4 Camera::getViewMatrix() const {
+glm::mat4 Camera::get_view_matrix() const {
     return glm::lookAt(pos, pos + front, glm::vec3(0, 1, 0));
 }
 
-glm::mat4 Camera::getStaticViewMatrix() const {
+glm::mat4 Camera::get_static_view_matrix() const {
     return glm::lookAt(glm::vec3(0), front, glm::vec3(0, 1, 0));
 }
 
-glm::mat4 Camera::getProjectionMatrix() const {
-    return glm::perspective(glm::radians(fieldOfView), aspectRatio, zNear, zFar);
+glm::mat4 Camera::get_projection_matrix() const {
+    return glm::perspective(glm::radians(field_of_view), aspect_ratio, z_near, z_far);
 }
 
-void Camera::renderGuiSection() {
-    ImDrawList *drawList = ImGui::GetWindowDrawList();
+void Camera::render_gui_section() {
+    ImDrawList *draw_list = ImGui::GetWindowDrawList();
 
-    constexpr auto sectionFlags = ImGuiTreeNodeFlags_DefaultOpen;
+    constexpr auto section_flags = ImGuiTreeNodeFlags_DefaultOpen;
 
-    if (ImGui::CollapsingHeader("Camera ", sectionFlags)) {
+    if (ImGui::CollapsingHeader("Camera ", section_flags)) {
         ImGui::Text("Position: (%.2f, %.2f, %.2f)", pos.x, pos.y, pos.z);
         ImGui::Text("Rotation: (%.2f, %.2f)", (*rotator).x, (*rotator).y);
 
@@ -108,7 +108,7 @@ void Camera::renderGuiSection() {
 
         ImGui::Text("Axes:");
         if (ImGui::BeginChild("Axes", ImVec2(50, 50))) {
-            drawList->AddRectFilled(
+            draw_list->AddRectFilled(
                 ImGui::GetWindowPos(),
                 ImGui::GetWindowPos() + ImVec2(50, 50),
                 IM_COL32(0, 0, 0, 255)
@@ -116,88 +116,88 @@ void Camera::renderGuiSection() {
 
             const ImVec2 offset        = ImGui::GetWindowPos() + ImVec2(25, 25);
             constexpr float scale      = 20;
-            const glm::mat4 view       = getStaticViewMatrix();
-            constexpr auto projectionX = glm::vec3(1, 0, 0);
-            constexpr auto projectionY = glm::vec3(0, 1, 0);
+            const glm::mat4 view       = get_static_view_matrix();
+            constexpr auto projection_x = glm::vec3(1, 0, 0);
+            constexpr auto projection_y = glm::vec3(0, 1, 0);
 
             const glm::vec3 x = view * glm::vec4(1, 0, 0, 0);
-            const float tx1   = scale * glm::dot(projectionX, x);
-            const float tx2   = scale * glm::dot(projectionY, x);
-            drawList->AddLine(offset, offset + ImVec2(tx1, -tx2), IM_COL32(255, 0, 0, 255));
+            const float tx1   = scale * glm::dot(projection_x, x);
+            const float tx2   = scale * glm::dot(projection_y, x);
+            draw_list->AddLine(offset, offset + ImVec2(tx1, -tx2), IM_COL32(255, 0, 0, 255));
 
             const glm::vec3 y = view * glm::vec4(0, 1, 0, 0);
-            const float ty1   = scale * glm::dot(projectionX, y);
-            const float ty2   = scale * glm::dot(projectionY, y);
-            drawList->AddLine(offset, offset + ImVec2(ty1, -ty2), IM_COL32(0, 255, 0, 255));
+            const float ty1   = scale * glm::dot(projection_x, y);
+            const float ty2   = scale * glm::dot(projection_y, y);
+            draw_list->AddLine(offset, offset + ImVec2(ty1, -ty2), IM_COL32(0, 255, 0, 255));
 
             const glm::vec3 z = view * glm::vec4(0, 0, 1, 0);
-            const float tz1   = scale * glm::dot(projectionX, z);
-            const float tz2   = scale * glm::dot(projectionY, z);
-            drawList->AddLine(offset, offset + ImVec2(tz1, -tz2), IM_COL32(0, 0, 255, 255));
+            const float tz1   = scale * glm::dot(projection_x, z);
+            const float tz2   = scale * glm::dot(projection_y, z);
+            draw_list->AddLine(offset, offset + ImVec2(tz1, -tz2), IM_COL32(0, 0, 255, 255));
         }
         ImGui::EndChild();
 
         ImGui::Separator();
 
-        if (ImGui::RadioButton("Free camera", !isLockedCam)) {
-            isLockedCam = false;
+        if (ImGui::RadioButton("Free camera", !is_locked_cam)) {
+            is_locked_cam = false;
         }
 
         ImGui::SameLine();
 
-        if (ImGui::RadioButton("Locked camera", isLockedCam)) {
-            isLockedCam = true;
+        if (ImGui::RadioButton("Locked camera", is_locked_cam)) {
+            is_locked_cam = true;
 
-            if (isLockedCursor) {
-                centerCursor();
+            if (is_locked_cursor) {
+                center_cursor();
             }
         }
 
         ImGui::Separator();
 
-        ImGui::SliderFloat("Field of view", &fieldOfView, 20.0f, 160.0f, "%.0f");
+        ImGui::SliderFloat("Field of view", &field_of_view, 20.0f, 160.0f, "%.0f");
 
-        if (!isLockedCam) {
-            ImGui::DragFloat("Rotation speed", &rotationSpeed, 0.01f, 0.0f, FLT_MAX, "%.2f");
-            ImGui::DragFloat("Movement speed", &movementSpeed, 0.01f, 0.0f, FLT_MAX, "%.2f");
+        if (!is_locked_cam) {
+            ImGui::DragFloat("Rotation speed", &rotation_speed, 0.01f, 0.0f, FLT_MAX, "%.2f");
+            ImGui::DragFloat("Movement speed", &movement_speed, 0.01f, 0.0f, FLT_MAX, "%.2f");
         }
     }
 }
 
-void Camera::scrollCallback(GLFWwindow *window, const double dx, const double dy) {
-    const auto userData = static_cast<GlfwStaticUserData *>(glfwGetWindowUserPointer(window));
-    if (!userData) throw std::runtime_error("unexpected null window user pointer");
+void Camera::scroll_callback(GLFWwindow *window, const double dx, const double dy) {
+    const auto user_data = static_cast<GlfwStaticUserData *>(glfwGetWindowUserPointer(window));
+    if (!user_data) throw std::runtime_error("unexpected null window user pointer");
 
     if (
         !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow)
         && !ImGui::IsAnyItemActive()
         && !ImGui::IsAnyItemFocused()
     ) {
-        userData->camera->lockedRadius /= static_cast<float>(1 + dy * 0.05);
+        user_data->camera->locked_radius /= static_cast<float>(1 + dy * 0.05);
     }
 }
 
-void Camera::bindCameraLockKey() {
-    inputManager->bindCallback(GLFW_KEY_F1, EActivationType::PRESS_ONCE, [&](const float deltaTime) {
+void Camera::bind_camera_lock_key() {
+    input_manager->bind_callback(GLFW_KEY_F1, EActivationType::PRESS_ONCE, [&](const float deltaTime) {
         (void) deltaTime;
-        if (isLockedCam) {
+        if (is_locked_cam) {
             return;
         }
 
-        isLockedCursor = !isLockedCursor;
+        is_locked_cursor = !is_locked_cursor;
 
-        if (isLockedCursor) {
-            centerCursor();
+        if (is_locked_cursor) {
+            center_cursor();
         }
     });
 }
 
-void Camera::bindMouseDragCallback() {
-    inputManager->bindMouseDragCallback(GLFW_MOUSE_BUTTON_LEFT, [&](const double dx, const double dy) {
-        if (isLockedCam) {
+void Camera::bind_mouse_drag_callback() {
+    input_manager->bind_mouse_drag_callback(GLFW_MOUSE_BUTTON_LEFT, [&](const double dx, const double dy) {
+        if (is_locked_cam) {
             static constexpr float speed = 0.003;
 
-            lockedRotator += {
+            locked_rotator += {
                 -speed * static_cast<float>(dx),
                 -speed * static_cast<float>(dy)
             };
@@ -205,96 +205,96 @@ void Camera::bindMouseDragCallback() {
     });
 }
 
-void Camera::bindFreecamRotationKeys() {
-    inputManager->bindCallback(GLFW_KEY_UP, EActivationType::PRESS_ANY, [&](const float deltaTime) {
-        if (!isLockedCam) {
-            rotator += glm::vec2(0, deltaTime * rotationSpeed);
+void Camera::bind_freecam_rotation_keys() {
+    input_manager->bind_callback(GLFW_KEY_UP, EActivationType::PRESS_ANY, [&](const float delta_time) {
+        if (!is_locked_cam) {
+            rotator += glm::vec2(0, delta_time * rotation_speed);
         }
     });
 
-    inputManager->bindCallback(GLFW_KEY_DOWN, EActivationType::PRESS_ANY, [&](const float deltaTime) {
-        if (!isLockedCam) {
-            rotator -= glm::vec2(0, deltaTime * rotationSpeed);
+    input_manager->bind_callback(GLFW_KEY_DOWN, EActivationType::PRESS_ANY, [&](const float delta_time) {
+        if (!is_locked_cam) {
+            rotator -= glm::vec2(0, delta_time * rotation_speed);
         }
     });
 
-    inputManager->bindCallback(GLFW_KEY_RIGHT, EActivationType::PRESS_ANY, [&](const float deltaTime) {
-        if (!isLockedCam) {
-            rotator -= glm::vec2(deltaTime * rotationSpeed, 0);
+    input_manager->bind_callback(GLFW_KEY_RIGHT, EActivationType::PRESS_ANY, [&](const float delta_time) {
+        if (!is_locked_cam) {
+            rotator -= glm::vec2(delta_time * rotation_speed, 0);
         }
     });
 
-    inputManager->bindCallback(GLFW_KEY_LEFT, EActivationType::PRESS_ANY, [&](const float deltaTime) {
-        if (!isLockedCam) {
-            rotator += glm::vec2(deltaTime * rotationSpeed, 0);
-        }
-    });
-}
-
-void Camera::bindFreecamMovementKeys() {
-    inputManager->bindCallback(GLFW_KEY_W, EActivationType::PRESS_ANY, [&](const float deltaTime) {
-        if (!isLockedCam) {
-            pos += front * deltaTime * movementSpeed; // Move forward
-        }
-    });
-
-    inputManager->bindCallback(GLFW_KEY_S, EActivationType::PRESS_ANY, [&](const float deltaTime) {
-        if (!isLockedCam) {
-            pos -= front * deltaTime * movementSpeed; // Move backward
-        }
-    });
-
-    inputManager->bindCallback(GLFW_KEY_D, EActivationType::PRESS_ANY, [&](const float deltaTime) {
-        if (!isLockedCam) {
-            pos += right * deltaTime * movementSpeed; // Strafe right
-        }
-    });
-
-    inputManager->bindCallback(GLFW_KEY_A, EActivationType::PRESS_ANY, [&](const float deltaTime) {
-        if (!isLockedCam) {
-            pos -= right * deltaTime * movementSpeed; // Strafe left
-        }
-    });
-
-    inputManager->bindCallback(GLFW_KEY_SPACE, EActivationType::PRESS_ANY, [&](const float deltaTime) {
-        if (!isLockedCam) {
-            pos += glm::vec3(0, 1, 0) * deltaTime * movementSpeed; // Fly upwards
-        }
-    });
-
-    inputManager->bindCallback(GLFW_KEY_LEFT_SHIFT, EActivationType::PRESS_ANY, [&](const float deltaTime) {
-        if (!isLockedCam) {
-            pos -= glm::vec3(0, 1, 0) * deltaTime * movementSpeed; // Fly downwards
+    input_manager->bind_callback(GLFW_KEY_LEFT, EActivationType::PRESS_ANY, [&](const float delta_time) {
+        if (!is_locked_cam) {
+            rotator += glm::vec2(delta_time * rotation_speed, 0);
         }
     });
 }
 
-void Camera::tickMouseMovement(const float deltaTime) {
-    (void) deltaTime;
+void Camera::bind_freecam_movement_keys() {
+    input_manager->bind_callback(GLFW_KEY_W, EActivationType::PRESS_ANY, [&](const float delta_time) {
+        if (!is_locked_cam) {
+            pos += front * delta_time * movement_speed; // Move forward
+        }
+    });
 
-    glm::vec<2, double> cursorPos{};
-    glfwGetCursorPos(window, &cursorPos.x, &cursorPos.y);
+    input_manager->bind_callback(GLFW_KEY_S, EActivationType::PRESS_ANY, [&](const float delta_time) {
+        if (!is_locked_cam) {
+            pos -= front * delta_time * movement_speed; // Move backward
+        }
+    });
 
-    glm::ivec2 windowSize{};
-    glfwGetWindowSize(window, &windowSize.x, &windowSize.y);
+    input_manager->bind_callback(GLFW_KEY_D, EActivationType::PRESS_ANY, [&](const float delta_time) {
+        if (!is_locked_cam) {
+            pos += right * delta_time * movement_speed; // Strafe right
+        }
+    });
 
-    const float mouseSpeed = 0.002f * rotationSpeed;
+    input_manager->bind_callback(GLFW_KEY_A, EActivationType::PRESS_ANY, [&](const float delta_time) {
+        if (!is_locked_cam) {
+            pos -= right * delta_time * movement_speed; // Strafe left
+        }
+    });
+
+    input_manager->bind_callback(GLFW_KEY_SPACE, EActivationType::PRESS_ANY, [&](const float delta_time) {
+        if (!is_locked_cam) {
+            pos += glm::vec3(0, 1, 0) * delta_time * movement_speed; // Fly upwards
+        }
+    });
+
+    input_manager->bind_callback(GLFW_KEY_LEFT_SHIFT, EActivationType::PRESS_ANY, [&](const float delta_time) {
+        if (!is_locked_cam) {
+            pos -= glm::vec3(0, 1, 0) * delta_time * movement_speed; // Fly downwards
+        }
+    });
+}
+
+void Camera::tick_mouse_movement(const float delta_time) {
+    (void) delta_time;
+
+    glm::vec<2, double> cursor_pos{};
+    glfwGetCursorPos(window, &cursor_pos.x, &cursor_pos.y);
+
+    glm::ivec2 window_size{};
+    glfwGetWindowSize(window, &window_size.x, &window_size.y);
+
+    const float mouse_speed = 0.002f * rotation_speed;
 
     rotator += {
-        mouseSpeed * (static_cast<float>(windowSize.x / 2) - static_cast<float>(std::floor(cursorPos.x))),
-        mouseSpeed * (static_cast<float>(windowSize.y / 2) - static_cast<float>(std::floor(cursorPos.y)))
+        mouse_speed * (static_cast<float>(window_size.x / 2) - static_cast<float>(std::floor(cursor_pos.x))),
+        mouse_speed * (static_cast<float>(window_size.y / 2) - static_cast<float>(std::floor(cursor_pos.y)))
     };
 
-    centerCursor();
+    center_cursor();
 }
 
-void Camera::tickLockedMode() {
-    const glm::vec2 rot = *lockedRotator;
+void Camera::tick_locked_mode() {
+    const glm::vec2 rot = *locked_rotator;
 
     pos = {
-        glm::cos(rot.y) * lockedRadius * glm::sin(rot.x),
-        glm::sin(rot.y) * lockedRadius * -1.0f,
-        glm::cos(rot.y) * lockedRadius * glm::cos(rot.x)
+        glm::cos(rot.y) * locked_radius * glm::sin(rot.x),
+        glm::sin(rot.y) * locked_radius * -1.0f,
+        glm::cos(rot.y) * locked_radius * glm::cos(rot.x)
     };
 
     rotator = {
@@ -303,33 +303,33 @@ void Camera::tickLockedMode() {
     };
 }
 
-void Camera::updateVecs() {
-    const Rotator::ViewVectors viewVectors = rotator.getViewVectors();
+void Camera::update_vecs() {
+    const Rotator::ViewVectors view_vectors = rotator.get_view_vectors();
 
-    front = viewVectors.front;
-    right = viewVectors.right;
-    up    = viewVectors.up;
+    front = view_vectors.front;
+    right = view_vectors.right;
+    up    = view_vectors.up;
 }
 
-void Camera::updateAspectRatio() {
-    glm::vec<2, int> windowSize{};
-    glfwGetWindowSize(window, &windowSize.x, &windowSize.y);
+void Camera::update_aspect_ratio() {
+    glm::vec<2, int> window_size{};
+    glfwGetWindowSize(window, &window_size.x, &window_size.y);
 
-    if (windowSize.y == 0) {
-        aspectRatio = 1;
+    if (window_size.y == 0) {
+        aspect_ratio = 1;
     } else {
-        aspectRatio = static_cast<float>(windowSize.x) / static_cast<float>(windowSize.y);
+        aspect_ratio = static_cast<float>(window_size.x) / static_cast<float>(window_size.y);
     }
 }
 
-void Camera::centerCursor() const {
-    glm::ivec2 windowSize{};
-    glfwGetWindowSize(window, &windowSize.x, &windowSize.y);
+void Camera::center_cursor() const {
+    glm::ivec2 window_size{};
+    glfwGetWindowSize(window, &window_size.x, &window_size.y);
 
     glfwSetCursorPos(
         window,
-        windowSize.x / 2,
-        windowSize.y / 2
+        window_size.x / 2,
+        window_size.y / 2
     );
 }
 } // zrx

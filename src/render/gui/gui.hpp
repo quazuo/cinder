@@ -18,7 +18,7 @@ class GuiRenderer {
     GLFWwindow *window;
 
 public:
-    explicit GuiRenderer(GLFWwindow *w, ImGui_ImplVulkan_InitInfo &imguiInitInfo);
+    explicit GuiRenderer(GLFWwindow *w, ImGui_ImplVulkan_InitInfo &imgui_init_info);
 
     ~GuiRenderer();
 
@@ -26,8 +26,8 @@ public:
 
     GuiRenderer& operator=(const GuiRenderer& other) = delete;
 
-    void beginRendering();
+    void begin_rendering();
 
-    void endRendering(const vk::raii::CommandBuffer& commandBuffer);
+    void end_rendering(const vk::raii::CommandBuffer& command_buffer);
 };
 } // zrx

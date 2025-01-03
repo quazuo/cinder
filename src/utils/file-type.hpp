@@ -13,7 +13,7 @@ enum class FileType {
     ENVMAP_HDR,
 };
 
-[[nodiscard]] static std::vector<std::string> getFileTypeExtensions(const FileType type) {
+[[nodiscard]] static std::vector<std::string> get_file_type_extensions(const FileType type) {
     switch (type) {
         case FileType::MODEL:
             return {".obj", ".fbx", ".gltf"};
@@ -28,11 +28,11 @@ enum class FileType {
         case FileType::ENVMAP_HDR:
             return {".hdr"};
         default:
-            throw std::runtime_error("unexpected filetype in getFileTypeExtensions");
+            throw std::runtime_error("unexpected filetype in get_file_type_extensions");
     }
 }
 
-[[nodiscard]] static bool isFileTypeOptional(const FileType type) {
+[[nodiscard]] static bool is_file_type_optional(const FileType type) {
     switch (type) {
         case FileType::AO_PNG:
         case FileType::METALLIC_PNG:
@@ -42,7 +42,7 @@ enum class FileType {
     }
 }
 
-[[nodiscard]] static std::string getFileTypeLoadLabel(const FileType type) {
+[[nodiscard]] static std::string get_file_type_load_label(const FileType type) {
     switch (type) {
         case FileType::MODEL:
             return "Load model...";
@@ -63,7 +63,7 @@ enum class FileType {
         case FileType::ENVMAP_HDR:
             return "Load environment map...";
         default:
-            throw std::runtime_error("unexpected filetype in getFileTypeLoadLabel");
+            throw std::runtime_error("unexpected filetype in get_file_type_load_label");
     }
 }
 
@@ -72,7 +72,7 @@ struct FileLoadScheme {
     std::set<FileType> requirements;
 };
 
-static const std::vector<FileLoadScheme> fileLoadSchemes{
+static const std::vector<FileLoadScheme> file_load_schemes{
     {
         "Default (model packed with materials)",
         {

@@ -7,7 +7,7 @@ namespace zrx {
 Buffer::Buffer(const VmaAllocator _allocator, const vk::DeviceSize size, const vk::BufferUsageFlags usage,
                const vk::MemoryPropertyFlags properties)
     : allocator(_allocator), size(size) {
-    const vk::BufferCreateInfo bufferInfo{
+    const vk::BufferCreateInfo buffer_info{
         .size = size,
         .usage = usage,
         .sharingMode = vk::SharingMode::eExclusive,
@@ -18,7 +18,7 @@ Buffer::Buffer(const VmaAllocator _allocator, const vk::DeviceSize size, const v
         flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
     }
 
-    const VmaAllocationCreateInfo allocInfo{
+    const VmaAllocationCreateInfo alloc_info{
         .flags = flags,
         .usage = VMA_MEMORY_USAGE_AUTO,
         .requiredFlags = static_cast<VkMemoryPropertyFlags>(properties)
@@ -26,8 +26,8 @@ Buffer::Buffer(const VmaAllocator _allocator, const vk::DeviceSize size, const v
 
     const auto result = vmaCreateBuffer(
         allocator,
-        reinterpret_cast<const VkBufferCreateInfo *>(&bufferInfo),
-        &allocInfo,
+        reinterpret_cast<const VkBufferCreateInfo *>(&buffer_info),
+        &alloc_info,
         reinterpret_cast<VkBuffer *>(&buffer),
         &allocation,
         nullptr
@@ -63,19 +63,19 @@ void Buffer::unmap() {
     mapped = nullptr;
 }
 
-void Buffer::copyFromBuffer(const RendererContext &ctx, const Buffer &otherBuffer,
-                            const vk::DeviceSize size, const vk::DeviceSize srcOffset,
-                            const vk::DeviceSize dstOffset) const {
-    const vk::raii::CommandBuffer commandBuffer = utils::cmd::beginSingleTimeCommands(ctx);
+void Buffer::copy_from_buffer(const RendererContext &ctx, const Buffer &other_buffer,
+                              const vk::DeviceSize size, const vk::DeviceSize src_offset,
+                              const vk::DeviceSize dst_offset) const {
+    const vk::raii::CommandBuffer command_buffer = utils::cmd::begin_single_time_commands(ctx);
 
-    const vk::BufferCopy copyRegion{
-        .srcOffset = srcOffset,
-        .dstOffset = dstOffset,
+    const vk::BufferCopy copy_region{
+        .srcOffset = src_offset,
+        .dstOffset = dst_offset,
         .size = size,
     };
 
-    commandBuffer.copyBuffer(*otherBuffer, buffer, copyRegion);
+    command_buffer.copyBuffer(*other_buffer, buffer, copy_region);
 
-    utils::cmd::endSingleTimeCommands(commandBuffer, *ctx.graphicsQueue);
+    utils::cmd::end_single_time_commands(command_buffer, *ctx.graphics_queue);
 }
 } // zrx

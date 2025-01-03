@@ -7,131 +7,131 @@
 #include "buffer.hpp"
 
 namespace zrx {
-static vk::raii::ShaderModule createShaderModule(const RendererContext &ctx, const std::filesystem::path &path) {
+static vk::raii::ShaderModule create_shader_module(const RendererContext &ctx, const std::filesystem::path &path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
 
     if (!file.is_open()) {
         throw std::runtime_error("failed to open file!");
     }
 
-    const size_t fileSize = file.tellg();
-    std::vector<char> buffer(fileSize);
+    const size_t file_size = file.tellg();
+    std::vector<char> buffer(file_size);
     file.seekg(0);
-    file.read(buffer.data(), static_cast<std::streamsize>(fileSize));
+    file.read(buffer.data(), static_cast<std::streamsize>(file_size));
 
-    const vk::ShaderModuleCreateInfo createInfo{
+    const vk::ShaderModuleCreateInfo create_info{
         .codeSize = buffer.size(),
         .pCode = reinterpret_cast<const uint32_t *>(buffer.data()),
     };
 
-    return vk::raii::ShaderModule{*ctx.device, createInfo};
+    return vk::raii::ShaderModule{*ctx.device, create_info};
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::withVertexShader(const std::filesystem::path &path) {
-    vertexShaderPath = path;
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_vertex_shader(const std::filesystem::path &path) {
+    vertex_shader_path = path;
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::withFragmentShader(const std::filesystem::path &path) {
-    fragmentShaderPath = path;
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_fragment_shader(const std::filesystem::path &path) {
+    fragment_shader_path = path;
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::withDescriptorLayouts(
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_descriptor_layouts(
     const std::vector<vk::DescriptorSetLayout> &layouts) {
-    descriptorSetLayouts = layouts;
+    descriptor_set_layouts = layouts;
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::withPushConstants(const std::vector<vk::PushConstantRange> &ranges) {
-    pushConstantRanges = ranges;
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_push_constants(const std::vector<vk::PushConstantRange> &ranges) {
+    push_constant_ranges = ranges;
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::withRasterizer(
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_rasterizer(
     const vk::PipelineRasterizationStateCreateInfo &rasterizer) {
-    rasterizerOverride = rasterizer;
+    rasterizer_override = rasterizer;
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::withMultisampling(
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_multisampling(
     const vk::PipelineMultisampleStateCreateInfo &multisampling) {
-    multisamplingOverride = multisampling;
+    multisampling_override = multisampling;
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::withDepthStencil(
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_depth_stencil(
     const vk::PipelineDepthStencilStateCreateInfo &depthStencil) {
-    depthStencilOverride = depthStencil;
+    depth_stencil_override = depthStencil;
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::forViews(const uint32_t count) {
-    multiviewCount = count;
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::for_views(const uint32_t count) {
+    multiview_count = count;
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::withColorFormats(const std::vector<vk::Format> &formats) {
-    colorAttachmentFormats = formats;
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_color_formats(const std::vector<vk::Format> &formats) {
+    color_attachment_formats = formats;
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::withDepthFormat(const vk::Format format) {
-    depthAttachmentFormat = format;
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_depth_format(const vk::Format format) {
+    depth_attachment_format = format;
     return *this;
 }
 
 GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) const {
     GraphicsPipeline result;
 
-    vk::raii::ShaderModule vertShaderModule = createShaderModule(ctx, vertexShaderPath);
-    vk::raii::ShaderModule fragShaderModule = createShaderModule(ctx, fragmentShaderPath);
+    vk::raii::ShaderModule vert_shader_module = create_shader_module(ctx, vertex_shader_path);
+    vk::raii::ShaderModule frag_shader_module = create_shader_module(ctx, fragment_shader_path);
 
-    const vk::PipelineShaderStageCreateInfo vertShaderStageInfo{
+    const vk::PipelineShaderStageCreateInfo vert_shader_stage_info{
         .stage = vk::ShaderStageFlagBits::eVertex,
-        .module = *vertShaderModule,
+        .module = *vert_shader_module,
         .pName = "main",
     };
 
-    const vk::PipelineShaderStageCreateInfo fragShaderStageInfo{
+    const vk::PipelineShaderStageCreateInfo frag_shader_stage_info{
         .stage = vk::ShaderStageFlagBits::eFragment,
-        .module = *fragShaderModule,
+        .module = *frag_shader_module,
         .pName = "main",
     };
 
-    const std::vector shaderStages{
-        vertShaderStageInfo,
-        fragShaderStageInfo
+    const std::vector shader_stages{
+        vert_shader_stage_info,
+        frag_shader_stage_info
     };
 
-    const vk::PipelineVertexInputStateCreateInfo vertexInputInfo{
-        .vertexBindingDescriptionCount = static_cast<uint32_t>(vertexBindings.size()),
-        .pVertexBindingDescriptions = vertexBindings.data(),
-        .vertexAttributeDescriptionCount = static_cast<uint32_t>(vertexAttributes.size()),
-        .pVertexAttributeDescriptions = vertexAttributes.data()
+    const vk::PipelineVertexInputStateCreateInfo vertex_input_info{
+        .vertexBindingDescriptionCount = static_cast<uint32_t>(vertex_bindings.size()),
+        .pVertexBindingDescriptions = vertex_bindings.data(),
+        .vertexAttributeDescriptionCount = static_cast<uint32_t>(vertex_attributes.size()),
+        .pVertexAttributeDescriptions = vertex_attributes.data()
     };
 
-    constexpr vk::PipelineInputAssemblyStateCreateInfo inputAssembly{
+    constexpr vk::PipelineInputAssemblyStateCreateInfo input_assembly{
         .topology = vk::PrimitiveTopology::eTriangleList,
     };
 
-    static constexpr std::array dynamicStates = {
+    static constexpr std::array dynamic_states = {
         vk::DynamicState::eViewport,
         vk::DynamicState::eScissor,
     };
 
-    static constexpr vk::PipelineDynamicStateCreateInfo dynamicState{
-        .dynamicStateCount = static_cast<uint32_t>(dynamicStates.size()),
-        .pDynamicStates = dynamicStates.data(),
+    static constexpr vk::PipelineDynamicStateCreateInfo dynamic_state{
+        .dynamicStateCount = static_cast<uint32_t>(dynamic_states.size()),
+        .pDynamicStates = dynamic_states.data(),
     };
 
-    constexpr vk::PipelineViewportStateCreateInfo viewportState{
+    constexpr vk::PipelineViewportStateCreateInfo viewport_state{
         .viewportCount = 1U,
         .scissorCount = 1U,
     };
 
-    const auto rasterizer = rasterizerOverride
-                                ? *rasterizerOverride
+    const auto rasterizer = rasterizer_override
+                                ? *rasterizer_override
                                 : vk::PipelineRasterizationStateCreateInfo{
                                     .polygonMode = vk::PolygonMode::eFill,
                                     .cullMode = vk::CullModeFlagBits::eBack,
@@ -139,17 +139,17 @@ GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) con
                                     .lineWidth = 1.0f,
                                 };
 
-    const auto multisampling = multisamplingOverride
-                                   ? *multisamplingOverride
+    const auto multisampling = multisampling_override
+                                   ? *multisampling_override
                                    : vk::PipelineMultisampleStateCreateInfo{
                                        .rasterizationSamples = vk::SampleCountFlagBits::e1,
                                        .minSampleShading = 1.0f,
                                    };
 
-    result.rasterizationSamples = multisampling.rasterizationSamples;
+    result.rasterization_samples = multisampling.rasterizationSamples;
 
-    const std::vector<vk::PipelineColorBlendAttachmentState> colorBlendAttachments(
-        colorAttachmentFormats.size(),
+    const std::vector<vk::PipelineColorBlendAttachmentState> color_blend_attachments(
+        color_attachment_formats.size(),
         {
             .blendEnable = vk::False,
             .colorWriteMask = vk::ColorComponentFlagBits::eR
@@ -159,130 +159,130 @@ GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) con
         }
     );
 
-    const vk::PipelineColorBlendStateCreateInfo colorBlending{
+    const vk::PipelineColorBlendStateCreateInfo color_blending{
         .logicOpEnable = vk::False,
-        .attachmentCount = static_cast<uint32_t>(colorBlendAttachments.size()),
-        .pAttachments = colorBlendAttachments.data(),
+        .attachmentCount = static_cast<uint32_t>(color_blend_attachments.size()),
+        .pAttachments = color_blend_attachments.data(),
     };
 
-    const auto depthStencil = depthStencilOverride
-                                  ? *depthStencilOverride
+    const auto depth_stencil = depth_stencil_override
+                                  ? *depth_stencil_override
                                   : vk::PipelineDepthStencilStateCreateInfo{
                                       .depthTestEnable = vk::True,
                                       .depthWriteEnable = vk::True,
                                       .depthCompareOp = vk::CompareOp::eLess,
                                   };
 
-    const vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
-        .setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size()),
-        .pSetLayouts = descriptorSetLayouts.empty() ? nullptr : descriptorSetLayouts.data(),
-        .pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size()),
-        .pPushConstantRanges = pushConstantRanges.empty() ? nullptr : pushConstantRanges.data()
+    const vk::PipelineLayoutCreateInfo pipeline_layout_info{
+        .setLayoutCount = static_cast<uint32_t>(descriptor_set_layouts.size()),
+        .pSetLayouts = descriptor_set_layouts.empty() ? nullptr : descriptor_set_layouts.data(),
+        .pushConstantRangeCount = static_cast<uint32_t>(push_constant_ranges.size()),
+        .pPushConstantRanges = push_constant_ranges.empty() ? nullptr : push_constant_ranges.data()
     };
 
-    result.layout = make_unique<vk::raii::PipelineLayout>(*ctx.device, pipelineLayoutInfo);
+    result.layout = make_unique<vk::raii::PipelineLayout>(*ctx.device, pipeline_layout_info);
 
     const vk::StructureChain<
         vk::GraphicsPipelineCreateInfo,
         vk::PipelineRenderingCreateInfo
-    > pipelineCreateInfo{
+    > pipeline_create_info{
         {
-            .stageCount = static_cast<uint32_t>(shaderStages.size()),
-            .pStages = shaderStages.data(),
-            .pVertexInputState = &vertexInputInfo,
-            .pInputAssemblyState = &inputAssembly,
-            .pViewportState = &viewportState,
+            .stageCount = static_cast<uint32_t>(shader_stages.size()),
+            .pStages = shader_stages.data(),
+            .pVertexInputState = &vertex_input_info,
+            .pInputAssemblyState = &input_assembly,
+            .pViewportState = &viewport_state,
             .pRasterizationState = &rasterizer,
             .pMultisampleState = &multisampling,
-            .pDepthStencilState = &depthStencil,
-            .pColorBlendState = &colorBlending,
-            .pDynamicState = &dynamicState,
+            .pDepthStencilState = &depth_stencil,
+            .pColorBlendState = &color_blending,
+            .pDynamicState = &dynamic_state,
             .layout = **result.layout,
         },
         {
-            .viewMask = multiviewCount == 1 ? 0 : ((1u << multiviewCount) - 1),
-            .colorAttachmentCount = static_cast<uint32_t>(colorAttachmentFormats.size()),
-            .pColorAttachmentFormats = colorAttachmentFormats.empty() ? nullptr : colorAttachmentFormats.data(),
-            .depthAttachmentFormat = depthAttachmentFormat ? *depthAttachmentFormat : static_cast<vk::Format>(0)
+            .viewMask = multiview_count == 1 ? 0 : ((1u << multiview_count) - 1),
+            .colorAttachmentCount = static_cast<uint32_t>(color_attachment_formats.size()),
+            .pColorAttachmentFormats = color_attachment_formats.empty() ? nullptr : color_attachment_formats.data(),
+            .depthAttachmentFormat = depth_attachment_format ? *depth_attachment_format : static_cast<vk::Format>(0)
         }
     };
 
     result.pipeline = make_unique<vk::raii::Pipeline>(
         *ctx.device,
         nullptr,
-        pipelineCreateInfo.get<vk::GraphicsPipelineCreateInfo>()
+        pipeline_create_info.get<vk::GraphicsPipelineCreateInfo>()
     );
 
     return result;
 }
 
-void GraphicsPipelineBuilder::checkParams() const {
-    if (vertexShaderPath.empty()) {
+void GraphicsPipelineBuilder::check_params() const {
+    if (vertex_shader_path.empty()) {
         throw std::invalid_argument("vertex shader must be specified during pipeline creation!");
     }
 
-    if (fragmentShaderPath.empty()) {
+    if (fragment_shader_path.empty()) {
         throw std::invalid_argument("fragment shader must be specified during pipeline creation!");
     }
 
-    if (vertexBindings.empty() && vertexAttributes.empty()) {
+    if (vertex_bindings.empty() && vertex_attributes.empty()) {
         throw std::invalid_argument("vertex descriptions must be specified during pipeline creation!");
     }
 }
 
-RtPipelineBuilder &RtPipelineBuilder::withRayGenShader(const std::filesystem::path &path) {
-    raygenShaderPath = path;
+RtPipelineBuilder &RtPipelineBuilder::with_ray_gen_shader(const std::filesystem::path &path) {
+    raygen_shader_path = path;
     return *this;
 }
 
-RtPipelineBuilder &RtPipelineBuilder::withClosestHitShader(const std::filesystem::path &path) {
-    closestHitShaderPath = path;
+RtPipelineBuilder &RtPipelineBuilder::with_closest_hit_shader(const std::filesystem::path &path) {
+    closest_hit_shader_path = path;
     return *this;
 }
 
-RtPipelineBuilder &RtPipelineBuilder::withMissShader(const std::filesystem::path &path) {
-    missShaderPath = path;
+RtPipelineBuilder &RtPipelineBuilder::with_miss_shader(const std::filesystem::path &path) {
+    miss_shader_path = path;
     return *this;
 }
 
-RtPipelineBuilder &RtPipelineBuilder::withDescriptorLayouts(const std::vector<vk::DescriptorSetLayout> &layouts) {
-    descriptorSetLayouts = layouts;
+RtPipelineBuilder &RtPipelineBuilder::with_descriptor_layouts(const std::vector<vk::DescriptorSetLayout> &layouts) {
+    descriptor_set_layouts = layouts;
     return *this;
 }
 
-RtPipelineBuilder &RtPipelineBuilder::withPushConstants(const std::vector<vk::PushConstantRange> &ranges) {
-    pushConstantRanges = ranges;
+RtPipelineBuilder &RtPipelineBuilder::with_push_constants(const std::vector<vk::PushConstantRange> &ranges) {
+    push_constant_ranges = ranges;
     return *this;
 }
 
 RtPipeline RtPipelineBuilder::create(const RendererContext &ctx) const {
     RtPipeline result;
 
-    auto [pipeline, layout] = buildPipeline(ctx);
+    auto [pipeline, layout] = build_pipeline(ctx);
     result.pipeline = make_unique<decltype(pipeline)>(std::move(pipeline));
     result.layout = make_unique<decltype(layout)>(std::move(layout));
 
-    result.sbt = buildSbt(ctx, *result.pipeline);
+    result.sbt = build_sbt(ctx, *result.pipeline);
 
     return result;
 }
 
-void RtPipelineBuilder::checkParams() const {
-    if (raygenShaderPath.empty()) {
+void RtPipelineBuilder::check_params() const {
+    if (raygen_shader_path.empty()) {
         throw std::invalid_argument("ray generation shader must be specified during ray tracing pipeline creation!");
     }
 
-    if (closestHitShaderPath.empty()) {
+    if (closest_hit_shader_path.empty()) {
         throw std::invalid_argument("closest hit shader must be specified during ray tracing pipeline creation!");
     }
 
-    if (missShaderPath.empty()) {
+    if (miss_shader_path.empty()) {
         throw std::invalid_argument("miss shader must be specified during ray tracing pipeline creation!");
     }
 }
 
 std::pair<vk::raii::Pipeline, vk::raii::PipelineLayout>
-RtPipelineBuilder::buildPipeline(const RendererContext &ctx) const {
+RtPipelineBuilder::build_pipeline(const RendererContext &ctx) const {
     enum StageIndices {
         eRaygen = 0,
         eMiss,
@@ -290,62 +290,62 @@ RtPipelineBuilder::buildPipeline(const RendererContext &ctx) const {
         eShaderGroupCount
     };
 
-    const vk::raii::ShaderModule raygenShaderModule = createShaderModule(ctx, raygenShaderPath);
-    const vk::raii::ShaderModule missShaderModule = createShaderModule(ctx, missShaderPath);
-    const vk::raii::ShaderModule closestHitShaderModule = createShaderModule(ctx, closestHitShaderPath);
+    const vk::raii::ShaderModule raygen_shader_module = create_shader_module(ctx, raygen_shader_path);
+    const vk::raii::ShaderModule miss_shader_module = create_shader_module(ctx, miss_shader_path);
+    const vk::raii::ShaderModule closest_hit_shader_module = create_shader_module(ctx, closest_hit_shader_path);
 
-    std::array<vk::PipelineShaderStageCreateInfo, eShaderGroupCount> shaderStages;
+    std::array<vk::PipelineShaderStageCreateInfo, eShaderGroupCount> shader_stages;
 
-    shaderStages[eRaygen] = {
+    shader_stages[eRaygen] = {
         .stage = vk::ShaderStageFlagBits::eRaygenKHR,
-        .module = *raygenShaderModule,
+        .module = *raygen_shader_module,
         .pName = "main",
     };
 
-    shaderStages[eMiss] = {
+    shader_stages[eMiss] = {
         .stage = vk::ShaderStageFlagBits::eMissKHR,
-        .module = *missShaderModule,
+        .module = *miss_shader_module,
         .pName = "main",
     };
 
-    shaderStages[eClosestHit] = {
+    shader_stages[eClosestHit] = {
         .stage = vk::ShaderStageFlagBits::eClosestHitKHR,
-        .module = *closestHitShaderModule,
+        .module = *closest_hit_shader_module,
         .pName = "main",
     };
 
-    constexpr vk::RayTracingShaderGroupCreateInfoKHR shaderGroupTemplate{
+    constexpr vk::RayTracingShaderGroupCreateInfoKHR shader_group_template{
         .generalShader = vk::ShaderUnusedKHR,
         .closestHitShader = vk::ShaderUnusedKHR,
         .anyHitShader = vk::ShaderUnusedKHR,
         .intersectionShader = vk::ShaderUnusedKHR,
     };
 
-    std::vector shaderGroups(eShaderGroupCount, shaderGroupTemplate);
+    std::vector shader_groups(eShaderGroupCount, shader_group_template);
 
-    shaderGroups[eRaygen].type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
-    shaderGroups[eRaygen].generalShader = eRaygen;
+    shader_groups[eRaygen].type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
+    shader_groups[eRaygen].generalShader = eRaygen;
 
-    shaderGroups[eMiss].type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
-    shaderGroups[eMiss].generalShader = eMiss;
+    shader_groups[eMiss].type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
+    shader_groups[eMiss].generalShader = eMiss;
 
-    shaderGroups[eClosestHit].type = vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
-    shaderGroups[eClosestHit].closestHitShader = eClosestHit;
+    shader_groups[eClosestHit].type = vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
+    shader_groups[eClosestHit].closestHitShader = eClosestHit;
 
-    const vk::PipelineLayoutCreateInfo pipelineLayoutInfo{
-        .setLayoutCount = static_cast<uint32_t>(descriptorSetLayouts.size()),
-        .pSetLayouts = descriptorSetLayouts.empty() ? nullptr : descriptorSetLayouts.data(),
-        .pushConstantRangeCount = static_cast<uint32_t>(pushConstantRanges.size()),
-        .pPushConstantRanges = pushConstantRanges.empty() ? nullptr : pushConstantRanges.data()
+    const vk::PipelineLayoutCreateInfo pipeline_layout_info{
+        .setLayoutCount = static_cast<uint32_t>(descriptor_set_layouts.size()),
+        .pSetLayouts = descriptor_set_layouts.empty() ? nullptr : descriptor_set_layouts.data(),
+        .pushConstantRangeCount = static_cast<uint32_t>(push_constant_ranges.size()),
+        .pPushConstantRanges = push_constant_ranges.empty() ? nullptr : push_constant_ranges.data()
     };
 
-    vk::raii::PipelineLayout layout{*ctx.device, pipelineLayoutInfo};
+    vk::raii::PipelineLayout layout{*ctx.device, pipeline_layout_info};
 
-    const vk::RayTracingPipelineCreateInfoKHR pipelineCreateInfo{
-        .stageCount = static_cast<uint32_t>(shaderStages.size()),
-        .pStages = shaderStages.data(),
-        .groupCount = static_cast<uint32_t>(shaderGroups.size()),
-        .pGroups = shaderGroups.data(),
+    const vk::RayTracingPipelineCreateInfoKHR pipeline_create_info{
+        .stageCount = static_cast<uint32_t>(shader_stages.size()),
+        .pStages = shader_stages.data(),
+        .groupCount = static_cast<uint32_t>(shader_groups.size()),
+        .pGroups = shader_groups.data(),
         .maxPipelineRayRecursionDepth = 2u,
         .layout = *layout,
     };
@@ -354,54 +354,54 @@ RtPipelineBuilder::buildPipeline(const RendererContext &ctx) const {
         *ctx.device,
         nullptr,
         nullptr,
-        pipelineCreateInfo
+        pipeline_create_info
     };
 
     return std::make_pair(std::move(pipeline), std::move(layout));
 }
 
-static constexpr uint32_t alignUp(const uint32_t size, const uint32_t alignment) {
+static constexpr uint32_t align_up(const uint32_t size, const uint32_t alignment) {
     return (size + alignment - 1) & ~(alignment - 1);
 }
 
 RtPipeline::ShaderBindingTable
-RtPipelineBuilder::buildSbt(const RendererContext &ctx, const vk::raii::Pipeline &pipeline) const {
-    const auto properties = ctx.physicalDevice->getProperties2<
+RtPipelineBuilder::build_sbt(const RendererContext &ctx, const vk::raii::Pipeline &pipeline) const {
+    const auto properties = ctx.physical_device->getProperties2<
         vk::PhysicalDeviceProperties2,
         vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
-    const auto rtProperties = properties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
+    const auto rt_properties = properties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
 
-    constexpr uint32_t missCount = 1;
-    constexpr uint32_t hitCount = 1;
-    constexpr uint32_t handleCount = 1 + missCount + hitCount; // 1 for raygen count (always 1)
-    const uint32_t handleSize = rtProperties.shaderGroupHandleSize;
-    const uint32_t handleSizeAligned = alignUp(
-        handleSize,
-        rtProperties.shaderGroupHandleAlignment);
+    constexpr uint32_t miss_count = 1;
+    constexpr uint32_t hit_count = 1;
+    constexpr uint32_t handle_count = 1 + miss_count + hit_count; // 1 for raygen count (always 1)
+    const uint32_t handle_size = rt_properties.shaderGroupHandleSize;
+    const uint32_t handle_size_aligned = align_up(
+        handle_size,
+        rt_properties.shaderGroupHandleAlignment);
 
-    const auto rgenStride = alignUp(handleSizeAligned, rtProperties.shaderGroupBaseAlignment);
-    vk::StridedDeviceAddressRegionKHR rgenRegion = {
-        .stride = rgenStride,
-        .size = rgenStride
+    const auto rgen_stride = align_up(handle_size_aligned, rt_properties.shaderGroupBaseAlignment);
+    vk::StridedDeviceAddressRegionKHR rgen_region = {
+        .stride = rgen_stride,
+        .size = rgen_stride
     };
 
-    vk::StridedDeviceAddressRegionKHR missRegion{
-        .stride = handleSizeAligned,
-        .size = alignUp(missCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment)
+    vk::StridedDeviceAddressRegionKHR miss_region{
+        .stride = handle_size_aligned,
+        .size = align_up(miss_count * handle_size_aligned, rt_properties.shaderGroupBaseAlignment)
     };
 
-    vk::StridedDeviceAddressRegionKHR hitRegion{
-        .stride = handleSizeAligned,
-        .size = alignUp(hitCount * handleSizeAligned, rtProperties.shaderGroupBaseAlignment)
+    vk::StridedDeviceAddressRegionKHR hit_region{
+        .stride = handle_size_aligned,
+        .size = align_up(hit_count * handle_size_aligned, rt_properties.shaderGroupBaseAlignment)
     };
 
-    const uint32_t dataSize = handleCount * handleSize;
-    std::vector handles = pipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>(0, handleCount, dataSize);
+    const uint32_t data_size = handle_count * handle_size;
+    std::vector handles = pipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>(0, handle_count, data_size);
 
-    const VkDeviceSize sbtSize = rgenRegion.size + missRegion.size + hitRegion.size;
-    auto sbtBuffer = make_unique<Buffer>(
+    const VkDeviceSize sbt_size = rgen_region.size + miss_region.size + hit_region.size;
+    auto sbt_buffer = make_unique<Buffer>(
         **ctx.allocator,
-        sbtSize,
+        sbt_size,
         vk::BufferUsageFlagBits::eShaderBindingTableKHR
         | vk::BufferUsageFlagBits::eShaderDeviceAddress
         | vk::BufferUsageFlagBits::eTransferSrc,
@@ -409,38 +409,38 @@ RtPipelineBuilder::buildSbt(const RendererContext &ctx, const vk::raii::Pipeline
         | vk::MemoryPropertyFlagBits::eHostCoherent
     );
 
-    const vk::DeviceAddress sbtAddress = ctx.device->getBufferAddress({.buffer = **sbtBuffer});
-    rgenRegion.deviceAddress = sbtAddress;
-    missRegion.deviceAddress = rgenRegion.deviceAddress + rgenRegion.size;
-    hitRegion.deviceAddress = missRegion.deviceAddress + missRegion.size;
+    const vk::DeviceAddress sbt_address = ctx.device->getBufferAddress({.buffer = **sbt_buffer});
+    rgen_region.deviceAddress = sbt_address;
+    miss_region.deviceAddress = rgen_region.deviceAddress + rgen_region.size;
+    hit_region.deviceAddress = miss_region.deviceAddress + miss_region.size;
 
-    auto getHandlePtr = [&](const uint32_t i) { return handles.data() + i * handleSize; };
-    auto *sbtBufferMapped = static_cast<uint8_t *>(sbtBuffer->map());
+    auto get_handle_ptr = [&](const uint32_t i) { return handles.data() + i * handle_size; };
+    auto *sbt_buffer_mapped = static_cast<uint8_t *>(sbt_buffer->map());
 
-    uint32_t handleIndex = 0;
+    uint32_t handle_index = 0;
 
-    uint8_t *rgenData = sbtBufferMapped;
-    memcpy(rgenData, getHandlePtr(handleIndex++), handleSize);
+    uint8_t *rgen_data = sbt_buffer_mapped;
+    memcpy(rgen_data, get_handle_ptr(handle_index++), handle_size);
 
-    uint8_t *missData = sbtBufferMapped + rgenRegion.size;
-    for (uint32_t i = 0; i < missCount; i++) {
-        memcpy(missData, getHandlePtr(handleIndex++), handleSize);
-        missData += missRegion.stride;
+    uint8_t *miss_data = sbt_buffer_mapped + rgen_region.size;
+    for (uint32_t i = 0; i < miss_count; i++) {
+        memcpy(miss_data, get_handle_ptr(handle_index++), handle_size);
+        miss_data += miss_region.stride;
     }
 
-    uint8_t *hitData = sbtBufferMapped + rgenRegion.size + missRegion.size;
-    for (uint32_t i = 0; i < hitCount; i++) {
-        memcpy(hitData, getHandlePtr(handleIndex++), handleSize);
-        hitData += hitRegion.stride;
+    uint8_t *hit_data = sbt_buffer_mapped + rgen_region.size + miss_region.size;
+    for (uint32_t i = 0; i < hit_count; i++) {
+        memcpy(hit_data, get_handle_ptr(handle_index++), handle_size);
+        hit_data += hit_region.stride;
     }
 
-    sbtBuffer->unmap();
+    sbt_buffer->unmap();
 
     return {
-        .backingBuffer = std::move(sbtBuffer),
-        .rgenRegion = rgenRegion,
-        .missRegion = missRegion,
-        .hitRegion = hitRegion
+        .backing_buffer = std::move(sbt_buffer),
+        .rgen_region = rgen_region,
+        .miss_region = miss_region,
+        .hit_region = hit_region
     };
 }
 } // zrx

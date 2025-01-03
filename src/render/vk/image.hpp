@@ -13,17 +13,17 @@ namespace zrx {
  * This struct is used mainly for caching views to eliminate creating multiple identical views.
  */
 struct ViewParams {
-    uint32_t baseMipLevel;
-    uint32_t mipLevels;
-    uint32_t baseLayer;
-    uint32_t layerCount;
+    uint32_t base_mip_level;
+    uint32_t mip_levels;
+    uint32_t base_layer;
+    uint32_t layer_count;
 
     // `unordered_map` requirement
     bool operator==(const ViewParams &other) const {
-        return baseMipLevel == other.baseMipLevel
-               && mipLevels == other.mipLevels
-               && baseLayer == other.baseLayer
-               && layerCount == other.layerCount;
+        return base_mip_level == other.base_mip_level
+               && mip_levels == other.mip_levels
+               && base_layer == other.base_layer
+               && layer_count == other.layer_count;
     }
 };
 } // zrx
@@ -32,10 +32,10 @@ struct ViewParams {
 template<>
 struct std::hash<zrx::ViewParams> {
     size_t operator()(zrx::ViewParams const &params) const noexcept {
-        return (hash<uint32_t>()(params.mipLevels) >> 1) ^
-               (hash<uint32_t>()(params.baseMipLevel) << 1) ^
-               (hash<uint32_t>()(params.baseLayer) << 1) ^
-               (hash<uint32_t>()(params.layerCount) << 1);
+        return (hash<uint32_t>()(params.mip_levels) >> 1) ^
+               (hash<uint32_t>()(params.base_mip_level) << 1) ^
+               (hash<uint32_t>()(params.base_layer) << 1) ^
+               (hash<uint32_t>()(params.layer_count) << 1);
     }
 };
 
@@ -54,12 +54,12 @@ protected:
     unique_ptr<vk::raii::Image> image;
     vk::Extent3D extent;
     vk::Format format{};
-    uint32_t mipLevels;
-    vk::ImageAspectFlags aspectMask;
-    std::unordered_map<ViewParams, shared_ptr<vk::raii::ImageView> > cachedViews;
+    uint32_t mip_levels;
+    vk::ImageAspectFlags aspect_mask;
+    std::unordered_map<ViewParams, shared_ptr<vk::raii::ImageView> > cached_views;
 
 public:
-    explicit Image(const RendererContext &ctx, const vk::ImageCreateInfo &imageInfo,
+    explicit Image(const RendererContext &ctx, const vk::ImageCreateInfo &image_info,
                    vk::MemoryPropertyFlags properties, vk::ImageAspectFlags aspect);
 
     virtual ~Image();
@@ -82,53 +82,53 @@ public:
      * Returns an image view containing all mip levels and all layers of this image.
      */
     [[nodiscard]] virtual shared_ptr<vk::raii::ImageView>
-    getView(const RendererContext &ctx);
+    get_view(const RendererContext &ctx);
 
     /**
      * Returns an image view containing a single mip level and all layers of this image.
      */
     [[nodiscard]] virtual shared_ptr<vk::raii::ImageView>
-    getMipView(const RendererContext &ctx, uint32_t mipLevel);
+    get_mip_view(const RendererContext &ctx, uint32_t mip_level);
 
     /**
      * Returns an image view containing all mip levels and a single specified layer of this image.
      */
     [[nodiscard]] shared_ptr<vk::raii::ImageView>
-    getLayerView(const RendererContext &ctx, uint32_t layer);
+    get_layer_view(const RendererContext &ctx, uint32_t layer);
 
     /**
      * Returns an image view containing a single mip level and a single specified layer of this image.
      */
     [[nodiscard]] shared_ptr<vk::raii::ImageView>
-    getLayerMipView(const RendererContext &ctx, uint32_t layer, uint32_t mipLevel);
+    get_layer_mip_view(const RendererContext &ctx, uint32_t layer, uint32_t mip_level);
 
-    [[nodiscard]] vk::Extent3D getExtent() const { return extent; }
+    [[nodiscard]] vk::Extent3D get_extent() const { return extent; }
 
-    [[nodiscard]] vk::Extent2D getExtent2d() const { return {extent.width, extent.height}; }
+    [[nodiscard]] vk::Extent2D get_extent_2d() const { return {extent.width, extent.height}; }
 
-    [[nodiscard]] vk::Format getFormat() const { return format; }
+    [[nodiscard]] vk::Format get_format() const { return format; }
 
-    [[nodiscard]] uint32_t getMipLevels() const { return mipLevels; }
+    [[nodiscard]] uint32_t get_mip_levels() const { return mip_levels; }
 
     /**
      * Records commands that copy the contents of a given buffer to this image.
      */
-    virtual void copyFromBuffer(vk::Buffer buffer, const vk::raii::CommandBuffer &commandBuffer);
+    virtual void copy_from_buffer(vk::Buffer buffer, const vk::raii::CommandBuffer &command_buffer);
 
     /**
      * Records commands that transition this image's layout.
      * A valid old layout must be provided, as the image's current layout is not being tracked.
      */
-    virtual void transitionLayout(vk::ImageLayout oldLayout, vk::ImageLayout newLayout,
-                                  const vk::raii::CommandBuffer &commandBuffer) const;
+    virtual void transition_layout(vk::ImageLayout old_layout, vk::ImageLayout new_layout,
+                                   const vk::raii::CommandBuffer &command_buffer) const;
 
     /**
      * Records commands that transition this image's layout, also specifying a specific subresource range
      * on which the transition should occur.
      * A valid old layout must be provided, as the image's current layout is not being tracked.
      */
-    void transitionLayout(vk::ImageLayout oldLayout, vk::ImageLayout newLayout,
-                          vk::ImageSubresourceRange range, const vk::raii::CommandBuffer &commandBuffer) const;
+    void transition_layout(vk::ImageLayout old_layout, vk::ImageLayout new_layout,
+                           vk::ImageSubresourceRange range, const vk::raii::CommandBuffer &command_buffer) const;
 
     /**
      * Writes the contents of this image to a file on a given path.
@@ -137,31 +137,31 @@ public:
      * (nor do I care about it working perfectly) and was created purely to debug a single thing in the past.
      * However, I'm not removing this as I might use it (and make it work better) again in the future.
      */
-    void saveToFile(const RendererContext &ctx, const std::filesystem::path &path) const;
+    void save_to_file(const RendererContext &ctx, const std::filesystem::path &path) const;
 
 protected:
     /**
      * Checks if a given view is cached already and if so, returns it without creating a new one.
      * Otherwise, creates the view and caches it for later.
      */
-    [[nodiscard]] shared_ptr<vk::raii::ImageView> getCachedView(const RendererContext &ctx, ViewParams params);
+    [[nodiscard]] shared_ptr<vk::raii::ImageView> get_cached_view(const RendererContext &ctx, ViewParams params);
 };
 
 class CubeImage final : public Image {
 public:
-    explicit CubeImage(const RendererContext &ctx, const vk::ImageCreateInfo &imageInfo,
+    explicit CubeImage(const RendererContext &ctx, const vk::ImageCreateInfo &image_info,
                        vk::MemoryPropertyFlags properties);
 
     [[nodiscard]] shared_ptr<vk::raii::ImageView>
-    getView(const RendererContext &ctx) override;
+    get_view(const RendererContext &ctx) override;
 
     [[nodiscard]] shared_ptr<vk::raii::ImageView>
-    getMipView(const RendererContext &ctx, uint32_t mipLevel) override;
+    get_mip_view(const RendererContext &ctx, uint32_t mip_level) override;
 
-    void copyFromBuffer(vk::Buffer buffer, const vk::raii::CommandBuffer &commandBuffer) override;
+    void copy_from_buffer(vk::Buffer buffer, const vk::raii::CommandBuffer &command_buffer) override;
 
-    void transitionLayout(vk::ImageLayout oldLayout, vk::ImageLayout newLayout,
-                          const vk::raii::CommandBuffer &commandBuffer) const override;
+    void transition_layout(vk::ImageLayout old_layout, vk::ImageLayout new_layout,
+                           const vk::raii::CommandBuffer &command_buffer) const override;
 };
 
 class Texture {
@@ -173,18 +173,18 @@ class Texture {
     Texture() = default;
 
 public:
-    [[nodiscard]] Image &getImage() const { return *image; }
+    [[nodiscard]] Image &get_image() const { return *image; }
 
-    [[nodiscard]] const vk::raii::Sampler &getSampler() const { return *sampler; }
+    [[nodiscard]] const vk::raii::Sampler &get_sampler() const { return *sampler; }
 
-    [[nodiscard]] uint32_t getMipLevels() const { return image->getMipLevels(); }
+    [[nodiscard]] uint32_t get_mip_levels() const { return image->get_mip_levels(); }
 
-    [[nodiscard]] vk::Format getFormat() const { return image->getFormat(); }
+    [[nodiscard]] vk::Format get_format() const { return image->get_format(); }
 
-    void generateMipmaps(const RendererContext &ctx, vk::ImageLayout finalLayout) const;
+    void generate_mipmaps(const RendererContext &ctx, vk::ImageLayout final_layout) const;
 
 private:
-    void createSampler(const RendererContext &ctx, vk::SamplerAddressMode addressMode);
+    void create_sampler(const RendererContext &ctx, vk::SamplerAddressMode address_mode);
 };
 
 enum class SwizzleComponent {
@@ -204,91 +204,92 @@ enum class SwizzleComponent {
  * might not be implemented, due to them not being needed at the moment.
  */
 class TextureBuilder {
-    vk::Format format = vk::Format::eR8G8B8A8Srgb;
-    vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal;
+    vk::Format format         = vk::Format::eR8G8B8A8Srgb;
+    vk::ImageLayout layout    = vk::ImageLayout::eShaderReadOnlyOptimal;
     vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eTransferSrc
                                 | vk::ImageUsageFlagBits::eTransferDst
                                 | vk::ImageUsageFlagBits::eSampled;
-    bool isCubemap = false;
-    bool isSeparateChannels = false;
-    bool isHdr = false;
-    bool hasMipmaps = false;
-    bool isUninitialized = false;
+    bool is_cubemap           = false;
+    bool is_separate_channels = false;
+    bool is_hdr               = false;
+    bool has_mipmaps          = false;
+    bool is_uninitialized     = false;
 
     std::optional<std::array<SwizzleComponent, 4> > swizzle{
         {SwizzleComponent::R, SwizzleComponent::G, SwizzleComponent::B, SwizzleComponent::A}
     };
 
-    vk::SamplerAddressMode addressMode = vk::SamplerAddressMode::eRepeat;
+    vk::SamplerAddressMode address_mode = vk::SamplerAddressMode::eRepeat;
 
-    std::optional<vk::Extent3D> desiredExtent;
+    std::optional<vk::Extent3D> desired_extent;
 
     std::vector<std::filesystem::path> paths;
-    void *memorySource = nullptr;
-    bool isFromSwizzleFill = false;
+    void *memory_source       = nullptr;
+    bool is_from_swizzle_fill = false;
 
     struct LoadedTextureData {
         std::vector<void *> sources;
         vk::Extent3D extent;
-        uint32_t layerCount;
+        uint32_t layer_count;
     };
 
 public:
-    TextureBuilder &useFormat(vk::Format f);
+    TextureBuilder &use_format(vk::Format f);
 
-    TextureBuilder &useLayout(vk::ImageLayout l);
+    TextureBuilder &use_layout(vk::ImageLayout l);
 
-    TextureBuilder &useUsage(vk::ImageUsageFlags u);
+    TextureBuilder &use_usage(vk::ImageUsageFlags u);
 
-    TextureBuilder &asCubemap();
+    TextureBuilder &as_cubemap();
 
-    TextureBuilder &asSeparateChannels();
+    TextureBuilder &as_separate_channels();
 
-    TextureBuilder &asHdr();
+    TextureBuilder &as_hdr();
 
-    TextureBuilder &makeMipmaps();
+    TextureBuilder &make_mipmaps();
 
-    TextureBuilder &withSamplerAddressMode(vk::SamplerAddressMode mode);
+    TextureBuilder &with_sampler_address_mode(vk::SamplerAddressMode mode);
 
-    TextureBuilder &asUninitialized(vk::Extent3D extent);
+    TextureBuilder &as_uninitialized(vk::Extent3D extent);
 
-    TextureBuilder &withSwizzle(std::array<SwizzleComponent, 4> sw);
+    TextureBuilder &with_swizzle(std::array<SwizzleComponent, 4> sw);
 
     /**
      * Designates the texture's contents to be initialized with data stored in a given file.
      * This requires 6 different paths for cubemap textures.
      */
-    TextureBuilder &fromPaths(const std::vector<std::filesystem::path> &sources);
+    TextureBuilder &from_paths(const std::vector<std::filesystem::path> &sources);
 
     /**
      * Designates the texture's contents to be initialized with data stored in memory.
      */
-    TextureBuilder &fromMemory(void *ptr, vk::Extent3D extent);
+    TextureBuilder &from_memory(void *ptr, vk::Extent3D extent);
 
     /**
      * Designates the texture's contents to be initialized with static data defined using `withSwizzle`.
      */
-    TextureBuilder &fromSwizzleFill(vk::Extent3D extent);
+    TextureBuilder &from_swizzle_fill(vk::Extent3D extent);
 
     [[nodiscard]] unique_ptr<Texture>
     create(const RendererContext &ctx) const;
 
 private:
-    void checkParams() const;
+    void check_params() const;
 
-    [[nodiscard]] uint32_t getLayerCount() const;
+    [[nodiscard]] uint32_t get_layer_count() const;
 
-    [[nodiscard]] LoadedTextureData loadFromPaths() const;
+    [[nodiscard]] LoadedTextureData load_from_paths() const;
 
-    [[nodiscard]] LoadedTextureData loadFromMemory() const;
+    [[nodiscard]] LoadedTextureData load_from_memory() const;
 
-    [[nodiscard]] LoadedTextureData loadFromSwizzleFill() const;
+    [[nodiscard]] LoadedTextureData load_from_swizzle_fill() const;
 
-    [[nodiscard]] unique_ptr<Buffer> makeStagingBuffer(const RendererContext &ctx, const LoadedTextureData &data) const;
+    [[nodiscard]] unique_ptr<Buffer> make_staging_buffer(const RendererContext &ctx,
+                                                         const LoadedTextureData &data) const;
 
-    static void *mergeChannels(const std::vector<void *> &channelsData, size_t textureSize, size_t componentCount);
+    static void *merge_channels(const std::vector<void *> &channels_data, size_t texture_size, size_t component_count);
 
-    void performSwizzle(uint8_t *data, size_t size) const;
+    void perform_swizzle(uint8_t *data, size_t size) const;
 };
 
 /**
@@ -298,40 +299,40 @@ private:
  */
 class RenderTarget {
     shared_ptr<vk::raii::ImageView> view;
-    shared_ptr<vk::raii::ImageView> resolveView;
+    shared_ptr<vk::raii::ImageView> resolve_view;
     vk::Format format{};
 
-    vk::AttachmentLoadOp loadOp = vk::AttachmentLoadOp::eClear;
-    vk::AttachmentStoreOp storeOp = vk::AttachmentStoreOp::eStore;
+    vk::AttachmentLoadOp load_op   = vk::AttachmentLoadOp::eClear;
+    vk::AttachmentStoreOp store_op = vk::AttachmentStoreOp::eStore;
 
 public:
     RenderTarget(shared_ptr<vk::raii::ImageView> view, vk::Format format);
 
-    RenderTarget(shared_ptr<vk::raii::ImageView> view, shared_ptr<vk::raii::ImageView> resolveView, vk::Format format);
+    RenderTarget(shared_ptr<vk::raii::ImageView> view, shared_ptr<vk::raii::ImageView> resolve_view, vk::Format format);
 
     RenderTarget(const RendererContext &ctx, const Texture &texture);
 
-    [[nodiscard]] const vk::raii::ImageView& operator*() const { return *view; }
+    [[nodiscard]] const vk::raii::ImageView &operator*() const { return *view; }
 
-    [[nodiscard]] vk::Format getFormat() const { return format; }
+    [[nodiscard]] vk::Format get_format() const { return format; }
 
-    [[nodiscard]] vk::RenderingAttachmentInfo getAttachmentInfo() const;
+    [[nodiscard]] vk::RenderingAttachmentInfo get_attachment_info() const;
 
-    void overrideAttachmentConfig(vk::AttachmentLoadOp loadOp,
-                                  vk::AttachmentStoreOp storeOp = vk::AttachmentStoreOp::eStore);
+    void override_attachment_config(vk::AttachmentLoadOp load_op,
+                                    vk::AttachmentStoreOp store_op = vk::AttachmentStoreOp::eStore);
 };
 
 namespace utils::img {
     [[nodiscard]] vk::raii::ImageView
-    createImageView(const RendererContext &ctx, vk::Image image, vk::Format format, vk::ImageAspectFlags aspectFlags,
-                    uint32_t baseMipLevel = 0, uint32_t mipLevels = 1, uint32_t layer = 0);
+    create_image_view(const RendererContext &ctx, vk::Image image, vk::Format format, vk::ImageAspectFlags aspect_flags,
+                    uint32_t basemip_level = 0, uint32_t mip_levels = 1, uint32_t layer = 0);
 
     [[nodiscard]] vk::raii::ImageView
-    createCubeImageView(const RendererContext &ctx, vk::Image image, vk::Format format,
-                        vk::ImageAspectFlags aspectFlags, uint32_t baseMipLevel = 0, uint32_t mipLevels = 1);
+    create_cube_image_view(const RendererContext &ctx, vk::Image image, vk::Format format,
+                        vk::ImageAspectFlags aspect_flags, uint32_t base_mip_level = 0, uint32_t mip_levels = 1);
 
-    [[nodiscard]] bool isDepthFormat(vk::Format format);
+    [[nodiscard]] bool is_depth_format(vk::Format format);
 
-    [[nodiscard]] size_t getFormatSizeInBytes(vk::Format format);
+    [[nodiscard]] size_t get_format_size_in_bytes(vk::Format format);
 }
 } // zrx

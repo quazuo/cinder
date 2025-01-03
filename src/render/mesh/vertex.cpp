@@ -1,7 +1,7 @@
 #include "vertex.hpp"
 
 namespace zrx {
-std::vector<vk::VertexInputBindingDescription> ModelVertex::getBindingDescriptions() {
+std::vector<vk::VertexInputBindingDescription> ModelVertex::get_binding_descriptions() {
     return {
         {
             .binding = 0u,
@@ -16,7 +16,7 @@ std::vector<vk::VertexInputBindingDescription> ModelVertex::getBindingDescriptio
     };
 }
 
-std::vector<vk::VertexInputAttributeDescription> ModelVertex::getAttributeDescriptions() {
+std::vector<vk::VertexInputAttributeDescription> ModelVertex::get_attribute_descriptions() {
     return {
         {
             .location = 0U,
@@ -28,7 +28,7 @@ std::vector<vk::VertexInputAttributeDescription> ModelVertex::getAttributeDescri
             .location = 1U,
             .binding = 0U,
             .format = vk::Format::eR32G32Sfloat,
-            .offset = static_cast<uint32_t>(offsetof(ModelVertex, texCoord)),
+            .offset = static_cast<uint32_t>(offsetof(ModelVertex, tex_coord)),
         },
         {
             .location = 2U,
@@ -75,7 +75,7 @@ std::vector<vk::VertexInputAttributeDescription> ModelVertex::getAttributeDescri
     };
 }
 
-std::vector<vk::VertexInputBindingDescription> SkyboxVertex::getBindingDescriptions() {
+std::vector<vk::VertexInputBindingDescription> SkyboxVertex::get_binding_descriptions() {
     return {
         {
             .binding = static_cast<uint32_t>(0U),
@@ -85,7 +85,7 @@ std::vector<vk::VertexInputBindingDescription> SkyboxVertex::getBindingDescripti
     };
 }
 
-std::vector<vk::VertexInputAttributeDescription> SkyboxVertex::getAttributeDescriptions() {
+std::vector<vk::VertexInputAttributeDescription> SkyboxVertex::get_attribute_descriptions() {
     return {
         {
             .location = 0U,
@@ -96,7 +96,7 @@ std::vector<vk::VertexInputAttributeDescription> SkyboxVertex::getAttributeDescr
     };
 }
 
-std::vector<vk::VertexInputBindingDescription> ScreenSpaceQuadVertex::getBindingDescriptions() {
+std::vector<vk::VertexInputBindingDescription> ScreenSpaceQuadVertex::get_binding_descriptions() {
     return {
         {
             .binding = static_cast<uint32_t>(0U),
@@ -106,7 +106,7 @@ std::vector<vk::VertexInputBindingDescription> ScreenSpaceQuadVertex::getBinding
     };
 }
 
-std::vector<vk::VertexInputAttributeDescription> ScreenSpaceQuadVertex::getAttributeDescriptions() {
+std::vector<vk::VertexInputAttributeDescription> ScreenSpaceQuadVertex::get_attribute_descriptions() {
     return {
         {
             .location = 0U,
@@ -118,7 +118,7 @@ std::vector<vk::VertexInputAttributeDescription> ScreenSpaceQuadVertex::getAttri
             .location = 1U,
             .binding = 0U,
             .format = vk::Format::eR32G32Sfloat,
-            .offset = static_cast<uint32_t>(offsetof(ScreenSpaceQuadVertex, texCoord)),
+            .offset = static_cast<uint32_t>(offsetof(ScreenSpaceQuadVertex, tex_coord)),
         },
     };
 }

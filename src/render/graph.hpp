@@ -42,12 +42,12 @@ struct Shader {
     using ShaderBindingSet = std::vector<ResourceHandle>;
 
     std::filesystem::path path;
-    std::vector<ShaderBindingSet> descriptorSets;
+    std::vector<ShaderBindingSet> descriptor_sets;
 
-    [[nodiscard]] std::set<ResourceHandle> getBoundResourcesSet() const {
+    [[nodiscard]] std::set<ResourceHandle> get_bound_resources_set() const {
         std::set<ResourceHandle> result;
 
-        for (const auto &set : descriptorSets) {
+        for (const auto &set : descriptor_sets) {
             result.insert(set.begin(), set.end());
         }
 
@@ -56,31 +56,31 @@ struct Shader {
 };
 
 class RenderPassContext {
-    std::reference_wrapper<const vk::raii::CommandBuffer> commandBuffer;
+    std::reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
 
 public:
-    explicit RenderPassContext(const vk::raii::CommandBuffer &cmdBuf) : commandBuffer(cmdBuf) {
+    explicit RenderPassContext(const vk::raii::CommandBuffer &cmdBuf) : command_buffer(cmdBuf) {
     }
 
     void drawModel(const Model &model) const {
-        uint32_t indexOffset = 0;
-        int32_t vertexOffset = 0;
-        uint32_t instanceOffset = 0;
+        uint32_t index_offset = 0;
+        int32_t vertex_offset = 0;
+        uint32_t instance_offset = 0;
 
-        model.bindBuffers(commandBuffer);
+        model.bind_buffers(command_buffer);
 
-        for (const auto &mesh: model.getMeshes()) {
-            commandBuffer.get().drawIndexed(
+        for (const auto &mesh: model.get_meshes()) {
+            command_buffer.get().drawIndexed(
                 static_cast<uint32_t>(mesh.indices.size()),
                 static_cast<uint32_t>(mesh.instances.size()),
-                indexOffset,
-                vertexOffset,
-                instanceOffset
+                index_offset,
+                vertex_offset,
+                instance_offset
             );
 
-            indexOffset += static_cast<uint32_t>(mesh.indices.size());
-            vertexOffset += static_cast<int32_t>(mesh.vertices.size());
-            instanceOffset += static_cast<uint32_t>(mesh.instances.size());
+            index_offset += static_cast<uint32_t>(mesh.indices.size());
+            vertex_offset += static_cast<int32_t>(mesh.vertices.size());
+            instance_offset += static_cast<uint32_t>(mesh.instances.size());
         }
     }
 };
@@ -89,62 +89,62 @@ struct RenderNode {
     using RenderNodeBodyFn = std::function<void(RenderPassContext &)>;
 
     std::string name;
-    std::shared_ptr<Shader> vertexShader;
-    std::shared_ptr<Shader> fragmentShader;
-    std::vector<ResourceHandle> colorTargets;
-    std::optional<ResourceHandle> depthTarget;
+    std::shared_ptr<Shader> vertex_shader;
+    std::shared_ptr<Shader> fragment_shader;
+    std::vector<ResourceHandle> color_targets;
+    std::optional<ResourceHandle> depth_target;
     RenderNodeBodyFn body;
 
     struct {
-        bool useMsaa = false;
-        vk::CullModeFlagBits cullMode = vk::CullModeFlagBits::eBack;
-    } customConfig;
+        bool use_msaa = false;
+        vk::CullModeFlagBits cull_mode = vk::CullModeFlagBits::eBack;
+    } custom_config;
 
     [[nodiscard]]
-    std::set<ResourceHandle> getAllTargetsSet() const {
-        std::set result(colorTargets.begin(), colorTargets.end());
-        if (depthTarget) result.insert(*depthTarget);
+    std::set<ResourceHandle> get_all_targets_set() const {
+        std::set result(color_targets.begin(), color_targets.end());
+        if (depth_target) result.insert(*depth_target);
         return result;
     }
 
     [[nodiscard]]
-    std::set<ResourceHandle> getAllShaderResourcesSet() const {
-        const auto fragResources = fragmentShader->getBoundResourcesSet();
-        const auto vertResources = vertexShader->getBoundResourcesSet();
+    std::set<ResourceHandle> get_all_shader_resources_set() const {
+        const auto frag_resources = fragment_shader->get_bound_resources_set();
+        const auto vert_resources = vertex_shader->get_bound_resources_set();
 
-        std::set result(fragResources.begin(), fragResources.end());
-        result.insert(vertResources.begin(), vertResources.end());
+        std::set result(frag_resources.begin(), frag_resources.end());
+        result.insert(vert_resources.begin(), vert_resources.end());
         return result;
     }
 };
 
 class RenderGraph {
     std::map<RenderNodeHandle, RenderNode> nodes;
-    std::map<RenderNodeHandle, std::set<RenderNodeHandle> > dependencyGraph;
+    std::map<RenderNodeHandle, std::set<RenderNodeHandle> > dependency_graph;
 
-    std::map<ResourceHandle, UniformBuffer> uniformBuffers;
-    std::map<ResourceHandle, ExternalTextureResource> externalResources;
-    std::map<ResourceHandle, TransientTextureResource> transientResources;
+    std::map<ResourceHandle, UniformBuffer> uniform_buffers;
+    std::map<ResourceHandle, ExternalTextureResource> external_resources;
+    std::map<ResourceHandle, TransientTextureResource> transient_resources;
 
-    RenderNodeHandle nextFreeNodeHandle = 0;
-    ResourceHandle nextFreeResourceHandle = 0;
+    RenderNodeHandle next_free_node_handle = 0;
+    ResourceHandle next_free_resource_handle = 0;
 
 public:
-    [[nodiscard]] const RenderNode &getNodeInfo(const RenderNodeHandle handle) { return nodes.at(handle); }
+    [[nodiscard]] const RenderNode &get_node_info(const RenderNodeHandle handle) { return nodes.at(handle); }
 
-    [[nodiscard]] vk::Format getTransientTextureFormat(const ResourceHandle handle) const {
+    [[nodiscard]] vk::Format get_transient_texture_format(const ResourceHandle handle) const {
         if (handle == FINAL_IMAGE_RESOURCE_HANDLE) {
             return vk::Format::eB8G8R8A8Srgb; // todo
         }
 
         try {
-            return transientResources.at(handle).format;
+            return transient_resources.at(handle).format;
         } catch (...) {
             throw std::invalid_argument("invalid handle in RenderGraph::getTextureResourceFormat");
         }
     }
 
-    [[nodiscard]] std::vector<RenderNodeHandle> getTopoSorted() const {
+    [[nodiscard]] std::vector<RenderNodeHandle> get_topo_sorted() const {
         std::vector<RenderNodeHandle> result;
 
         std::set<RenderNodeHandle> remaining;
@@ -155,7 +155,7 @@ public:
 
         while (!remaining.empty()) {
             for (const auto &handle: remaining) {
-                if (std::ranges::all_of(dependencyGraph.at(handle), [&](const RenderNodeHandle &dep) {
+                if (std::ranges::all_of(dependency_graph.at(handle), [&](const RenderNodeHandle &dep) {
                     return !remaining.contains(dep);
                 })) {
                     result.push_back(handle);
@@ -168,75 +168,75 @@ public:
         return result;
     }
 
-    RenderNodeHandle addNode(const RenderNode &node) {
-        const auto handle = nextFreeNodeHandle++;
+    RenderNodeHandle add_node(const RenderNode &node) {
+        const auto handle = next_free_node_handle++;
         nodes.emplace(handle, node);
 
-        const auto targetsSet = node.getAllTargetsSet();
-        const auto shaderResources = node.getAllShaderResourcesSet();
+        const auto targets_set = node.get_all_targets_set();
+        const auto shader_resources = node.get_all_shader_resources_set();
 
-        if (!detail::empty_intersection(targetsSet, shaderResources)) {
+        if (!detail::empty_intersection(targets_set, shader_resources)) {
             throw std::invalid_argument("invalid render node: cannot use a target as a shader resource!");
         }
 
         std::set<RenderNodeHandle> dependencies;
 
         // for each existing node A...
-        for (const auto &[otherHandle, otherNode]: nodes) {
-            const auto otherTargetsSet = otherNode.getAllTargetsSet();
-            const auto otherShaderResources = otherNode.getAllShaderResourcesSet();
+        for (const auto &[other_handle, other_node]: nodes) {
+            const auto other_targets_set = other_node.get_all_targets_set();
+            const auto other_shader_resources = other_node.get_all_shader_resources_set();
 
             // ...if any of the new node's targets is sampled in A,
             // then the new node is A's dependency.
-            if (!detail::empty_intersection(targetsSet, otherShaderResources)) {
-                dependencyGraph.at(otherHandle).emplace(handle);
+            if (!detail::empty_intersection(targets_set, other_shader_resources)) {
+                dependency_graph.at(other_handle).emplace(handle);
             }
 
             // and if the new node samples any of A's targets,
             // then A is the new node's dependency.
-            if (!detail::empty_intersection(otherTargetsSet, shaderResources)) {
-                dependencies.emplace(otherHandle);
+            if (!detail::empty_intersection(other_targets_set, shader_resources)) {
+                dependencies.emplace(other_handle);
             }
         }
 
-        dependencyGraph.emplace(handle, std::move(dependencies));
+        dependency_graph.emplace(handle, std::move(dependencies));
 
-        checkDependencyCycles();
+        check_dependency_cycles();
 
         return handle;
     }
 
     template<typename T>
-    ResourceHandle addUniformBuffer(UniformBuffer &&buffer) {
-        const auto handle = nextFreeResourceHandle++;
-        uniformBuffers.emplace(handle, buffer);
+    ResourceHandle add_uniform_buffer(UniformBuffer &&buffer) {
+        const auto handle = next_free_resource_handle++;
+        uniform_buffers.emplace(handle, buffer);
         return handle;
     }
 
-    ResourceHandle addExternalResource(ExternalTextureResource &&resource) {
-        const auto handle = nextFreeResourceHandle++;
-        externalResources.emplace(handle, resource);
+    ResourceHandle add_external_resource(ExternalTextureResource &&resource) {
+        const auto handle = next_free_resource_handle++;
+        external_resources.emplace(handle, resource);
         return handle;
     }
 
-    ResourceHandle addTransientResource(TransientTextureResource &&resource) {
-        const auto handle = nextFreeResourceHandle++;
-        transientResources.emplace(handle, resource);
+    ResourceHandle add_transient_resource(TransientTextureResource &&resource) {
+        const auto handle = next_free_resource_handle++;
+        transient_resources.emplace(handle, resource);
         return handle;
     }
 
 private:
-    void cyclesHelper(const RenderNodeHandle handle, std::set<RenderNodeHandle> &discovered,
+    void cycles_helper(const RenderNodeHandle handle, std::set<RenderNodeHandle> &discovered,
                       std::set<RenderNodeHandle> &finished) const {
         discovered.emplace(handle);
 
-        for (const auto &neighbour: dependencyGraph.at(handle)) {
+        for (const auto &neighbour: dependency_graph.at(handle)) {
             if (discovered.contains(neighbour)) {
                 throw std::invalid_argument("invalid render graph: illegal cycle in dependency graph!");
             }
 
             if (!finished.contains(neighbour)) {
-                cyclesHelper(neighbour, discovered, finished);
+                cycles_helper(neighbour, discovered, finished);
             }
         }
 
@@ -244,12 +244,12 @@ private:
         finished.emplace(handle);
     };
 
-    void checkDependencyCycles() const {
+    void check_dependency_cycles() const {
         std::set<RenderNodeHandle> discovered, finished;
 
         for (const auto &[handle, _]: nodes) {
             if (!discovered.contains(handle) && !finished.contains(handle)) {
-                cyclesHelper(handle, discovered, finished);
+                cycles_helper(handle, discovered, finished);
             }
         }
     }

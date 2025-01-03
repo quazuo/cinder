@@ -22,73 +22,73 @@ struct Mesh {
     std::vector<ModelVertex> vertices;
     std::vector<uint32_t> indices;
     std::vector<glm::mat4> instances;
-    uint32_t materialID;
+    uint32_t material_id;
 
-    explicit Mesh(const aiMesh *assimpMesh);
+    explicit Mesh(const aiMesh *assimp_mesh);
 };
 
 struct MeshDescription {
-    uint32_t materialID;
-    uint32_t vertexOffset;
-    uint32_t indexOffset;
+    uint32_t material_id;
+    uint32_t vertex_offset;
+    uint32_t index_offset;
 };
 
 struct Material {
-    unique_ptr<Texture> baseColor;
+    unique_ptr<Texture> base_color;
     unique_ptr<Texture> normal;
     unique_ptr<Texture> orm;
 
     Material() = default;
 
-    explicit Material(const RendererContext &ctx, const aiMaterial *assimpMaterial,
-                      const std::filesystem::path &basePath);
+    explicit Material(const RendererContext &ctx, const aiMaterial *assimp_material,
+                      const std::filesystem::path &base_path);
 };
 
 class Model {
     std::vector<Mesh> meshes;
     std::vector<Material> materials;
 
-    unique_ptr<Buffer> vertexBuffer;
-    unique_ptr<Buffer> instanceDataBuffer;
-    unique_ptr<Buffer> indexBuffer;
-    unique_ptr<Buffer> meshDescriptionsBuffer;
+    unique_ptr<Buffer> vertex_buffer;
+    unique_ptr<Buffer> instance_data_buffer;
+    unique_ptr<Buffer> index_buffer;
+    unique_ptr<Buffer> mesh_descriptions_buffer;
 
     unique_ptr<AccelerationStructure> blas;
 
 public:
-    explicit Model(const RendererContext &ctx, const std::filesystem::path &path, bool loadMaterials);
+    explicit Model(const RendererContext &ctx, const std::filesystem::path &path, bool load_materials);
 
-    void addInstances(const aiNode *node, const glm::mat4 &baseTransform);
+    void add_instances(const aiNode *node, const glm::mat4 &base_transform);
 
-    [[nodiscard]] const std::vector<Mesh> &getMeshes() const { return meshes; }
+    [[nodiscard]] const std::vector<Mesh> &get_meshes() const { return meshes; }
 
-    [[nodiscard]] const std::vector<Material> &getMaterials() const { return materials; }
+    [[nodiscard]] const std::vector<Material> &get_materials() const { return materials; }
 
-    [[nodiscard]] const Buffer &getVertexBuffer() const { return *vertexBuffer; }
+    [[nodiscard]] const Buffer &get_vertex_buffer() const { return *vertex_buffer; }
 
-    [[nodiscard]] const Buffer &getIndexBuffer() const { return *indexBuffer; }
+    [[nodiscard]] const Buffer &get_index_buffer() const { return *index_buffer; }
 
-    [[nodiscard]] const Buffer &getMeshDescriptionsBuffer() const { return *meshDescriptionsBuffer; }
+    [[nodiscard]] const Buffer &get_mesh_descriptions_buffer() const { return *mesh_descriptions_buffer; }
 
-    [[nodiscard]] std::vector<ModelVertex> getVertices() const;
+    [[nodiscard]] std::vector<ModelVertex> get_vertices() const;
 
-    [[nodiscard]] std::vector<uint32_t> getIndices() const;
+    [[nodiscard]] std::vector<uint32_t> get_indices() const;
 
-    [[nodiscard]] std::vector<glm::mat4> getInstanceTransforms() const;
+    [[nodiscard]] std::vector<glm::mat4> get_instance_transforms() const;
 
-    [[nodiscard]] std::vector<MeshDescription> getMeshDescriptions() const;
+    [[nodiscard]] std::vector<MeshDescription> get_mesh_descriptions() const;
 
-    [[nodiscard]] const vk::raii::AccelerationStructureKHR &getBLAS() const { return **blas; }
+    [[nodiscard]] const vk::raii::AccelerationStructureKHR &get_blas() const { return **blas; }
 
-    void bindBuffers(const vk::raii::CommandBuffer &commandBuffer) const;
+    void bind_buffers(const vk::raii::CommandBuffer &command_buffer) const;
 
 private:
-    void normalizeScale();
+    void normalize_scale();
 
-    void createBuffers(const RendererContext &ctx);
+    void create_buffers(const RendererContext &ctx);
 
-    void createBLAS(const RendererContext &ctx);
+    void create_blas(const RendererContext &ctx);
 
-    [[nodiscard]] float getMaxVertexDistance() const;
+    [[nodiscard]] float get_max_vertex_distance() const;
 };
 } // zrx

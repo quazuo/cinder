@@ -13,7 +13,7 @@ class VmaAllocatorWrapper {
     VmaAllocator_T* allocator{};
 
 public:
-    VmaAllocatorWrapper(vk::PhysicalDevice physicalDevice, vk::Device device, vk::Instance instance);
+    VmaAllocatorWrapper(vk::PhysicalDevice physical_device, vk::Device device, vk::Instance instance);
 
     ~VmaAllocatorWrapper();
 
@@ -34,10 +34,10 @@ public:
  * to get access to these.
  */
 struct RendererContext {
-    unique_ptr<vk::raii::PhysicalDevice> physicalDevice;
+    unique_ptr<vk::raii::PhysicalDevice> physical_device;
     unique_ptr<vk::raii::Device> device;
-    unique_ptr<vk::raii::CommandPool> commandPool;
-    unique_ptr<vk::raii::Queue> graphicsQueue;
+    unique_ptr<vk::raii::CommandPool> command_pool;
+    unique_ptr<vk::raii::Queue> graphics_queue;
     unique_ptr<VmaAllocatorWrapper> allocator;
 };
 } // zrx

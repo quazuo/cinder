@@ -11,11 +11,11 @@
 #include "src/render/vk/buffer.hpp"
 
 namespace zrx {
-static glm::vec3 assimpVecToGlm(const aiVector3D &v) {
+static glm::vec3 assimp_vec_to_glm(const aiVector3D &v) {
     return {v.x, v.y, v.z};
 }
 
-static glm::mat4 assimpMatrixToGlm(const aiMatrix4x4 &m) {
+static glm::mat4 assimp_matrix_to_glm(const aiMatrix4x4 &m) {
     glm::mat4 res;
 
     res[0][0] = m.a1;
@@ -41,138 +41,138 @@ static glm::mat4 assimpMatrixToGlm(const aiMatrix4x4 &m) {
     return res;
 }
 
-Mesh::Mesh(const aiMesh *assimpMesh) : materialID(assimpMesh->mMaterialIndex) {
-    std::unordered_map<ModelVertex, uint32_t> uniqueVertices;
+Mesh::Mesh(const aiMesh *assimp_mesh) : material_id(assimp_mesh->mMaterialIndex) {
+    std::unordered_map<ModelVertex, uint32_t> unique_vertices;
 
-    for (size_t faceIdx = 0; faceIdx < assimpMesh->mNumFaces; faceIdx++) {
-        const auto &face = assimpMesh->mFaces[faceIdx];
+    for (size_t faceIdx = 0; faceIdx < assimp_mesh->mNumFaces; faceIdx++) {
+        const auto &face = assimp_mesh->mFaces[faceIdx];
 
         for (size_t i = 0; i < face.mNumIndices; i++) {
             ModelVertex vertex{};
 
-            if (assimpMesh->HasPositions()) {
-                vertex.pos = assimpVecToGlm(assimpMesh->mVertices[face.mIndices[i]]);
+            if (assimp_mesh->HasPositions()) {
+                vertex.pos = assimp_vec_to_glm(assimp_mesh->mVertices[face.mIndices[i]]);
             }
 
-            if (assimpMesh->HasTextureCoords(0)) {
-                vertex.texCoord = {
-                    assimpMesh->mTextureCoords[0][face.mIndices[i]].x,
-                    1.0f - assimpMesh->mTextureCoords[0][face.mIndices[i]].y
+            if (assimp_mesh->HasTextureCoords(0)) {
+                vertex.tex_coord = {
+                    assimp_mesh->mTextureCoords[0][face.mIndices[i]].x,
+                    1.0f - assimp_mesh->mTextureCoords[0][face.mIndices[i]].y
                 };
             }
 
-            if (assimpMesh->HasTangentsAndBitangents()) {
-                vertex.normal = assimpVecToGlm(assimpMesh->mNormals[face.mIndices[i]]);
+            if (assimp_mesh->HasTangentsAndBitangents()) {
+                vertex.normal = assimp_vec_to_glm(assimp_mesh->mNormals[face.mIndices[i]]);
             }
 
-            if (assimpMesh->HasTangentsAndBitangents()) {
-                vertex.tangent   = assimpVecToGlm(assimpMesh->mTangents[face.mIndices[i]]);
-                vertex.bitangent = assimpVecToGlm(assimpMesh->mBitangents[face.mIndices[i]]);
+            if (assimp_mesh->HasTangentsAndBitangents()) {
+                vertex.tangent   = assimp_vec_to_glm(assimp_mesh->mTangents[face.mIndices[i]]);
+                vertex.bitangent = assimp_vec_to_glm(assimp_mesh->mBitangents[face.mIndices[i]]);
             }
 
-            if (!uniqueVertices.contains(vertex)) {
-                uniqueVertices[vertex] = vertices.size();
+            if (!unique_vertices.contains(vertex)) {
+                unique_vertices[vertex] = vertices.size();
                 vertices.push_back(vertex);
             }
 
-            indices.push_back(uniqueVertices.at(vertex));
+            indices.push_back(unique_vertices.at(vertex));
         }
     }
 }
 
-Material::Material(const RendererContext &ctx, const aiMaterial *assimpMaterial,
-                   const std::filesystem::path &basePath) {
+Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material,
+                   const std::filesystem::path &base_path) {
     // base color
 
-    aiString baseColorRelPath;
-    aiReturn result = assimpMaterial->GetTexture(aiTextureType_BASE_COLOR, 0, &baseColorRelPath);
+    aiString base_color_rel_path;
+    aiReturn result = assimp_material->GetTexture(aiTextureType_BASE_COLOR, 0, &base_color_rel_path);
 
     if (result == aiReturn_SUCCESS) {
-        auto path = basePath;
-        path /= baseColorRelPath.C_Str();
+        auto path = base_path;
+        path /= base_color_rel_path.C_Str();
         path.make_preferred();
 
         try {
-            baseColor = TextureBuilder()
-                    .makeMipmaps()
-                    .fromPaths({path})
+            base_color = TextureBuilder()
+                    .make_mipmaps()
+                    .from_paths({path})
                     .create(ctx);
         } catch (std::exception &e) {
             std::cerr << "failed to allocate buffer for texture: " << path << std::endl;
-            baseColor = nullptr;
+            base_color = nullptr;
         }
     }
 
     // normal map
 
-    aiString normalRelPath;
-    if (assimpMaterial->GetTexture(aiTextureType_NORMALS, 0, &normalRelPath) != aiReturn_SUCCESS) {
-        result = assimpMaterial->GetTexture(aiTextureType_NORMAL_CAMERA, 0, &normalRelPath);
+    aiString normal_rel_path;
+    if (assimp_material->GetTexture(aiTextureType_NORMALS, 0, &normal_rel_path) != aiReturn_SUCCESS) {
+        result = assimp_material->GetTexture(aiTextureType_NORMAL_CAMERA, 0, &normal_rel_path);
     }
 
     if (result == aiReturn_SUCCESS) {
-        auto path = basePath;
-        path /= normalRelPath.C_Str();
+        auto path = base_path;
+        path /= normal_rel_path.C_Str();
         path.make_preferred();
 
         normal = TextureBuilder()
-                .useFormat(vk::Format::eR8G8B8A8Unorm)
-                .fromPaths({path})
-                .makeMipmaps()
+                .use_format(vk::Format::eR8G8B8A8Unorm)
+                .from_paths({path})
+                .make_mipmaps()
                 .create(ctx);
     }
 
     // orm
 
-    std::filesystem::path aoPath, roughnessPath, metallicPath;
+    std::filesystem::path ao_path, roughness_path, metallic_path;
 
-    aiString aoRelPath;
-    if (assimpMaterial->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0, &aoRelPath) == aiReturn_SUCCESS) {
-        aoPath = basePath;
-        aoPath /= aoRelPath.C_Str();
-        aoPath.make_preferred();
+    aiString ao_rel_path;
+    if (assimp_material->GetTexture(aiTextureType_AMBIENT_OCCLUSION, 0, &ao_rel_path) == aiReturn_SUCCESS) {
+        ao_path = base_path;
+        ao_path /= ao_rel_path.C_Str();
+        ao_path.make_preferred();
     }
 
-    aiString roughnessRelPath;
-    if (assimpMaterial->GetTexture(aiTextureType_DIFFUSE_ROUGHNESS, 0, &roughnessRelPath) == aiReturn_SUCCESS) {
-        roughnessPath = basePath;
-        roughnessPath /= roughnessRelPath.C_Str();
-        roughnessPath.make_preferred();
+    aiString roughness_rel_path;
+    if (assimp_material->GetTexture(aiTextureType_DIFFUSE_ROUGHNESS, 0, &roughness_rel_path) == aiReturn_SUCCESS) {
+        roughness_path = base_path;
+        roughness_path /= roughness_rel_path.C_Str();
+        roughness_path.make_preferred();
     }
 
-    aiString metallicRelPath;
-    if (assimpMaterial->GetTexture(aiTextureType_METALNESS, 0, &metallicRelPath) == aiReturn_SUCCESS) {
-        metallicPath = basePath;
-        metallicPath /= metallicRelPath.C_Str();
-        metallicPath.make_preferred();
+    aiString metallic_rel_path;
+    if (assimp_material->GetTexture(aiTextureType_METALNESS, 0, &metallic_rel_path) == aiReturn_SUCCESS) {
+        metallic_path = base_path;
+        metallic_path /= metallic_rel_path.C_Str();
+        metallic_path.make_preferred();
     }
 
-    auto ormBuilder = TextureBuilder()
-            .useFormat(vk::Format::eR8G8B8A8Unorm)
-            .makeMipmaps()
-            .withSwizzle({
-                aoPath.empty() ? SwizzleComponent::MAX : SwizzleComponent::R,
-                roughnessPath.empty() ? SwizzleComponent::MAX : SwizzleComponent::G,
-                metallicPath.empty() ? SwizzleComponent::ZERO : SwizzleComponent::B,
+    auto orm_builder = TextureBuilder()
+            .use_format(vk::Format::eR8G8B8A8Unorm)
+            .make_mipmaps()
+            .with_swizzle({
+                ao_path.empty() ? SwizzleComponent::MAX : SwizzleComponent::R,
+                roughness_path.empty() ? SwizzleComponent::MAX : SwizzleComponent::G,
+                metallic_path.empty() ? SwizzleComponent::ZERO : SwizzleComponent::B,
                 SwizzleComponent::MAX,
             });
 
-    if (aoPath.empty() && roughnessPath.empty() && metallicPath.empty()) {
-        ormBuilder.fromSwizzleFill({1, 1, 1});
-    } else if (!aoPath.empty() && (aoPath == roughnessPath || aoPath == metallicPath)) {
-        ormBuilder.fromPaths({aoPath});
-    } else if (!roughnessPath.empty() && (roughnessPath == aoPath || roughnessPath == metallicPath)) {
-        ormBuilder.fromPaths({roughnessPath});
-    } else if (!metallicPath.empty() && (metallicPath == aoPath || metallicPath == roughnessPath)) {
-        ormBuilder.fromPaths({metallicPath});
+    if (ao_path.empty() && roughness_path.empty() && metallic_path.empty()) {
+        orm_builder.from_swizzle_fill({1, 1, 1});
+    } else if (!ao_path.empty() && (ao_path == roughness_path || ao_path == metallic_path)) {
+        orm_builder.from_paths({ao_path});
+    } else if (!roughness_path.empty() && (roughness_path == ao_path || roughness_path == metallic_path)) {
+        orm_builder.from_paths({roughness_path});
+    } else if (!metallic_path.empty() && (metallic_path == ao_path || metallic_path == roughness_path)) {
+        orm_builder.from_paths({metallic_path});
     } else {
-        ormBuilder.asSeparateChannels().fromPaths({aoPath, roughnessPath, metallicPath});
+        orm_builder.as_separate_channels().from_paths({ao_path, roughness_path, metallic_path});
     }
 
-    orm = ormBuilder.create(ctx);
+    orm = orm_builder.create(ctx);
 }
 
-Model::Model(const RendererContext &ctx, const std::filesystem::path &path, const bool loadMaterials) {
+Model::Model(const RendererContext &ctx, const std::filesystem::path &path, const bool load_materials) {
     Assimp::Importer importer;
 
     const aiScene *scene = importer.ReadFile(
@@ -194,55 +194,55 @@ Model::Model(const RendererContext &ctx, const std::filesystem::path &path, cons
         throw std::runtime_error(importer.GetErrorString());
     }
 
-    if (loadMaterials) {
+    if (load_materials) {
         constexpr size_t MAX_MATERIAL_COUNT = 32;
         if (scene->mNumMaterials > MAX_MATERIAL_COUNT) {
             throw std::runtime_error("Models with more than 32 materials are not supported");
         }
 
         for (size_t i = 0; i < scene->mNumMaterials; i++) {
-            std::filesystem::path basePath = path.parent_path();
-            materials.emplace_back(ctx, scene->mMaterials[i], basePath);
+            std::filesystem::path base_path = path.parent_path();
+            materials.emplace_back(ctx, scene->mMaterials[i], base_path);
         }
     }
 
     for (size_t i = 0; i < scene->mNumMeshes; i++) {
         meshes.emplace_back(scene->mMeshes[i]);
 
-        if (!loadMaterials) {
-            meshes.back().materialID = 0;
+        if (!load_materials) {
+            meshes.back().material_id = 0;
         }
     }
 
-    addInstances(scene->mRootNode, glm::identity<glm::mat4>());
+    add_instances(scene->mRootNode, glm::identity<glm::mat4>());
 
-    normalizeScale();
+    normalize_scale();
 
-    createBuffers(ctx);
-    createBLAS(ctx);
+    create_buffers(ctx);
+    create_blas(ctx);
 }
 
-void Model::addInstances(const aiNode *node, const glm::mat4 &baseTransform) {
-    const glm::mat4 transform = baseTransform * assimpMatrixToGlm(node->mTransformation);
+void Model::add_instances(const aiNode *node, const glm::mat4 &base_transform) {
+    const glm::mat4 transform = base_transform * assimp_matrix_to_glm(node->mTransformation);
 
     for (size_t i = 0; i < node->mNumMeshes; i++) {
         meshes[node->mMeshes[i]].instances.push_back(transform);
     }
 
     for (size_t i = 0; i < node->mNumChildren; i++) {
-        addInstances(node->mChildren[i], transform);
+        add_instances(node->mChildren[i], transform);
     }
 }
 
-std::vector<ModelVertex> Model::getVertices() const {
+std::vector<ModelVertex> Model::get_vertices() const {
     std::vector<ModelVertex> vertices;
 
-    size_t totalSize = 0;
+    size_t total_size = 0;
     for (const auto &mesh: meshes) {
-        totalSize += mesh.vertices.size();
+        total_size += mesh.vertices.size();
     }
 
-    vertices.reserve(totalSize);
+    vertices.reserve(total_size);
 
     for (const auto &mesh: meshes) {
         vertices.insert(vertices.end(), mesh.vertices.begin(), mesh.vertices.end());
@@ -251,15 +251,15 @@ std::vector<ModelVertex> Model::getVertices() const {
     return vertices;
 }
 
-std::vector<uint32_t> Model::getIndices() const {
+std::vector<uint32_t> Model::get_indices() const {
     std::vector<uint32_t> indices;
 
-    size_t totalSize = 0;
+    size_t total_size = 0;
     for (const auto &mesh: meshes) {
-        totalSize += mesh.indices.size();
+        total_size += mesh.indices.size();
     }
 
-    indices.reserve(totalSize);
+    indices.reserve(total_size);
 
     for (const auto &mesh: meshes) {
         indices.insert(indices.end(), mesh.indices.begin(), mesh.indices.end());
@@ -268,15 +268,15 @@ std::vector<uint32_t> Model::getIndices() const {
     return indices;
 }
 
-std::vector<glm::mat4> Model::getInstanceTransforms() const {
+std::vector<glm::mat4> Model::get_instance_transforms() const {
     std::vector<glm::mat4> result;
 
-    size_t totalSize = 0;
+    size_t total_size = 0;
     for (const auto &mesh: meshes) {
-        totalSize += mesh.instances.size();
+        total_size += mesh.instances.size();
     }
 
-    result.reserve(totalSize);
+    result.reserve(total_size);
 
     for (const auto &mesh: meshes) {
         result.insert(result.end(), mesh.instances.begin(), mesh.instances.end());
@@ -285,84 +285,84 @@ std::vector<glm::mat4> Model::getInstanceTransforms() const {
     return result;
 }
 
-std::vector<MeshDescription> Model::getMeshDescriptions() const {
+std::vector<MeshDescription> Model::get_mesh_descriptions() const {
     std::vector<MeshDescription> result;
 
-    uint32_t indexOffset = 0;
-    uint32_t vertexOffset = 0;
+    uint32_t index_offset  = 0;
+    uint32_t vertex_offset = 0;
 
     for (const auto &mesh: meshes) {
-        result.emplace_back(MeshDescription {
-            .materialID = mesh.materialID,
-            .vertexOffset = vertexOffset,
-            .indexOffset = indexOffset,
+        result.emplace_back(MeshDescription{
+            .material_id = mesh.material_id,
+            .vertex_offset = vertex_offset,
+            .index_offset = index_offset,
         });
 
-        indexOffset += static_cast<uint32_t>(mesh.indices.size());
-        vertexOffset += static_cast<std::int32_t>(mesh.vertices.size());
+        index_offset += static_cast<uint32_t>(mesh.indices.size());
+        vertex_offset += static_cast<std::int32_t>(mesh.vertices.size());
     }
 
     return result;
 }
 
-void Model::bindBuffers(const vk::raii::CommandBuffer &commandBuffer) const {
-    commandBuffer.bindVertexBuffers(0, **vertexBuffer, {0});
-    commandBuffer.bindVertexBuffers(1, **instanceDataBuffer, {0});
-    commandBuffer.bindIndexBuffer(**indexBuffer, 0, vk::IndexType::eUint32);
+void Model::bind_buffers(const vk::raii::CommandBuffer &command_buffer) const {
+    command_buffer.bindVertexBuffers(0, **vertex_buffer, {0});
+    command_buffer.bindVertexBuffers(1, **instance_data_buffer, {0});
+    command_buffer.bindIndexBuffer(**index_buffer, 0, vk::IndexType::eUint32);
 }
 
-void Model::createBuffers(const RendererContext &ctx) {
-    constexpr auto rayTracingFlags = vk::BufferUsageFlagBits::eStorageBuffer
-                                     | vk::BufferUsageFlagBits::eShaderDeviceAddress
-                                     | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR;
+void Model::create_buffers(const RendererContext &ctx) {
+    constexpr auto ray_tracing_flags = vk::BufferUsageFlagBits::eStorageBuffer
+                                       | vk::BufferUsageFlagBits::eShaderDeviceAddress
+                                       | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR;
 
-    vertexBuffer = utils::buf::createLocalBuffer(
+    vertex_buffer = utils::buf::create_local_buffer(
         ctx,
-        getVertices(),
-        vk::BufferUsageFlagBits::eVertexBuffer | rayTracingFlags
+        get_vertices(),
+        vk::BufferUsageFlagBits::eVertexBuffer | ray_tracing_flags
     );
 
-    instanceDataBuffer = utils::buf::createLocalBuffer(
+    instance_data_buffer = utils::buf::create_local_buffer(
         ctx,
-        getInstanceTransforms(),
-        vk::BufferUsageFlagBits::eVertexBuffer | rayTracingFlags
+        get_instance_transforms(),
+        vk::BufferUsageFlagBits::eVertexBuffer | ray_tracing_flags
     );
 
-    indexBuffer = utils::buf::createLocalBuffer(
+    index_buffer = utils::buf::create_local_buffer(
         ctx,
-        getIndices(),
-        vk::BufferUsageFlagBits::eIndexBuffer | rayTracingFlags
+        get_indices(),
+        vk::BufferUsageFlagBits::eIndexBuffer | ray_tracing_flags
     );
 
-    meshDescriptionsBuffer = utils::buf::createLocalBuffer(
+    mesh_descriptions_buffer = utils::buf::create_local_buffer(
         ctx,
-        getMeshDescriptions(),
-        rayTracingFlags
+        get_mesh_descriptions(),
+        ray_tracing_flags
     );
 }
 
-void Model::createBLAS(const RendererContext &ctx) {
-    const vk::DeviceAddress vertexAddress = ctx.device->getBufferAddress({.buffer = **vertexBuffer});
-    const vk::DeviceAddress indexAddress  = ctx.device->getBufferAddress({.buffer = **indexBuffer});
+void Model::create_blas(const RendererContext &ctx) {
+    const vk::DeviceAddress vertex_address = ctx.device->getBufferAddress({.buffer = **vertex_buffer});
+    const vk::DeviceAddress index_address  = ctx.device->getBufferAddress({.buffer = **index_buffer});
 
-    const uint32_t maxPrimitiveCount = getIndices().size() / 3;
+    const uint32_t max_primitive_count = get_indices().size() / 3;
 
-    const vk::AccelerationStructureGeometryTrianglesDataKHR geometryTriangles{
+    const vk::AccelerationStructureGeometryTrianglesDataKHR geometry_triangles{
         .vertexFormat = vk::Format::eR32G32B32Sfloat,
-        .vertexData = vertexAddress,
+        .vertexData = vertex_address,
         .vertexStride = sizeof(ModelVertex),
-        .maxVertex = static_cast<uint32_t>(getVertices().size() - 1),
+        .maxVertex = static_cast<uint32_t>(get_vertices().size() - 1),
         .indexType = vk::IndexType::eUint32,
-        .indexData = indexAddress,
+        .indexData = index_address,
     };
 
     const vk::AccelerationStructureGeometryKHR geometry{
         .geometryType = vk::GeometryTypeKHR::eTriangles,
-        .geometry = geometryTriangles,
+        .geometry = geometry_triangles,
         .flags = vk::GeometryFlagBitsKHR::eOpaque,
     };
 
-    vk::AccelerationStructureBuildGeometryInfoKHR geometryInfo{
+    vk::AccelerationStructureBuildGeometryInfoKHR geometry_info{
         .type = vk::AccelerationStructureTypeKHR::eBottomLevel,
         .flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace,
         .mode = vk::BuildAccelerationStructureModeKHR::eBuild,
@@ -370,91 +370,91 @@ void Model::createBLAS(const RendererContext &ctx) {
         .pGeometries = &geometry,
     };
 
-    const vk::AccelerationStructureBuildRangeInfoKHR rangeInfo{
-        .primitiveCount = maxPrimitiveCount,
+    const vk::AccelerationStructureBuildRangeInfoKHR range_info{
+        .primitiveCount = max_primitive_count,
         .primitiveOffset = 0,
         .firstVertex = 0,
         .transformOffset = 0,
     };
 
-    const auto buildSizes = ctx.device->getAccelerationStructureBuildSizesKHR(
+    const auto build_sizes = ctx.device->getAccelerationStructureBuildSizesKHR(
         vk::AccelerationStructureBuildTypeKHR::eDevice,
-        geometryInfo,
-        maxPrimitiveCount
+        geometry_info,
+        max_primitive_count
     );
 
     // scratch buffer creation
 
-    const Buffer scratchBuffer{
+    const Buffer scratch_buffer{
         **ctx.allocator,
-        buildSizes.buildScratchSize,
+        build_sizes.buildScratchSize,
         vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer,
         vk::MemoryPropertyFlagBits::eDeviceLocal
     };
 
-    geometryInfo.scratchData = ctx.device->getBufferAddress({.buffer = *scratchBuffer});
+    geometry_info.scratchData = ctx.device->getBufferAddress({.buffer = *scratch_buffer});
 
     // acceleration structure creation
 
-    const uint32_t accelerationStructureSize = buildSizes.accelerationStructureSize;
+    const uint32_t acceleration_structure_size = build_sizes.accelerationStructureSize;
 
-    auto blasBuffer = make_unique<Buffer>(
+    auto blas_buffer = make_unique<Buffer>(
         **ctx.allocator,
-        accelerationStructureSize,
+        acceleration_structure_size,
         vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR,
         vk::MemoryPropertyFlagBits::eDeviceLocal
     );
 
-    const vk::AccelerationStructureCreateInfoKHR asCreateInfo{
-        .buffer = **blasBuffer,
-        .size = accelerationStructureSize,
+    const vk::AccelerationStructureCreateInfoKHR as_create_info{
+        .buffer = **blas_buffer,
+        .size = acceleration_structure_size,
         .type = vk::AccelerationStructureTypeKHR::eBottomLevel,
     };
 
-    auto blasHandle = make_unique<vk::raii::AccelerationStructureKHR>(
-        ctx.device->createAccelerationStructureKHR(asCreateInfo)
+    auto blas_handle = make_unique<vk::raii::AccelerationStructureKHR>(
+        ctx.device->createAccelerationStructureKHR(as_create_info)
     );
 
-    geometryInfo.dstAccelerationStructure = **blasHandle;
+    geometry_info.dstAccelerationStructure = **blas_handle;
 
     blas = make_unique<AccelerationStructure>(
-        std::move(blasHandle),
-        std::move(blasBuffer)
+        std::move(blas_handle),
+        std::move(blas_buffer)
     );
 
     // todo - compact
 
-    utils::cmd::doSingleTimeCommands(ctx, [&](const vk::raii::CommandBuffer &commandBuffer) {
-        commandBuffer.buildAccelerationStructuresKHR(geometryInfo, &rangeInfo);
+    utils::cmd::do_single_time_commands(ctx, [&](const vk::raii::CommandBuffer &command_buffer) {
+        command_buffer.buildAccelerationStructuresKHR(geometry_info, &range_info);
     });
 }
 
-void Model::normalizeScale() {
-    constexpr float standardScale = 10.0f;
-    const float largestDistance   = getMaxVertexDistance();
-    const glm::mat4 scaleMatrix   = glm::scale(glm::identity<glm::mat4>(), glm::vec3(standardScale / largestDistance));
+void Model::normalize_scale() {
+    constexpr float standard_scale = 10.0f;
+    const float largest_distance = get_max_vertex_distance();
+    const glm::mat4 scale_matrix = glm::scale(glm::identity<glm::mat4>(), glm::vec3(standard_scale / largest_distance));
 
     for (auto &mesh: meshes) {
         for (auto &transform: mesh.instances) {
-            transform = scaleMatrix * transform;
+            transform = scale_matrix * transform;
         }
     }
 }
 
-float Model::getMaxVertexDistance() const {
-    float largestDistance = 0.0;
+float Model::get_max_vertex_distance() const {
+    float largest_distance = 0.0;
 
     for (const auto &mesh: meshes) {
         for (const auto &vertex: mesh.vertices) {
             for (const auto &transform: mesh.instances) {
-                largestDistance = std::max(
-                    largestDistance,
+                largest_distance = std::max(
+                    largest_distance,
                     glm::length(glm::vec3(transform * glm::vec4(vertex.pos, 1.0)))
                 );
             }
         }
     }
 
-    return largestDistance;
+    return largest_distance;
 }
 }

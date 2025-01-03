@@ -7,74 +7,74 @@
 #include "ctx.hpp"
 
 namespace zrx {
-SwapChainSupportDetails::SwapChainSupportDetails(const vk::raii::PhysicalDevice &physicalDevice,
+SwapChainSupportDetails::SwapChainSupportDetails(const vk::raii::PhysicalDevice &physical_device,
                                                  const vk::raii::SurfaceKHR &surface)
-    : capabilities(physicalDevice.getSurfaceCapabilitiesKHR(*surface)),
-      formats(physicalDevice.getSurfaceFormatsKHR(*surface)),
-      presentModes(physicalDevice.getSurfacePresentModesKHR(*surface)) {
+    : capabilities(physical_device.getSurfaceCapabilitiesKHR(*surface)),
+      formats(physical_device.getSurfaceFormatsKHR(*surface)),
+      present_modes(physical_device.getSurfacePresentModesKHR(*surface)) {
 }
 
 SwapChain::SwapChain(const RendererContext &ctx, const vk::raii::SurfaceKHR &surface,
-                     const QueueFamilyIndices &queueFamilies, GLFWwindow *window,
-                     vk::SampleCountFlagBits sampleCount) : msaaSampleCount(sampleCount) {
-    const auto [capabilities, formats, presentModes] = SwapChainSupportDetails{*ctx.physicalDevice, surface};
+                     const QueueFamilyIndices &queue_families, GLFWwindow *window,
+                     vk::SampleCountFlagBits sample_count) : msaa_sample_count(sample_count) {
+    const auto [capabilities, formats, present_modes] = SwapChainSupportDetails{*ctx.physical_device, surface};
 
-    extent = chooseExtent(capabilities, window);
+    extent = choose_extent(capabilities, window);
 
-    const vk::SurfaceFormatKHR surfaceFormat = chooseSurfaceFormat(formats);
-    imageFormat = surfaceFormat.format;
+    const vk::SurfaceFormatKHR surface_format = choose_surface_format(formats);
+    image_format = surface_format.format;
 
-    const vk::PresentModeKHR presentMode = choosePresentMode(presentModes);
+    const vk::PresentModeKHR present_mode = choose_present_mode(present_modes);
 
-    const auto &[graphicsComputeFamily, presentFamily] = queueFamilies;
-    const uint32_t queueFamilyIndices[] = {graphicsComputeFamily.value(), presentFamily.value()};
-    const bool isUniformFamily = graphicsComputeFamily == presentFamily;
+    const auto &[graphics_compute_family, present_family] = queue_families;
+    const uint32_t queue_family_indices[] = {graphics_compute_family.value(), present_family.value()};
+    const bool is_uniform_family = graphics_compute_family == present_family;
 
-    const vk::SwapchainCreateInfoKHR createInfo{
+    const vk::SwapchainCreateInfoKHR create_info{
         .surface = *surface,
-        .minImageCount = getImageCount(ctx, surface),
-        .imageFormat = surfaceFormat.format,
-        .imageColorSpace = surfaceFormat.colorSpace,
+        .minImageCount = get_image_count(ctx, surface),
+        .imageFormat = surface_format.format,
+        .imageColorSpace = surface_format.colorSpace,
         .imageExtent = extent,
         .imageArrayLayers = 1,
         .imageUsage = vk::ImageUsageFlagBits::eColorAttachment,
-        .imageSharingMode = isUniformFamily ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
-        .queueFamilyIndexCount = isUniformFamily ? 0u : 2u,
-        .pQueueFamilyIndices = isUniformFamily ? nullptr : queueFamilyIndices,
+        .imageSharingMode = is_uniform_family ? vk::SharingMode::eExclusive : vk::SharingMode::eConcurrent,
+        .queueFamilyIndexCount = is_uniform_family ? 0u : 2u,
+        .pQueueFamilyIndices = is_uniform_family ? nullptr : queue_family_indices,
         .preTransform = capabilities.currentTransform,
         .compositeAlpha = vk::CompositeAlphaFlagBitsKHR::eOpaque,
-        .presentMode = presentMode,
+        .presentMode = present_mode,
         .clipped = vk::True,
     };
 
-    swapChain = make_unique<vk::raii::SwapchainKHR>(ctx.device->createSwapchainKHR(createInfo));
-    images = swapChain->getImages();
+    swap_chain = make_unique<vk::raii::SwapchainKHR>(ctx.device->createSwapchainKHR(create_info));
+    images = swap_chain->getImages();
 
-    createColorResources(ctx);
+    create_color_resources(ctx);
 
-    depthFormat = findDepthFormat(ctx);
-    createDepthResources(ctx);
+    depth_format = find_depth_format(ctx);
+    create_depth_resources(ctx);
 }
 
-uint32_t SwapChain::getImageCount(const RendererContext &ctx, const vk::raii::SurfaceKHR &surface) {
-    const auto [capabilities, formats, presentModes] = SwapChainSupportDetails{*ctx.physicalDevice, surface};
+uint32_t SwapChain::get_image_count(const RendererContext &ctx, const vk::raii::SurfaceKHR &surface) {
+    const auto [capabilities, formats, present_modes] = SwapChainSupportDetails{*ctx.physical_device, surface};
 
-    uint32_t imageCount = capabilities.minImageCount + 1;
-    if (capabilities.maxImageCount > 0 && imageCount > capabilities.maxImageCount) {
-        imageCount = capabilities.maxImageCount;
+    uint32_t image_count = capabilities.minImageCount + 1;
+    if (capabilities.maxImageCount > 0 && image_count > capabilities.maxImageCount) {
+        image_count = capabilities.maxImageCount;
     }
 
-    return imageCount;
+    return image_count;
 }
 
-void SwapChain::transitionToAttachmentLayout(const vk::raii::CommandBuffer &commandBuffer) const {
+void SwapChain::transition_to_attachment_layout(const vk::raii::CommandBuffer &command_buffer) const {
     const vk::ImageMemoryBarrier barrier{
         .dstAccessMask = vk::AccessFlagBits::eColorAttachmentWrite,
         .oldLayout = vk::ImageLayout::eUndefined,
         .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
         .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
         .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .image = images[currentImageIndex],
+        .image = images[current_image_index],
         .subresourceRange = {
             .aspectMask = vk::ImageAspectFlagBits::eColor,
             .baseMipLevel = 0,
@@ -84,7 +84,7 @@ void SwapChain::transitionToAttachmentLayout(const vk::raii::CommandBuffer &comm
         }
     };
 
-    commandBuffer.pipelineBarrier(
+    command_buffer.pipelineBarrier(
         vk::PipelineStageFlagBits::eTopOfPipe,
         vk::PipelineStageFlagBits::eColorAttachmentOutput,
         {},
@@ -94,14 +94,14 @@ void SwapChain::transitionToAttachmentLayout(const vk::raii::CommandBuffer &comm
     );
 }
 
-void SwapChain::transitionToPresentLayout(const vk::raii::CommandBuffer &commandBuffer) const {
+void SwapChain::transition_to_present_layout(const vk::raii::CommandBuffer &command_buffer) const {
     const vk::ImageMemoryBarrier barrier{
         .srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite,
         .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
         .newLayout = vk::ImageLayout::ePresentSrcKHR,
         .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
         .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .image = images[currentImageIndex],
+        .image = images[current_image_index],
         .subresourceRange = {
             .aspectMask = vk::ImageAspectFlagBits::eColor,
             .baseMipLevel = 0,
@@ -111,7 +111,7 @@ void SwapChain::transitionToPresentLayout(const vk::raii::CommandBuffer &command
         }
     };
 
-    commandBuffer.pipelineBarrier(
+    command_buffer.pipelineBarrier(
         vk::PipelineStageFlagBits::eColorAttachmentOutput,
         vk::PipelineStageFlagBits::eBottomOfPipe,
         {},
@@ -121,17 +121,17 @@ void SwapChain::transitionToPresentLayout(const vk::raii::CommandBuffer &command
     );
 }
 
-std::pair<vk::Result, uint32_t> SwapChain::acquireNextImage(const vk::raii::Semaphore &semaphore) {
+std::pair<vk::Result, uint32_t> SwapChain::acquire_next_image(const vk::raii::Semaphore &semaphore) {
     try {
-        const auto &[result, imageIndex] = swapChain->acquireNextImage(UINT64_MAX, *semaphore);
-        currentImageIndex = imageIndex;
-        return {result, imageIndex};
+        const auto &[result, image_index] = swap_chain->acquireNextImage(UINT64_MAX, *semaphore);
+        current_image_index = image_index;
+        return {result, image_index};
     } catch (...) {
         return {vk::Result::eErrorOutOfDateKHR, 0};
     }
 }
 
-vk::Extent2D SwapChain::chooseExtent(const vk::SurfaceCapabilitiesKHR &capabilities, GLFWwindow *window) {
+vk::Extent2D SwapChain::choose_extent(const vk::SurfaceCapabilitiesKHR &capabilities, GLFWwindow *window) {
     if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
         return capabilities.currentExtent;
     }
@@ -139,56 +139,56 @@ vk::Extent2D SwapChain::chooseExtent(const vk::SurfaceCapabilitiesKHR &capabilit
     int width, height;
     glfwGetFramebufferSize(window, &width, &height);
 
-    const uint32_t actualExtentWidth = std::clamp(
+    const uint32_t actual_extent_width = std::clamp(
         static_cast<uint32_t>(width),
         capabilities.minImageExtent.width,
         capabilities.maxImageExtent.width
     );
-    const uint32_t actualExtentHeight = std::clamp(
+    const uint32_t actual_extent_height = std::clamp(
         static_cast<uint32_t>(height),
         capabilities.minImageExtent.height,
         capabilities.maxImageExtent.height
     );
 
     return {
-        actualExtentWidth,
-        actualExtentHeight
+        actual_extent_width,
+        actual_extent_height
     };
 }
 
-vk::SurfaceFormatKHR SwapChain::chooseSurfaceFormat(const std::vector<vk::SurfaceFormatKHR> &availableFormats) {
-    if (availableFormats.empty()) {
+vk::SurfaceFormatKHR SwapChain::choose_surface_format(const std::vector<vk::SurfaceFormatKHR> &available_formats) {
+    if (available_formats.empty()) {
         throw std::runtime_error("unexpected empty list of available formats");
     }
 
-    for (const auto &availableFormat: availableFormats) {
+    for (const auto &available_format: available_formats) {
         if (
-            availableFormat.format == vk::Format::eB8G8R8A8Unorm
-            && availableFormat.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear
+            available_format.format == vk::Format::eB8G8R8A8Unorm
+            && available_format.colorSpace == vk::ColorSpaceKHR::eSrgbNonlinear
         ) {
-            return availableFormat;
+            return available_format;
         }
     }
 
-    return availableFormats[0];
+    return available_formats[0];
 }
 
-vk::PresentModeKHR SwapChain::choosePresentMode(const std::vector<vk::PresentModeKHR> &availablePresentModes) {
-    for (const auto &availablePresentMode: availablePresentModes) {
-        if (availablePresentMode == vk::PresentModeKHR::eMailbox) {
-            return availablePresentMode;
+vk::PresentModeKHR SwapChain::choose_present_mode(const std::vector<vk::PresentModeKHR> &available_present_modes) {
+    for (const auto &available_present_mode: available_present_modes) {
+        if (available_present_mode == vk::PresentModeKHR::eMailbox) {
+            return available_present_mode;
         }
     }
 
     return vk::PresentModeKHR::eFifo;
 }
 
-void SwapChain::createColorResources(const RendererContext &ctx) {
-    const vk::Format colorFormat = imageFormat;
+void SwapChain::create_color_resources(const RendererContext &ctx) {
+    const vk::Format color_format = image_format;
 
-    const vk::ImageCreateInfo imageInfo{
+    const vk::ImageCreateInfo image_info{
         .imageType = vk::ImageType::e2D,
-        .format = colorFormat,
+        .format = color_format,
         .extent = {
             .width = extent.width,
             .height = extent.height,
@@ -196,25 +196,25 @@ void SwapChain::createColorResources(const RendererContext &ctx) {
         },
         .mipLevels = 1,
         .arrayLayers = 1,
-        .samples = msaaSampleCount,
+        .samples = msaa_sample_count,
         .tiling = vk::ImageTiling::eOptimal,
         .usage = vk::ImageUsageFlagBits::eTransientAttachment | vk::ImageUsageFlagBits::eColorAttachment,
         .sharingMode = vk::SharingMode::eExclusive,
         .initialLayout = vk::ImageLayout::eUndefined,
     };
 
-    colorImage = make_unique<Image>(
+    color_image = make_unique<Image>(
         ctx,
-        imageInfo,
+        image_info,
         vk::MemoryPropertyFlagBits::eDeviceLocal,
         vk::ImageAspectFlagBits::eColor
     );
 }
 
-void SwapChain::createDepthResources(const RendererContext &ctx) {
-    const vk::ImageCreateInfo imageInfo{
+void SwapChain::create_depth_resources(const RendererContext &ctx) {
+    const vk::ImageCreateInfo image_info{
         .imageType = vk::ImageType::e2D,
-        .format = depthFormat,
+        .format = depth_format,
         .extent = {
             .width = extent.width,
             .height = extent.height,
@@ -222,64 +222,64 @@ void SwapChain::createDepthResources(const RendererContext &ctx) {
         },
         .mipLevels = 1,
         .arrayLayers = 1,
-        .samples = msaaSampleCount,
+        .samples = msaa_sample_count,
         .tiling = vk::ImageTiling::eOptimal,
         .usage = vk::ImageUsageFlagBits::eDepthStencilAttachment,
         .sharingMode = vk::SharingMode::eExclusive,
         .initialLayout = vk::ImageLayout::eUndefined,
     };
 
-    depthImage = make_unique<Image>(
+    depth_image = make_unique<Image>(
         ctx,
-        imageInfo,
+        image_info,
         vk::MemoryPropertyFlagBits::eDeviceLocal,
         vk::ImageAspectFlagBits::eDepth
     );
 }
 
-std::vector<SwapChainRenderTargets> SwapChain::getRenderTargets(const RendererContext &ctx) {
+std::vector<SwapChainRenderTargets> SwapChain::get_render_targets(const RendererContext &ctx) {
     std::vector<SwapChainRenderTargets> targets;
 
-    if (cachedViews.empty()) {
+    if (cached_views.empty()) {
         for (const auto &image: images) {
-            auto view = make_shared<vk::raii::ImageView>(utils::img::createImageView(
+            auto view = make_shared<vk::raii::ImageView>(utils::img::create_image_view(
                 ctx,
                 image,
-                imageFormat,
+                image_format,
                 vk::ImageAspectFlagBits::eColor
             ));
 
-            cachedViews.emplace_back(view);
+            cached_views.emplace_back(view);
         }
     }
 
-    for (const auto &view: cachedViews) {
-        const bool isMsaa = msaaSampleCount != vk::SampleCountFlagBits::e1;
+    for (const auto &view: cached_views) {
+        const bool is_msaa = msaa_sample_count != vk::SampleCountFlagBits::e1;
 
-        auto colorTarget = isMsaa
+        auto color_target = is_msaa
                                ? RenderTarget{
-                                   colorImage->getView(ctx),
+                                   color_image->get_view(ctx),
                                    view,
-                                   imageFormat
+                                   image_format
                                }
                                : RenderTarget{
                                    view,
-                                   imageFormat
+                                   image_format
                                };
 
-        RenderTarget depthTarget{
-            depthImage->getView(ctx),
-            depthFormat
+        RenderTarget depth_target{
+            depth_image->get_view(ctx),
+            depth_format
         };
 
-        targets.emplace_back(std::move(colorTarget), std::move(depthTarget));
+        targets.emplace_back(std::move(color_target), std::move(depth_target));
     }
 
     return targets;
 }
 
-vk::Format SwapChain::findDepthFormat(const RendererContext &ctx) {
-    return findSupportedFormat(
+vk::Format SwapChain::find_depth_format(const RendererContext &ctx) {
+    return find_supported_format(
         ctx,
         {vk::Format::eD32Sfloat, vk::Format::eD32SfloatS8Uint, vk::Format::eD24UnormS8Uint},
         vk::ImageTiling::eOptimal,
@@ -287,10 +287,10 @@ vk::Format SwapChain::findDepthFormat(const RendererContext &ctx) {
     );
 }
 
-vk::Format SwapChain::findSupportedFormat(const RendererContext &ctx, const std::vector<vk::Format> &candidates,
+vk::Format SwapChain::find_supported_format(const RendererContext &ctx, const std::vector<vk::Format> &candidates,
                                           const vk::ImageTiling tiling, const vk::FormatFeatureFlags features) {
     for (const vk::Format format: candidates) {
-        const vk::FormatProperties props = ctx.physicalDevice->getFormatProperties(format);
+        const vk::FormatProperties props = ctx.physical_device->getFormatProperties(format);
 
         if (tiling == vk::ImageTiling::eLinear && (props.linearTilingFeatures & features) == features) {
             return format;

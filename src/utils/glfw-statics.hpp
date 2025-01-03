@@ -8,5 +8,5 @@ struct GlfwStaticUserData {
     class Camera* camera;
 };
 
-void initGlfwUserPointer(GLFWwindow* window);
+void init_glfw_user_pointer(GLFWwindow* window);
 } // zrx

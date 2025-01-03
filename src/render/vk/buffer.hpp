@@ -41,7 +41,7 @@ public:
          */
     [[nodiscard]] const vk::Buffer &operator*() const { return buffer; }
 
-    [[nodiscard]] vk::DeviceSize getSize() const { return size; }
+    [[nodiscard]] vk::DeviceSize get_size() const { return size; }
 
     /**
      * Maps the buffer's memory to host memory. This requires the buffer to *not* be created
@@ -62,13 +62,13 @@ public:
      * Copies the contents of some other given buffer to this buffer and waits until completion.
      *
      * @param ctx Renderer context.
-     * @param otherBuffer Buffer from which to copy.
+     * @param other_buffer Buffer from which to copy.
      * @param size Size of the data to copy.
-     * @param srcOffset Offset in the source buffer.
-     * @param dstOffset Offset in this (destination) buffer.
+     * @param src_offset Offset in the source buffer.
+     * @param dst_offset Offset in this (destination) buffer.
      */
-    void copyFromBuffer(const RendererContext &ctx, const Buffer &otherBuffer, vk::DeviceSize size,
-                        vk::DeviceSize srcOffset = 0, vk::DeviceSize dstOffset = 0) const;
+    void copy_from_buffer(const RendererContext &ctx, const Buffer &other_buffer, vk::DeviceSize size,
+                          vk::DeviceSize src_offset = 0, vk::DeviceSize dst_offset = 0) const;
 };
 
 struct BufferSlice {
@@ -76,43 +76,43 @@ struct BufferSlice {
     vk::DeviceSize size;
     vk::DeviceSize offset;
 
-    BufferSlice(const Buffer& buffer, const vk::DeviceSize size, const vk::DeviceSize offset = 0)
+    BufferSlice(const Buffer &buffer, const vk::DeviceSize size, const vk::DeviceSize offset = 0)
         : buffer(buffer), size(size), offset(offset) {
-        if (size + offset > buffer.getSize()) {
+        if (size + offset > buffer.get_size()) {
             throw std::invalid_argument("buffer slice extent out of range");
         }
     }
 
-    [[nodiscard]] const Buffer& operator*() const { return buffer.get(); }
+    [[nodiscard]] const Buffer &operator*() const { return buffer.get(); }
 };
 
 namespace utils::buf {
     template<typename ElemType>
-    unique_ptr<Buffer> createLocalBuffer(const RendererContext &ctx, const std::vector<ElemType> &contents,
-                                         const vk::BufferUsageFlags usage) {
-        const vk::DeviceSize bufferSize = sizeof(contents[0]) * contents.size();
+    unique_ptr<Buffer> create_local_buffer(const RendererContext &ctx, const std::vector<ElemType> &contents,
+                                           const vk::BufferUsageFlags usage) {
+        const vk::DeviceSize buffer_size = sizeof(contents[0]) * contents.size();
 
-        Buffer stagingBuffer{
+        Buffer staging_buffer{
             **ctx.allocator,
-            bufferSize,
+            buffer_size,
             vk::BufferUsageFlagBits::eTransferSrc,
             vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
         };
 
-        void *data = stagingBuffer.map();
-        memcpy(data, contents.data(), static_cast<size_t>(bufferSize));
-        stagingBuffer.unmap();
+        void *data = staging_buffer.map();
+        memcpy(data, contents.data(), static_cast<size_t>(buffer_size));
+        staging_buffer.unmap();
 
-        auto resultBuffer = make_unique<Buffer>(
+        auto result_buffer = make_unique<Buffer>(
             **ctx.allocator,
-            bufferSize,
+            buffer_size,
             vk::BufferUsageFlagBits::eTransferDst | usage,
             vk::MemoryPropertyFlagBits::eDeviceLocal
         );
 
-        resultBuffer->copyFromBuffer(ctx, stagingBuffer, bufferSize);
+        result_buffer->copy_from_buffer(ctx, staging_buffer, buffer_size);
 
-        return resultBuffer;
+        return result_buffer;
     }
 } // utils::buf
 } // zrx

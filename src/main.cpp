@@ -15,31 +15,31 @@
 
 struct GraphicsUBO {
     struct WindowRes {
-        uint32_t windowWidth;
-        uint32_t windowHeight;
+        uint32_t window_width;
+        uint32_t window_height;
     };
 
     struct Matrices {
         glm::mat4 model;
         glm::mat4 view;
         glm::mat4 proj;
-        glm::mat4 viewInverse;
-        glm::mat4 projInverse;
-        glm::mat4 vpInverse;
-        glm::mat4 staticView;
-        glm::mat4 cubemapCaptureViews[6];
-        glm::mat4 cubemapCaptureProj;
+        glm::mat4 view_inverse;
+        glm::mat4 proj_inverse;
+        glm::mat4 vp_inverse;
+        glm::mat4 static_view;
+        glm::mat4 cubemap_capture_views[6];
+        glm::mat4 cubemap_capture_proj;
     };
 
     struct MiscData {
-        float debugNumber;
-        float zNear;
-        float zFar;
-        uint32_t useSsao;
-        float lightIntensity;
-        glm::vec3 lightDir;
-        glm::vec3 lightColor;
-        glm::vec3 cameraPos;
+        float debug_number;
+        float z_near;
+        float z_far;
+        uint32_t use_ssao;
+        float light_intensity;
+        glm::vec3 light_dir;
+        glm::vec3 light_color;
+        glm::vec3 camera_pos;
     };
 
     alignas(16) WindowRes window{};
@@ -51,264 +51,264 @@ namespace zrx {
 class Engine {
     GLFWwindow *window = nullptr;
     VulkanRenderer renderer;
-    std::unique_ptr<InputManager> inputManager;
+    std::unique_ptr<InputManager> input_manager;
 
-    float lastTime = 0.0f;
+    float last_time = 0.0f;
 
-    bool isGuiEnabled = false;
-    bool showDebugQuad = false;
+    bool is_gui_enabled = false;
+    bool show_debug_quad = false;
 
-    ImGui::FileBrowser fileBrowser;
-    std::optional<FileType> currentTypeBeingChosen;
-    std::unordered_map<FileType, std::filesystem::path> chosenPaths{};
-    uint32_t loadSchemeIdx = 0;
+    ImGui::FileBrowser file_browser;
+    std::optional<FileType> current_type_being_chosen;
+    std::unordered_map<FileType, std::filesystem::path> chosen_paths{};
+    uint32_t load_scheme_idx = 0;
 
-    std::string currErrorMessage;
+    std::string curr_error_message;
 
 public:
     Engine() {
-        window = renderer.getWindow();
+        window = renderer.get_window();
 
-        inputManager = std::make_unique<InputManager>(window);
-        bindKeyActions();
+        input_manager = std::make_unique<InputManager>(window);
+        bind_key_actions();
 
-        buildRenderGraph();
+        build_render_graph();
     }
 
-    [[nodiscard]] GLFWwindow *getWindow() const { return window; }
+    [[nodiscard]] GLFWwindow *get_window() const { return window; }
 
     void run() {
         while (!glfwWindowShouldClose(window)) {
             tick();
         }
 
-        renderer.waitIdle();
+        renderer.wait_idle();
     }
 
 private:
     void tick() {
-        const auto currentTime = static_cast<float>(glfwGetTime());
-        const float deltaTime = currentTime - lastTime;
-        lastTime = currentTime;
+        const auto current_time = static_cast<float>(glfwGetTime());
+        const float delta_time = current_time - last_time;
+        last_time = current_time;
 
-        inputManager->tick(deltaTime);
-        renderer.tick(deltaTime);
+        input_manager->tick(delta_time);
+        renderer.tick(delta_time);
 
-        renderer.runRenderGraph();
+        renderer.run_render_graph();
 
-        // if (renderer.startFrame()) {
-        //     if (isGuiEnabled) {
-        //         renderer.renderGui([&] {
-        //             renderGuiSection(deltaTime);
-        //             renderer.renderGuiSection();
+        // if (renderer.start_frame()) {
+        //     if (is_gui_enabled) {
+        //         renderer.render_gui([&] {
+        //             render_gui_section(delta_time);
+        //             renderer.render_gui_section();
         //         });
         //     }
         //
-        //     renderer.runPrepass();
-        //     renderer.runSsaoPass();
-        //     renderer.drawScene();
+        //     renderer.run_prepass();
+        //     renderer.run_ssao_pass();
+        //     renderer.draw_scene();
         //     renderer.raytrace();
         //
-        //     if (showDebugQuad) {
-        //         renderer.drawDebugQuad();
+        //     if (show_debug_quad) {
+        //         renderer.draw_debug_quad();
         //     }
         //
-        //     renderer.endFrame();
+        //     renderer.end_frame();
         // }
 
-        if (fileBrowser.HasSelected()) {
-            const std::filesystem::path path = fileBrowser.GetSelected().string();
+        if (file_browser.HasSelected()) {
+            const std::filesystem::path path = file_browser.GetSelected().string();
 
-            if (*currentTypeBeingChosen == FileType::ENVMAP_HDR) {
-                renderer.loadEnvironmentMap(path);
+            if (*current_type_being_chosen == FileType::ENVMAP_HDR) {
+                renderer.load_environment_map(path);
             } else {
-                chosenPaths[*currentTypeBeingChosen] = path;
+                chosen_paths[*current_type_being_chosen] = path;
             }
 
-            fileBrowser.ClearSelected();
-            currentTypeBeingChosen = {};
+            file_browser.ClearSelected();
+            current_type_being_chosen = {};
         }
     }
 
-    void buildRenderGraph() {
-        RenderGraph renderGraph;
+    void build_render_graph() {
+        RenderGraph render_graph;
 
-        constexpr auto depthFormat = vk::Format::eD32SfloatS8Uint;
+        constexpr auto depth_format = vk::Format::eD32SfloatS8Uint;
 
-        // const auto sceneModel = Model(RendererContext() /* todo */, "model.gltf", true);
+        // const auto scene_model = Model(RendererContext() /* todo */, "model.gltf", true);
 
         // ================== uniform buffers ==================
 
-        const auto uniformBuffer = renderGraph.addUniformBuffer<GraphicsUBO>({
+        const auto uniform_buffer = render_graph.add_uniform_buffer<GraphicsUBO>({
             "general-ubo",
         });
 
         // ================== external resources ==================
 
-        const auto baseColorTexture = renderGraph.addExternalResource(ExternalTextureResource{
+        const auto base_color_texture = render_graph.add_external_resource(ExternalTextureResource{
             "base-color-texture",
             vk::Format::eR8G8B8A8Srgb
         });
 
-        const auto normalTexture = renderGraph.addExternalResource(ExternalTextureResource{
+        const auto normal_texture = render_graph.add_external_resource(ExternalTextureResource{
             "normal-texture",
             vk::Format::eR8G8B8A8Unorm,
         });
 
         // ================== transient resources ==================
 
-        const auto gBufferNormal = renderGraph.addTransientResource(TransientTextureResource{
+        const auto g_buffer_normal = render_graph.add_transient_resource(TransientTextureResource{
             "g-buffer-normal",
             vk::Format::eR8G8B8A8Unorm,
         });
 
-        const auto gBufferPos = renderGraph.addTransientResource(TransientTextureResource{
+        const auto g_buffer_pos = render_graph.add_transient_resource(TransientTextureResource{
             "g-buffer-pos",
             vk::Format::eR8G8B8A8Unorm,
         });
 
-        const auto gBufferDepth = renderGraph.addTransientResource(TransientTextureResource{
+        const auto g_buffer_depth = render_graph.add_transient_resource(TransientTextureResource{
             "g-buffer-depth",
-            depthFormat,
+            depth_format,
         });
 
-        const auto ssaoTexture = renderGraph.addTransientResource(TransientTextureResource{
+        const auto ssao_texture = render_graph.add_transient_resource(TransientTextureResource{
             "ssao-texture",
             vk::Format::eR8G8B8A8Unorm,
         });
 
         // ================== prepass ==================
 
-        const auto prepassVertexShader = std::make_shared<Shader>(Shader{
+        const auto prepass_vertex_shader = std::make_shared<Shader>(Shader{
             "../shaders/obj/prepass-vert.spv",
             {
-                {uniformBuffer}
+                {uniform_buffer}
             }
         });
 
-        const auto prepassFragmentShader = std::make_shared<Shader>(Shader{
+        const auto prepass_fragment_shader = std::make_shared<Shader>(Shader{
             "../shaders/obj/prepass-frag.spv",
             {
-                {uniformBuffer}
+                {uniform_buffer}
             }
         });
 
-        renderGraph.addNode({
+        render_graph.add_node({
             "prepass",
-            prepassVertexShader,
-            prepassFragmentShader,
-            {gBufferNormal, gBufferPos},
-            gBufferDepth,
+            prepass_vertex_shader,
+            prepass_fragment_shader,
+            {g_buffer_normal, g_buffer_pos},
+            g_buffer_depth,
             [&](RenderPassContext &ctx) {
-                // ctx.drawModel(sceneModel);
+                // ctx.draw_model(scene_model);
             }
         });
 
         // ================== main pass ==================
 
-        const auto mainVertexShader = std::make_shared<Shader>(Shader{
+        const auto main_vertex_shader = std::make_shared<Shader>(Shader{
             "../shaders/obj/main-vert.spv",
             {
-                {uniformBuffer}
+                {uniform_buffer}
             }
         });
 
-        const auto mainFragmentShader = std::make_shared<Shader>(Shader{
+        const auto main_fragment_shader = std::make_shared<Shader>(Shader{
             "../shaders/obj/main-frag.spv",
             {
-                {uniformBuffer, ssaoTexture},
+                {uniform_buffer, ssao_texture},
                 {}
             }
         });
 
-        renderGraph.addNode({
+        render_graph.add_node({
             "main",
-            mainVertexShader,
-            mainFragmentShader,
+            main_vertex_shader,
+            main_fragment_shader,
             {FINAL_IMAGE_RESOURCE_HANDLE},
             {},
             [&](RenderPassContext &ctx) {
-                // ctx.drawModel(sceneModel);
+                // ctx.draw_model(scene_model);
             }
         });
 
-        renderer.registerRenderGraph(renderGraph);
+        renderer.register_render_graph(render_graph);
     }
 
-    void bindKeyActions() {
-        inputManager->bindCallback(GLFW_KEY_GRAVE_ACCENT, EActivationType::PRESS_ONCE, [&](const float deltaTime) {
-            (void) deltaTime;
-            isGuiEnabled = !isGuiEnabled;
+    void bind_key_actions() {
+        input_manager->bind_callback(GLFW_KEY_GRAVE_ACCENT, EActivationType::PRESS_ONCE, [&](const float delta_time) {
+            (void) delta_time;
+            is_gui_enabled = !is_gui_enabled;
         });
     }
 
     // ========================== gui ==========================
 
-    void renderGuiSection(const float deltaTime) {
-        static float fps = 1 / deltaTime;
+    void render_gui_section(const float delta_time) {
+        static float fps = 1 / delta_time;
 
         constexpr float smoothing = 0.95f;
-        fps = fps * smoothing + (1 / deltaTime) * (1.0f - smoothing);
+        fps = fps * smoothing + (1 / delta_time) * (1.0f - smoothing);
 
-        constexpr auto sectionFlags = ImGuiTreeNodeFlags_DefaultOpen;
+        constexpr auto section_flags = ImGuiTreeNodeFlags_DefaultOpen;
 
-        if (ImGui::CollapsingHeader("Engine ", sectionFlags)) {
+        if (ImGui::CollapsingHeader("Engine ", section_flags)) {
             ImGui::Text("FPS: %.2f", fps);
 
-            ImGui::Checkbox("Debug quad", &showDebugQuad);
+            ImGui::Checkbox("Debug quad", &show_debug_quad);
             ImGui::Separator();
 
             if (ImGui::Button("Reload shaders")) {
-                renderer.reloadShaders();
+                renderer.reload_shaders();
             }
             ImGui::Separator();
 
-            renderLoadModelPopup();
+            render_load_model_popup();
 
-            if (!currErrorMessage.empty()) {
+            if (!curr_error_message.empty()) {
                 ImGui::OpenPopup("Model load error");
             }
 
-            renderModelLoadErrorPopup();
+            render_model_load_error_popup();
         }
 
-        if (ImGui::CollapsingHeader("Environment ", sectionFlags)) {
+        if (ImGui::CollapsingHeader("Environment ", section_flags)) {
             renderTexLoadButton("Choose environment map...", FileType::ENVMAP_HDR, {".hdr"});
 
-            fileBrowser.Display();
+            file_browser.Display();
         }
     }
 
-    void renderTexLoadButton(const std::string &label, const FileType fileType,
-                             const std::vector<std::string> &typeFilters) {
+    void renderTexLoadButton(const std::string &label, const FileType file_type,
+                             const std::vector<std::string> &type_filters) {
         if (ImGui::Button(label.c_str(), ImVec2(180, 0))) {
-            currentTypeBeingChosen = fileType;
-            fileBrowser.SetTypeFilters(typeFilters);
-            fileBrowser.Open();
+            current_type_being_chosen = file_type;
+            file_browser.SetTypeFilters(type_filters);
+            file_browser.Open();
         }
 
-        if (chosenPaths.contains(fileType)) {
+        if (chosen_paths.contains(file_type)) {
             ImGui::SameLine();
-            ImGui::Text(chosenPaths.at(fileType).filename().string().c_str());
+            ImGui::Text(chosen_paths.at(file_type).filename().string().c_str());
         }
     }
 
-    void renderLoadModelPopup() {
-        constexpr auto comboFlags = ImGuiComboFlags_WidthFitPreview;
+    void render_load_model_popup() {
+        constexpr auto combo_flags = ImGuiComboFlags_WidthFitPreview;
 
         if (ImGui::BeginPopupModal("Load model", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("Load scheme:");
 
-            if (ImGui::BeginCombo("##scheme", fileLoadSchemes[loadSchemeIdx].name.c_str(),
-                                  comboFlags)) {
-                for (uint32_t i = 0; i < fileLoadSchemes.size(); i++) {
-                    const bool isSelected = loadSchemeIdx == i;
+            if (ImGui::BeginCombo("##scheme", file_load_schemes[load_scheme_idx].name.c_str(),
+                                  combo_flags)) {
+                for (uint32_t i = 0; i < file_load_schemes.size(); i++) {
+                    const bool is_selected = load_scheme_idx == i;
 
-                    if (ImGui::Selectable(fileLoadSchemes[i].name.c_str(), isSelected)) {
-                        loadSchemeIdx = i;
+                    if (ImGui::Selectable(file_load_schemes[i].name.c_str(), is_selected)) {
+                        load_scheme_idx = i;
                     }
 
-                    if (isSelected) {
+                    if (is_selected) {
                         ImGui::SetItemDefaultFocus();
                     }
                 }
@@ -317,92 +317,92 @@ private:
 
             ImGui::Separator();
 
-            for (const auto &type: fileLoadSchemes[loadSchemeIdx].requirements) {
+            for (const auto &type: file_load_schemes[load_scheme_idx].requirements) {
                 renderTexLoadButton(
-                    getFileTypeLoadLabel(type),
+                    get_file_type_load_label(type),
                     type,
-                    getFileTypeExtensions(type)
+                    get_file_type_extensions(type)
                 );
             }
 
             ImGui::Separator();
 
-            const bool canSubmit = std::ranges::all_of(fileLoadSchemes[loadSchemeIdx].requirements, [&](const auto &t) {
-                return isFileTypeOptional(t) || chosenPaths.contains(t);
+            const bool can_submit = std::ranges::all_of(file_load_schemes[load_scheme_idx].requirements, [&](const auto &t) {
+                return is_file_type_optional(t) || chosen_paths.contains(t);
             });
 
-            if (!canSubmit) {
+            if (!can_submit) {
                 ImGui::BeginDisabled();
             }
 
             if (ImGui::Button("OK", ImVec2(120, 0))) {
-                loadModel();
-                chosenPaths.clear();
+                load_model();
+                chosen_paths.clear();
                 ImGui::CloseCurrentPopup();
             }
 
-            if (!canSubmit) {
+            if (!can_submit) {
                 ImGui::EndDisabled();
             }
 
             ImGui::SameLine();
 
             if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-                chosenPaths.clear();
+                chosen_paths.clear();
                 ImGui::CloseCurrentPopup();
             }
 
-            fileBrowser.Display();
+            file_browser.Display();
 
             ImGui::EndPopup();
         }
     }
 
-    void loadModel() {
-        const auto &reqs = fileLoadSchemes[loadSchemeIdx].requirements;
+    void load_model() {
+        const auto &reqs = file_load_schemes[load_scheme_idx].requirements;
 
         try {
             if (reqs.contains(FileType::BASE_COLOR_PNG)) {
-                renderer.loadModel(chosenPaths.at(FileType::MODEL));
-                renderer.loadBaseColorTexture(chosenPaths.at(FileType::BASE_COLOR_PNG));
+                renderer.load_model(chosen_paths.at(FileType::MODEL));
+                renderer.load_base_color_texture(chosen_paths.at(FileType::BASE_COLOR_PNG));
             } else {
-                renderer.loadModelWithMaterials(chosenPaths.at(FileType::MODEL));
+                renderer.load_model_with_materials(chosen_paths.at(FileType::MODEL));
             }
 
             if (reqs.contains(FileType::NORMAL_PNG)) {
-                renderer.loadNormalMap(chosenPaths.at(FileType::NORMAL_PNG));
+                renderer.load_normal_map(chosen_paths.at(FileType::NORMAL_PNG));
             }
 
             if (reqs.contains(FileType::ORM_PNG)) {
-                renderer.loadOrmMap(chosenPaths.at(FileType::ORM_PNG));
+                renderer.load_orm_map(chosen_paths.at(FileType::ORM_PNG));
             } else if (reqs.contains(FileType::RMA_PNG)) {
-                renderer.loadRmaMap(chosenPaths.at(FileType::RMA_PNG));
+                renderer.load_rma_map(chosen_paths.at(FileType::RMA_PNG));
             } else if (reqs.contains(FileType::ROUGHNESS_PNG)) {
-                const auto roughnessPath = chosenPaths.at(FileType::ROUGHNESS_PNG);
-                const auto aoPath = chosenPaths.contains(FileType::AO_PNG)
-                                    ? chosenPaths.at(FileType::AO_PNG)
+                const auto roughness_path = chosen_paths.at(FileType::ROUGHNESS_PNG);
+                const auto ao_path = chosen_paths.contains(FileType::AO_PNG)
+                                    ? chosen_paths.at(FileType::AO_PNG)
                                     : "";
-                const auto metallicPath = chosenPaths.contains(FileType::METALLIC_PNG)
-                                          ? chosenPaths.at(FileType::METALLIC_PNG)
+                const auto metallic_path = chosen_paths.contains(FileType::METALLIC_PNG)
+                                          ? chosen_paths.at(FileType::METALLIC_PNG)
                                           : "";
 
-                renderer.loadOrmMap(aoPath, roughnessPath, metallicPath);
+                renderer.load_orm_map(ao_path, roughness_path, metallic_path);
             }
         } catch (std::exception &e) {
-            currErrorMessage = e.what();
+            curr_error_message = e.what();
         }
     }
 
-    void renderModelLoadErrorPopup() {
+    void render_model_load_error_popup() {
         if (ImGui::BeginPopupModal("Model load error", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
             ImGui::Text("An error occurred while loading the model:");
-            ImGui::Text(currErrorMessage.c_str());
+            ImGui::Text(curr_error_message.c_str());
 
             ImGui::Separator();
 
             if (ImGui::Button("OK", ImVec2(120, 0))) {
                 ImGui::CloseCurrentPopup();
-                currErrorMessage = "";
+                curr_error_message = "";
             }
 
             ImGui::EndPopup();
@@ -411,7 +411,7 @@ private:
 };
 }
 
-static void showErrorBox(const std::string &message) {
+static void show_error_box(const std::string &message) {
     MessageBox(
         nullptr,
         static_cast<LPCSTR>(message.c_str()),
@@ -420,34 +420,34 @@ static void showErrorBox(const std::string &message) {
     );
 }
 
-void generateSsaoKernelSamples() {
-    std::uniform_real_distribution<float> randomFloats(0.0, 1.0);
+void generate_ssao_kernel_samples() {
+    std::uniform_real_distribution<float> random_floats(0.0, 1.0);
     std::default_random_engine generator;
-    std::vector<glm::vec3> ssaoKernel;
+    std::vector<glm::vec3> ssao_kernel;
     for (int i = 0; i < 64; ++i) {
         glm::vec3 sample(
-            randomFloats(generator) * 2.0 - 1.0,
-            randomFloats(generator) * 2.0 - 1.0,
-            randomFloats(generator)
+            random_floats(generator) * 2.0 - 1.0,
+            random_floats(generator) * 2.0 - 1.0,
+            random_floats(generator)
         );
         sample = glm::normalize(sample);
-        sample *= randomFloats(generator);
+        sample *= random_floats(generator);
 
         float scale = (float) i / 64.0;
         scale = glm::mix(0.1f, 1.0f, scale * scale);
         sample *= scale;
 
-        ssaoKernel.push_back(sample);
+        ssao_kernel.push_back(sample);
     }
 
-    for (auto &v: ssaoKernel) {
+    for (auto &v: ssao_kernel) {
         std::cout << "vec3(" << v.x << ", " << v.y << ", " << v.z << "),\n";
     }
 }
 
 int main() {
     if (!glfwInit()) {
-        showErrorBox("Fatal error: GLFW initialization failed.");
+        show_error_box("Fatal error: GLFW initialization failed.");
         return EXIT_FAILURE;
     }
 
@@ -456,8 +456,8 @@ int main() {
         zrx::Engine engine;
         engine.run();
     } catch (std::exception &e) {
-        showErrorBox(std::string("Fatal error: ") + e.what());
-        glfwTerminate();
+        show_error_box(std::string("Fatal error: ") + e.what());
+        glfw_terminate();
         return EXIT_FAILURE;
     }
 #else

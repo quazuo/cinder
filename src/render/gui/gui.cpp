@@ -1,7 +1,7 @@
 #include "gui.hpp"
 
 namespace zrx {
-GuiRenderer::GuiRenderer(GLFWwindow *w, ImGui_ImplVulkan_InitInfo &imguiInitInfo) : window(w) {
+GuiRenderer::GuiRenderer(GLFWwindow *w, ImGui_ImplVulkan_InitInfo &imgui_init_info) : window(w) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
@@ -11,7 +11,7 @@ GuiRenderer::GuiRenderer(GLFWwindow *w, ImGui_ImplVulkan_InitInfo &imguiInitInfo
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
 
-    ImGui_ImplVulkan_Init(&imguiInitInfo, nullptr);
+    ImGui_ImplVulkan_Init(&imgui_init_info, nullptr);
 
     imguiGizmo::setGizmoFeelingRot(0.3);
 }
@@ -22,7 +22,7 @@ GuiRenderer::~GuiRenderer() {
     ImGui::DestroyContext();
 }
 
-void GuiRenderer::beginRendering() {
+void GuiRenderer::begin_rendering() {
     ImGui_ImplVulkan_NewFrame();
     ImGui_ImplGlfw_NewFrame();
     ImGui::NewFrame();
@@ -35,16 +35,16 @@ void GuiRenderer::beginRendering() {
 
     ImGui::SetNextWindowPos(ImVec2(0, 0));
 
-    glm::ivec2 windowSize;
-    glfwGetWindowSize(window, &windowSize.x, &windowSize.y);
-    ImGui::SetNextWindowSize(ImVec2(0, windowSize.y));
+    glm::ivec2 window_size;
+    glfwGetWindowSize(window, &window_size.x, &window_size.y);
+    ImGui::SetNextWindowSize(ImVec2(0, window_size.y));
 
     ImGui::Begin("main window", nullptr, flags);
 }
 
-void GuiRenderer::endRendering(const vk::raii::CommandBuffer &commandBuffer) {
+void GuiRenderer::end_rendering(const vk::raii::CommandBuffer &command_buffer) {
     ImGui::End();
     ImGui::Render();
-    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), *commandBuffer);
+    ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), *command_buffer);
 }
 }

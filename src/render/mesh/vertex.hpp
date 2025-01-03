@@ -7,13 +7,13 @@
 namespace zrx {
 template<typename T>
 concept VertexLike = requires {
-    { T::getBindingDescriptions() } -> std::same_as<std::vector<vk::VertexInputBindingDescription>>;
-    { T::getAttributeDescriptions() } -> std::same_as<std::vector<vk::VertexInputAttributeDescription>>;
+    { T::get_binding_descriptions() } -> std::same_as<std::vector<vk::VertexInputBindingDescription>>;
+    { T::get_attribute_descriptions() } -> std::same_as<std::vector<vk::VertexInputAttributeDescription>>;
 };
 
 struct ModelVertex {
     glm::vec3 pos;
-    glm::vec2 texCoord;
+    glm::vec2 tex_coord;
     glm::vec3 normal;
     glm::vec3 tangent;
     glm::vec3 bitangent;
@@ -21,27 +21,27 @@ struct ModelVertex {
     // this is implemented to allow using `Vertex` as a key in an `unordered_map`.
     bool operator==(const ModelVertex &other) const {
         return pos == other.pos
-               && texCoord == other.texCoord
+               && tex_coord == other.tex_coord
                && tangent == other.tangent
                && bitangent == other.bitangent;
     }
 
-    static std::vector<vk::VertexInputBindingDescription> getBindingDescriptions();
+    static std::vector<vk::VertexInputBindingDescription> get_binding_descriptions();
 
-    static std::vector<vk::VertexInputAttributeDescription> getAttributeDescriptions();
+    static std::vector<vk::VertexInputAttributeDescription> get_attribute_descriptions();
 };
 
 struct SkyboxVertex {
     glm::vec3 pos;
 
-    static std::vector<vk::VertexInputBindingDescription> getBindingDescriptions();
+    static std::vector<vk::VertexInputBindingDescription> get_binding_descriptions();
 
-    static std::vector<vk::VertexInputAttributeDescription> getAttributeDescriptions();
+    static std::vector<vk::VertexInputAttributeDescription> get_attribute_descriptions();
 };
 
 // vertices of the skybox cube.
 // might change this to be generated in a more smart way... but it's good enough for now
-static const std::vector<SkyboxVertex> skyboxVertices = {
+static const std::vector<SkyboxVertex> skybox_vertices = {
     {{-1.0f, 1.0f, -1.0f}},
     {{-1.0f, -1.0f, -1.0f}},
     {{1.0f, -1.0f, -1.0f}},
@@ -87,14 +87,14 @@ static const std::vector<SkyboxVertex> skyboxVertices = {
 
 struct ScreenSpaceQuadVertex {
     glm::vec2 pos;
-    glm::vec2 texCoord;
+    glm::vec2 tex_coord;
 
-    static std::vector<vk::VertexInputBindingDescription> getBindingDescriptions();
+    static std::vector<vk::VertexInputBindingDescription> get_binding_descriptions();
 
-    static std::vector<vk::VertexInputAttributeDescription> getAttributeDescriptions();
+    static std::vector<vk::VertexInputAttributeDescription> get_attribute_descriptions();
 };
 
-static const std::vector<ScreenSpaceQuadVertex> screenSpaceQuadVertices = {
+static const std::vector<ScreenSpaceQuadVertex> screen_space_quad_vertices = {
     {{-1, -1}, {0, 1}},
     {{1, -1}, {1, 1}},
     {{1, 1}, {1, 0}},
@@ -110,7 +110,7 @@ template<>
 struct std::hash<zrx::ModelVertex> {
     size_t operator()(zrx::ModelVertex const &vertex) const noexcept {
         return (hash<glm::vec3>()(vertex.pos) >> 1) ^
-               (hash<glm::vec2>()(vertex.texCoord) << 1) ^
+               (hash<glm::vec2>()(vertex.tex_coord) << 1) ^
                (hash<glm::vec3>()(vertex.normal) << 1) ^
                (hash<glm::vec3>()(vertex.tangent) << 1) ^
                (hash<glm::vec3>()(vertex.bitangent) << 1);

@@ -8,7 +8,7 @@ struct RendererContext;
 
 struct SecondaryCommandBuffer {
     unique_ptr<vk::raii::CommandBuffer> buffer;
-    bool wasRecordedThisFrame = false;
+    bool was_recorded_this_frame = false;
 
     vk::raii::CommandBuffer& operator*() const { return *buffer; }
 };
@@ -22,16 +22,16 @@ namespace utils::cmd {
     * @return The created single-use command buffer.
     */
     [[nodiscard]] vk::raii::CommandBuffer
-    beginSingleTimeCommands(const RendererContext& ctx);
+    begin_single_time_commands(const RendererContext& ctx);
 
     /**
     * Ends a single-time command buffer created beforehand by `beginSingleTimeCommands`.
     * The buffer is then submitted and execution stops until the commands are fully processed.
     *
-    * @param commandBuffer The single-use command buffer which should be ended.
+    * @param command_buffer The single-use command buffer which should be ended.
     * @param queue The queue to which the buffer should be submitted.
     */
-    void endSingleTimeCommands(const vk::raii::CommandBuffer &commandBuffer, const vk::raii::Queue &queue);
+    void end_single_time_commands(const vk::raii::CommandBuffer &command_buffer, const vk::raii::Queue &queue);
 
     /**
      * Convenience wrapper over `beginSingleTimeCommands` and `endSingleTimeCommands`.
@@ -39,13 +39,13 @@ namespace utils::cmd {
      * @param ctx Renderer context.
      * @param func Lambda containing commands with which the command buffer will be filled.
      */
-    void doSingleTimeCommands(const RendererContext& ctx,
+    void do_single_time_commands(const RendererContext& ctx,
                               const std::function<void(const vk::raii::CommandBuffer &)> &func);
 
     /**
      * Shorthand function to set all dynamic states used in rendering.
      * This currently includes only viewport and scissor, but might be extended later.
      */
-    void setDynamicStates(const vk::raii::CommandBuffer &commandBuffer, vk::Extent2D drawExtent);
+    void set_dynamic_states(const vk::raii::CommandBuffer &command_buffer, vk::Extent2D draw_extent);
 }
 } // zrx

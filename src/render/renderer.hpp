@@ -20,7 +20,7 @@
 
 struct GLFWwindow;
 
-static const std::vector deviceExtensions{
+static const std::vector device_extensions{
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
     VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
     VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
@@ -33,9 +33,9 @@ static const std::vector deviceExtensions{
 };
 
 #ifdef NDEBUG
-constexpr bool enableValidationLayers = false;
+constexpr bool enable_validation_layers = false;
 #else
-constexpr bool enableValidationLayers = true;
+constexpr bool enable_validation_layers = true;
 #endif
 
 namespace zrx {
@@ -50,29 +50,29 @@ class AccelerationStructure;
 class Camera;
 
 struct QueueFamilyIndices {
-    std::optional<uint32_t> graphicsComputeFamily;
-    std::optional<uint32_t> presentFamily;
+    std::optional<uint32_t> graphics_compute_family;
+    std::optional<uint32_t> present_family;
 
     [[nodiscard]] bool isComplete() const {
-        return graphicsComputeFamily.has_value() && presentFamily.has_value();
+        return graphics_compute_family.has_value() && present_family.has_value();
     }
 };
 
 struct ScenePushConstants {
-    uint32_t materialID;
+    uint32_t material_id;
 };
 
 class RenderInfo {
-    GraphicsPipelineBuilder cachedPipelineBuilder;
+    GraphicsPipelineBuilder cached_pipeline_builder;
     shared_ptr<GraphicsPipeline> pipeline;
 
-    std::vector<RenderTarget> colorTargets;
-    std::optional<RenderTarget> depthTarget;
+    std::vector<RenderTarget> color_targets;
+    std::optional<RenderTarget> depth_target;
 
-    std::vector<vk::RenderingAttachmentInfo> colorAttachments;
-    std::optional<vk::RenderingAttachmentInfo> depthAttachment;
+    std::vector<vk::RenderingAttachmentInfo> color_attachments;
+    std::optional<vk::RenderingAttachmentInfo> depth_attachment;
 
-    std::vector<vk::Format> cachedColorAttachmentFormats;
+    std::vector<vk::Format> cached_color_attachment_formats;
 
 public:
     RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline,
@@ -87,14 +87,14 @@ public:
 
     [[nodiscard]] vk::RenderingInfo get(vk::Extent2D extent, uint32_t views = 1, vk::RenderingFlags flags = {}) const;
 
-    [[nodiscard]] const GraphicsPipeline &getPipeline() const { return *pipeline; }
+    [[nodiscard]] const GraphicsPipeline &get_pipeline() const { return *pipeline; }
 
-    [[nodiscard]] vk::CommandBufferInheritanceRenderingInfo getInheritanceRenderingInfo() const;
+    [[nodiscard]] vk::CommandBufferInheritanceRenderingInfo get_inheritance_rendering_info() const;
 
-    void reloadShaders(const RendererContext &ctx) const;
+    void reload_shaders(const RendererContext &ctx) const;
 
 private:
-    void makeAttachmentInfos();
+    void make_attachment_infos();
 };
 
 class VulkanRenderer {
@@ -112,74 +112,74 @@ class VulkanRenderer {
 
     unique_ptr<Camera> camera;
 
-    unique_ptr<InputManager> inputManager;
+    unique_ptr<InputManager> input_manager;
 
-    vk::raii::Context vkCtx;
+    vk::raii::Context vk_ctx;
     unique_ptr<vk::raii::Instance> instance;
     unique_ptr<vk::raii::SurfaceKHR> surface;
 
     RendererContext ctx;
 
-    unique_ptr<vk::raii::Queue> presentQueue;
-    QueueFamilyIndices queueFamilyIndices;
+    unique_ptr<vk::raii::Queue> present_queue;
+    QueueFamilyIndices queue_family_indices;
 
-    unique_ptr<SwapChain> swapChain;
+    unique_ptr<SwapChain> swap_chain;
 
     struct RenderNodeResources {
         RenderNodeHandle handle;
-        vk::raii::CommandBuffer commandBuffer;
+        vk::raii::CommandBuffer command_buffer;
         GraphicsPipeline pipeline;
     };
 
     struct {
-        unique_ptr<RenderGraph> renderGraph;
-        std::vector<RenderNodeResources> topoSortedNodes;
-    } renderGraphInfo;
+        unique_ptr<RenderGraph> render_graph;
+        std::vector<RenderNodeResources> topo_sorted_nodes;
+    } render_graph_info;
 
     unique_ptr<Model> model;
-    Material separateMaterial;
+    Material separate_material;
 
     // textures
 
-    unique_ptr<Texture> ssaoTexture;
-    unique_ptr<Texture> ssaoNoiseTexture;
+    unique_ptr<Texture> ssao_texture;
+    unique_ptr<Texture> ssao_noise_texture;
 
     struct {
         unique_ptr<Texture> depth;
         unique_ptr<Texture> normal;
         unique_ptr<Texture> pos;
-    } gBufferTextures;
+    } g_buffer_textures;
 
-    unique_ptr<Texture> skyboxTexture;
-    unique_ptr<Texture> envmapTexture;
+    unique_ptr<Texture> skybox_texture;
+    unique_ptr<Texture> envmap_texture;
 
-    unique_ptr<Texture> rtTargetTexture;
+    unique_ptr<Texture> rt_target_texture;
 
     // descriptors
 
-    unique_ptr<vk::raii::DescriptorPool> descriptorPool;
+    unique_ptr<vk::raii::DescriptorPool> descriptor_pool;
 
-    unique_ptr<MaterialsDescriptorSet> materialsDescriptorSet;
-    unique_ptr<MeshesDescriptorSet> meshesDescriptorSet;
-    unique_ptr<CubemapCaptureDescriptorSet> cubemapCaptureDescriptorSet;
-    unique_ptr<DebugQuadDescriptorSet> debugQuadDescriptorSet;
+    unique_ptr<MaterialsDescriptorSet> materials_descriptor_set;
+    unique_ptr<MeshesDescriptorSet> meshes_descriptor_set;
+    unique_ptr<CubemapCaptureDescriptorSet> cubemap_capture_descriptor_set;
+    unique_ptr<DebugQuadDescriptorSet> debug_quad_descriptor_set;
 
     // render pass infos & misc pipelines
 
-    std::vector<RenderInfo> sceneRenderInfos;
-    std::vector<RenderInfo> skyboxRenderInfos;
-    std::vector<RenderInfo> guiRenderInfos;
-    unique_ptr<RenderInfo> prepassRenderInfo;
-    unique_ptr<RenderInfo> ssaoRenderInfo;
-    unique_ptr<RenderInfo> cubemapCaptureRenderInfo;
-    std::vector<RenderInfo> debugQuadRenderInfos;
+    std::vector<RenderInfo> scene_render_infos;
+    std::vector<RenderInfo> skybox_render_infos;
+    std::vector<RenderInfo> gui_render_infos;
+    unique_ptr<RenderInfo> prepass_render_info;
+    unique_ptr<RenderInfo> ssao_render_info;
+    unique_ptr<RenderInfo> cubemap_capture_render_info;
+    std::vector<RenderInfo> debug_quad_render_infos;
 
-    unique_ptr<RtPipeline> rtPipeline;
+    unique_ptr<RtPipeline> rt_pipeline;
 
     // buffers and other resources
 
-    unique_ptr<Buffer> skyboxVertexBuffer;
-    unique_ptr<Buffer> screenSpaceQuadVertexBuffer;
+    unique_ptr<Buffer> skybox_vertex_buffer;
+    unique_ptr<Buffer> screen_space_quad_vertex_buffer;
 
     unique_ptr<AccelerationStructure> tlas;
 
@@ -192,73 +192,73 @@ class VulkanRenderer {
                 TimelineSemValueType timeline = 0;
             };
 
-            unique_ptr<vk::raii::Semaphore> imageAvailableSemaphore;
-            unique_ptr<vk::raii::Semaphore> readyToPresentSemaphore;
-            Timeline renderFinishedTimeline;
+            unique_ptr<vk::raii::Semaphore> image_available_semaphore;
+            unique_ptr<vk::raii::Semaphore> ready_to_present_semaphore;
+            Timeline render_finished_timeline;
         } sync;
 
         // primary command buffer
-        unique_ptr<vk::raii::CommandBuffer> graphicsCmdBuffer;
+        unique_ptr<vk::raii::CommandBuffer> graphics_cmd_buffer;
 
-        SecondaryCommandBuffer sceneCmdBuffer;
-        SecondaryCommandBuffer rtCmdBuffer;
-        SecondaryCommandBuffer prepassCmdBuffer;
-        SecondaryCommandBuffer ssaoCmdBuffer;
-        SecondaryCommandBuffer guiCmdBuffer;
-        SecondaryCommandBuffer debugCmdBuffer;
+        SecondaryCommandBuffer scene_cmd_buffer;
+        SecondaryCommandBuffer rt_cmd_buffer;
+        SecondaryCommandBuffer prepass_cmd_buffer;
+        SecondaryCommandBuffer ssao_cmd_buffer;
+        SecondaryCommandBuffer gui_cmd_buffer;
+        SecondaryCommandBuffer debug_cmd_buffer;
 
-        unique_ptr<Buffer> graphicsUniformBuffer;
-        void *graphicsUboMapped{};
+        unique_ptr<Buffer> graphics_uniform_buffer;
+        void *graphics_ubo_mapped{};
 
-        unique_ptr<SceneDescriptorSet> sceneDescriptorSet;
-        unique_ptr<SkyboxDescriptorSet> skyboxDescriptorSet;
-        unique_ptr<PrepassDescriptorSet> prepassDescriptorSet;
-        unique_ptr<SsaoDescriptorSet> ssaoDescriptorSet;
-        unique_ptr<RtDescriptorSet> rtDescriptorSet;
+        unique_ptr<SceneDescriptorSet> scene_descriptor_set;
+        unique_ptr<SkyboxDescriptorSet> skybox_descriptor_set;
+        unique_ptr<PrepassDescriptorSet> prepass_descriptor_set;
+        unique_ptr<SsaoDescriptorSet> ssao_descriptor_set;
+        unique_ptr<RtDescriptorSet> rt_descriptor_set;
     };
 
     static constexpr size_t MAX_FRAMES_IN_FLIGHT = 3;
-    std::array<FrameResources, MAX_FRAMES_IN_FLIGHT> frameResources;
+    std::array<FrameResources, MAX_FRAMES_IN_FLIGHT> frame_resources;
 
     // gui stuff
 
-    unique_ptr<vk::raii::DescriptorPool> imguiDescriptorPool;
-    unique_ptr<GuiRenderer> guiRenderer;
+    unique_ptr<vk::raii::DescriptorPool> imgui_descriptor_pool;
+    unique_ptr<GuiRenderer> gui_renderer;
 
     // miscellaneous constants
 
-    static constexpr auto prepassColorFormat = vk::Format::eR16G16B16A16Sfloat;
-    static constexpr auto hdrEnvmapFormat    = vk::Format::eR32G32B32A32Sfloat;
+    static constexpr auto prepass_color_format = vk::Format::eR16G16B16A16Sfloat;
+    static constexpr auto hdr_envmap_format    = vk::Format::eR32G32B32A32Sfloat;
 
     static constexpr uint32_t MATERIAL_TEX_ARRAY_SIZE = 32;
 
     // miscellaneous state variables
 
     using FrameBeginCallback = std::function<void()>;
-    std::queue<FrameBeginCallback> queuedFrameBeginActions;
+    std::queue<FrameBeginCallback> queued_frame_begin_actions;
 
-    uint32_t currentFrameIdx = 0;
+    uint32_t current_frame_idx = 0;
 
-    bool framebufferResized = false;
+    bool framebuffer_resized = false;
 
-    glm::vec3 backgroundColor = glm::vec3(26, 26, 26) / 255.0f;
+    glm::vec3 background_color = glm::vec3(26, 26, 26) / 255.0f;
 
-    vk::SampleCountFlagBits msaaSampleCount = vk::SampleCountFlagBits::e1;
+    vk::SampleCountFlagBits msaa_sample_count = vk::SampleCountFlagBits::e1;
 
-    float modelScale = 1.0f;
-    glm::vec3 modelTranslate{};
-    glm::quat modelRotation{1, 0, 0, 0};
+    float model_scale = 1.0f;
+    glm::vec3 model_translate{};
+    glm::quat model_rotation{1, 0, 0, 0};
 
-    glm::quat lightDirection = glm::normalize(glm::vec3(1, 1.5, -2));
-    glm::vec3 lightColor     = glm::normalize(glm::vec3(23.47, 21.31, 20.79));
-    float lightIntensity     = 20.0f;
+    glm::quat light_direction = glm::normalize(glm::vec3(1, 1.5, -2));
+    glm::vec3 light_color     = glm::normalize(glm::vec3(23.47, 21.31, 20.79));
+    float light_intensity     = 20.0f;
 
-    float debugNumber = 0;
+    float debug_number = 0;
 
-    bool cullBackFaces = false;
-    bool wireframeMode = false;
-    bool useSsao       = false;
-    bool useMsaa       = false;
+    bool cull_back_faces = false;
+    bool wireframe_mode = false;
+    bool use_ssao       = false;
+    bool use_msaa       = false;
 
 public:
     explicit VulkanRenderer();
@@ -273,182 +273,182 @@ public:
 
     VulkanRenderer &operator=(VulkanRenderer &&other) = delete;
 
-    [[nodiscard]] GLFWwindow *getWindow() const { return window; }
+    [[nodiscard]] GLFWwindow *get_window() const { return window; }
 
-    [[nodiscard]] GuiRenderer &getGuiRenderer() const { return *guiRenderer; }
+    [[nodiscard]] GuiRenderer &get_gui_renderer() const { return *gui_renderer; }
 
-    [[nodiscard]] vk::SampleCountFlagBits getMsaaSampleCount() const {
-        return useMsaa ? msaaSampleCount : vk::SampleCountFlagBits::e1;
+    [[nodiscard]] vk::SampleCountFlagBits get_msaa_sample_count() const {
+        return use_msaa ? msaa_sample_count : vk::SampleCountFlagBits::e1;
     }
 
-    void tick(float deltaTime);
+    void tick(float delta_time);
 
-    void waitIdle() const { ctx.device->waitIdle(); }
+    void wait_idle() const { ctx.device->waitIdle(); }
 
-    void registerRenderGraph(const RenderGraph &graph);
+    void register_render_graph(const RenderGraph &graph);
 
-    void loadModelWithMaterials(const std::filesystem::path &path);
+    void load_model_with_materials(const std::filesystem::path &path);
 
-    void loadModel(const std::filesystem::path &path);
+    void load_model(const std::filesystem::path &path);
 
-    void loadBaseColorTexture(const std::filesystem::path &path);
+    void load_base_color_texture(const std::filesystem::path &path);
 
-    void loadNormalMap(const std::filesystem::path &path);
+    void load_normal_map(const std::filesystem::path &path);
 
-    void loadOrmMap(const std::filesystem::path &path);
+    void load_orm_map(const std::filesystem::path &path);
 
-    void loadOrmMap(const std::filesystem::path &aoPath, const std::filesystem::path &roughnessPath,
-                    const std::filesystem::path &metallicPath);
+    void load_orm_map(const std::filesystem::path &ao_path, const std::filesystem::path &roughness_path,
+                    const std::filesystem::path &metallic_path);
 
-    void loadRmaMap(const std::filesystem::path &path);
+    void load_rma_map(const std::filesystem::path &path);
 
-    void loadEnvironmentMap(const std::filesystem::path &path);
+    void load_environment_map(const std::filesystem::path &path);
 
-    void reloadShaders() const;
+    void reload_shaders() const;
 
 private:
-    static void framebufferResizeCallback(GLFWwindow *window, int width, int height);
+    static void framebuffer_resize_callback(GLFWwindow *window, int width, int height);
 
-    void bindMouseDragActions();
+    void bind_mouse_drag_actions();
 
     // ==================== startup ====================
 
-    vkb::Instance createInstance();
+    vkb::Instance create_instance();
 
-    static std::vector<const char *> getRequiredExtensions();
+    static std::vector<const char *> get_required_extensions();
 
-    void createSurface();
+    void create_surface();
 
-    vkb::PhysicalDevice pickPhysicalDevice(const vkb::Instance& vkbInstance);
+    vkb::PhysicalDevice pick_physical_device(const vkb::Instance& vkb_instance);
 
-    void createLogicalDevice(const vkb::PhysicalDevice& vkbPhysicalDevice);
+    void create_logical_device(const vkb::PhysicalDevice& vkb_physical_device);
 
     // ==================== assets ====================
 
-    void createSkyboxTexture();
+    void create_skybox_texture();
 
-    void createPrepassTextures();
+    void create_prepass_textures();
 
-    void createSsaoTextures();
+    void create_ssao_textures();
 
-    void createRtTargetTexture();
+    void create_rt_target_texture();
 
     // ==================== swap chain ====================
 
-    void recreateSwapChain();
+    void recreate_swap_chain();
 
     // ==================== descriptors ====================
 
-    void createDescriptorPool();
+    void create_descriptor_pool();
 
-    void createSceneDescriptorSets();
+    void create_scene_descriptor_sets();
 
-    void createMaterialsDescriptorSet();
+    void create_materials_descriptor_set();
 
-    void createSkyboxDescriptorSets();
+    void create_skybox_descriptor_sets();
 
-    void createPrepassDescriptorSets();
+    void create_prepass_descriptor_sets();
 
-    void createSsaoDescriptorSets();
+    void create_ssao_descriptor_sets();
 
-    void createCubemapCaptureDescriptorSet();
+    void create_cubemap_capture_descriptor_set();
 
-    void createDebugQuadDescriptorSet();
+    void create_debug_quad_descriptor_set();
 
-    void createRtDescriptorSets();
+    void create_rt_descriptor_sets();
 
-    void createMeshesDescriptorSet();
+    void create_meshes_descriptor_set();
 
     // ==================== render infos ====================
 
-    void createSceneRenderInfos();
+    void create_scene_render_infos();
 
-    void createSkyboxRenderInfos();
+    void create_skybox_render_infos();
 
-    void createGuiRenderInfos();
+    void create_gui_render_infos();
 
-    void createPrepassRenderInfo();
+    void create_prepass_render_info();
 
-    void createSsaoRenderInfo();
+    void create_ssao_render_info();
 
-    void createCubemapCaptureRenderInfo();
+    void create_cubemap_capture_render_info();
 
-    void createDebugQuadRenderInfos();
+    void create_debug_quad_render_infos();
 
     // ==================== multisampling ====================
 
-    [[nodiscard]] vk::SampleCountFlagBits getMaxUsableSampleCount() const;
+    [[nodiscard]] vk::SampleCountFlagBits get_max_usable_sample_count() const;
 
     // ==================== buffers ====================
 
-    void createSkyboxVertexBuffer();
+    void create_skybox_vertex_buffer();
 
-    void createScreenSpaceQuadVertexBuffer();
+    void create_screen_space_quad_vertex_buffer();
 
     template<typename ElemType>
-    unique_ptr<Buffer> createLocalBuffer(const std::vector<ElemType> &contents, vk::BufferUsageFlags usage);
+    unique_ptr<Buffer> create_local_buffer(const std::vector<ElemType> &contents, vk::BufferUsageFlags usage);
 
-    void createUniformBuffers();
+    void create_uniform_buffers();
 
     // ==================== commands ====================
 
-    void createCommandPool();
+    void create_command_pool();
 
-    void createCommandBuffers();
+    void create_command_buffers();
 
-    void recordGraphicsCommandBuffer();
+    void record_graphics_command_buffer();
 
     // ==================== sync ====================
 
-    void createSyncObjects();
+    void create_sync_objects();
 
     // ==================== ray tracing ====================
 
-    void createTLAS();
+    void create_tlas();
 
-    void createRtPipeline();
+    void create_rt_pipeline();
 
     // ==================== gui ====================
 
-    void initImgui();
+    void init_imgui();
 
 public:
-    void renderGuiSection();
+    void render_gui_section();
 
     // ==================== render graph ====================
 
 private:
-    [[nodiscard]] GraphicsPipeline createNodePipeline(RenderNodeHandle handle) const;
+    [[nodiscard]] GraphicsPipeline create_node_pipeline(RenderNodeHandle handle) const;
 
-    void recordRenderGraphNodeCommands(const RenderNodeResources& nodeResources);
+    void record_render_graph_node_commands(const RenderNodeResources& node_resources);
 
 public:
-    void runRenderGraph();
+    void run_render_graph();
 
     // ==================== render loop ====================
 
-    bool startFrame();
+    bool start_frame();
 
-    void endFrame();
+    void end_frame();
 
-    void renderGui(const std::function<void()> &renderCommands);
+    void render_gui(const std::function<void()> &render_commands);
 
-    void runPrepass();
+    void run_prepass();
 
-    void runSsaoPass();
+    void run_ssao_pass();
 
     void raytrace();
 
-    void drawScene();
+    void draw_scene();
 
-    void drawDebugQuad();
+    void draw_debug_quad();
 
 private:
-    void drawModel(const vk::raii::CommandBuffer &commandBuffer, bool doPushConstants,
+    void draw_model(const vk::raii::CommandBuffer &command_buffer, bool do_push_constants,
                    const GraphicsPipeline &pipeline) const;
 
-    void captureCubemap() const;
+    void capture_cubemap() const;
 
-    void updateGraphicsUniformBuffer() const;
+    void update_graphics_uniform_buffer() const;
 };
 } // zrx
