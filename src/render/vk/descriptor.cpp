@@ -238,4 +238,11 @@ utils::desc::create_descriptor_sets(const RendererContext &ctx, const vk::raii::
 
     return final_sets;
 }
+
+DescriptorSet utils::desc::create_descriptor_set(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
+                                                 const shared_ptr<vk::raii::DescriptorSetLayout> &layout) {
+    auto sets = create_descriptor_sets(ctx, pool, layout, 1);
+    auto set = std::move(sets[0]);
+    return set;
+}
 } // zrx

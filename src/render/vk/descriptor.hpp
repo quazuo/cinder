@@ -486,5 +486,9 @@ namespace utils::desc {
     [[nodiscard]] std::vector<DescriptorSet>
     create_descriptor_sets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
                            const shared_ptr<vk::raii::DescriptorSetLayout> &layout, uint32_t count);
+
+    [[nodiscard]] DescriptorSet
+    create_descriptor_set(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
+                          const shared_ptr<vk::raii::DescriptorSetLayout> &layout);
 } // utils::desc
 } // zrx

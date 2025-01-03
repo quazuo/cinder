@@ -34,9 +34,9 @@ struct ExternalTextureResource {
     std::string name;
     std::vector<std::filesystem::path> paths;
     vk::Format format;
-    bool use_mipmaps = true;
-    bool is_cubemap = false;
-    bool is_hdr = false;
+    bool use_mipmaps                   = true;
+    bool is_cubemap                    = false;
+    bool is_hdr                        = false;
     std::optional<SwizzleDesc> swizzle = {};
 };
 
@@ -45,20 +45,29 @@ struct TransientTextureResource {
     vk::Extent2D extent;
     vk::Format format;
     bool use_mipmaps = false;
-    bool is_cubemap = false;
-    bool is_hdr = false;
+    bool is_cubemap  = false;
+    bool is_hdr      = false;
 };
 
 struct Shader {
-    using ShaderBindingSet = std::vector<ResourceHandle>;
+    using DescriptorSetDescription = std::vector<std::optional<ResourceHandle> >;
 
     std::filesystem::path path;
-    std::vector<ShaderBindingSet> descriptor_sets;
+    std::vector<DescriptorSetDescription> descriptor_set_descs;
+
+    Shader(std::filesystem::path&& path_, std::vector<DescriptorSetDescription>&& descriptor_set_descs_)
+        : path(path_), descriptor_set_descs(descriptor_set_descs_) {
+        for (auto& set_desc: descriptor_set_descs) {
+            while (!set_desc.back().has_value()) {
+                set_desc.pop_back();
+            }
+        }
+    }
 
     [[nodiscard]] std::set<ResourceHandle> get_bound_resources_set() const {
         std::set<ResourceHandle> result;
 
-        for (const auto &set : descriptor_sets) {
+        for (const auto &set: descriptor_set_descs) {
             result.insert(set.begin(), set.end());
         }
 
@@ -74,8 +83,8 @@ public:
     }
 
     void drawModel(const Model &model) const {
-        uint32_t index_offset = 0;
-        int32_t vertex_offset = 0;
+        uint32_t index_offset    = 0;
+        int32_t vertex_offset    = 0;
         uint32_t instance_offset = 0;
 
         model.bind_buffers(command_buffer);
@@ -107,7 +116,7 @@ struct RenderNode {
     RenderNodeBodyFn body;
 
     struct {
-        bool use_msaa = false;
+        bool use_msaa                  = false;
         vk::CullModeFlagBits cull_mode = vk::CullModeFlagBits::eBack;
     } custom_config;
 
@@ -140,11 +149,11 @@ class RenderGraph {
 public:
     [[nodiscard]] const RenderNode &node(const RenderNodeHandle handle) { return nodes.at(handle); }
 
-    [[nodiscard]] const auto& get_uniform_buffers() const { return uniform_buffers; }
+    [[nodiscard]] const auto &get_uniform_buffers() const { return uniform_buffers; }
 
-    [[nodiscard]] const auto& get_external_resources() const { return external_resources; }
+    [[nodiscard]] const auto &get_external_resources() const { return external_resources; }
 
-    [[nodiscard]] const auto& get_transient_resources() const { return transient_resources; }
+    [[nodiscard]] const auto &get_transient_resources() const { return transient_resources; }
 
     [[nodiscard]] vk::Format get_transient_texture_format(const ResourceHandle handle) const {
         if (handle == FINAL_IMAGE_RESOURCE_HANDLE) {
@@ -186,7 +195,7 @@ public:
         const auto handle = get_new_node_handle();
         nodes.emplace(handle, node);
 
-        const auto targets_set = node.get_all_targets_set();
+        const auto targets_set      = node.get_all_targets_set();
         const auto shader_resources = node.get_all_shader_resources_set();
 
         if (!detail::empty_intersection(targets_set, shader_resources)) {
@@ -197,7 +206,7 @@ public:
 
         // for each existing node A...
         for (const auto &[other_handle, other_node]: nodes) {
-            const auto other_targets_set = other_node.get_all_targets_set();
+            const auto other_targets_set      = other_node.get_all_targets_set();
             const auto other_shader_resources = other_node.get_all_shader_resources_set();
 
             // ...if any of the new node's targets is sampled in A,
@@ -240,7 +249,7 @@ public:
 
 private:
     void cycles_helper(const RenderNodeHandle handle, std::set<RenderNodeHandle> &discovered,
-                      std::set<RenderNodeHandle> &finished) const {
+                       std::set<RenderNodeHandle> &finished) const {
         discovered.emplace(handle);
 
         for (const auto &neighbour: dependency_graph.at(handle)) {

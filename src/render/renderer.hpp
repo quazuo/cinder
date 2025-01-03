@@ -131,6 +131,7 @@ class VulkanRenderer {
         RenderNodeHandle handle;
         vk::raii::CommandBuffer command_buffer;
         GraphicsPipeline pipeline;
+        std::vector<shared_ptr<DescriptorSet>> descriptor_sets;
     };
 
     struct {
@@ -366,12 +367,6 @@ private:
 
     void create_meshes_descriptor_set();
 
-    // ==================== render graph ====================
-
-    void create_render_graph_resources();
-
-    void create_render_graph_descriptor_sets();
-
     // ==================== render infos ====================
 
     void create_scene_render_infos();
@@ -431,6 +426,10 @@ public:
     // ==================== render graph ====================
 
 private:
+    void create_render_graph_resources();
+
+    [[nodiscard]] std::vector<shared_ptr<DescriptorSet>> create_node_descriptor_sets(RenderNodeHandle handle) const;
+
     [[nodiscard]] GraphicsPipeline create_node_pipeline(RenderNodeHandle handle) const;
 
     void record_render_graph_node_commands(const RenderNodeResources& node_resources);

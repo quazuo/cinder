@@ -1622,7 +1622,6 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
     render_graph_info.render_graph = make_unique<RenderGraph>(graph);
 
     create_render_graph_resources();
-    create_render_graph_descriptor_sets();
 
     const auto topo_sorted_handles = render_graph_info.render_graph->get_topo_sorted();
     const uint32_t n_nodes = topo_sorted_handles.size();
@@ -1635,6 +1634,7 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
             .handle = handle,
             .command_buffer = std::move(command_buffers[i]),
             .pipeline = create_node_pipeline(handle),
+            .descriptor_sets = create_node_descriptor_sets(handle),
         });
     }
 }
@@ -1690,8 +1690,61 @@ void VulkanRenderer::create_render_graph_resources() {
     }
 }
 
-void VulkanRenderer::create_render_graph_descriptor_sets() {
+std::vector<shared_ptr<DescriptorSet> >
+VulkanRenderer::create_node_descriptor_sets(const RenderNodeHandle handle) const {
+    const auto &node_info = render_graph_info.render_graph->node(handle);
 
+    std::vector<Shader::DescriptorSetDescription> merged_set_descs = node_info.vertex_shader->descriptor_set_descs;
+    for (size_t i = 0; i < node_info.fragment_shader->descriptor_set_descs.size(); i++) {
+        const auto &frag_set_desc = node_info.fragment_shader->descriptor_set_descs[i];
+
+        if (merged_set_descs[i].size() < frag_set_desc.size()) {
+            merged_set_descs.reserve(frag_set_desc.size());
+        }
+
+        for (size_t j = 0; j < frag_set_desc.size(); j++) {
+            if (frag_set_desc[j]) {
+                if (merged_set_descs[i][j] && merged_set_descs[i][j] != frag_set_desc[j]) {
+                    throw std::runtime_error("incompatible shader descriptor set bindings for node " + node_info.name);
+                }
+
+                merged_set_descs[i][j] = frag_set_desc[j];
+            }
+        }
+    }
+
+    std::vector<shared_ptr<DescriptorSet> > descriptor_sets;
+    for (size_t i = 0; i < merged_set_descs.size(); i++) {
+        const auto &set_desc = merged_set_descs[i];
+        DescriptorLayoutBuilder builder;
+
+        for (size_t j = 0; j < set_desc.size(); j++) {
+            if (!set_desc[j]) continue;
+
+            vk::DescriptorType type{};
+            vk::ShaderStageFlags stages{};
+
+            if (render_graph_ubos.contains(*set_desc[j])) {
+                type = vk::DescriptorType::eUniformBuffer;
+            } else if (render_graph_textures.contains(*set_desc[j])) {
+                type = vk::DescriptorType::eCombinedImageSampler;
+            } else {
+                throw std::runtime_error("unknown resource handle");
+            }
+
+            if (node_info.vertex_shader->descriptor_set_descs[i][j]) stages |= vk::ShaderStageFlagBits::eVertex;
+            if (node_info.fragment_shader->descriptor_set_descs[i][j]) stages |= vk::ShaderStageFlagBits::eFragment;
+
+            builder.add_binding(type, stages);
+        }
+
+        auto layout         = std::make_shared<vk::raii::DescriptorSetLayout>(builder.create(ctx));
+        auto descriptor_set = std::make_shared<DescriptorSet>(
+            utils::desc::create_descriptor_set(ctx, *descriptor_pool, layout));
+        descriptor_sets.emplace_back(descriptor_set);
+    }
+
+    return descriptor_sets;
 }
 
 GraphicsPipeline VulkanRenderer::create_node_pipeline(const RenderNodeHandle handle) const {
@@ -1746,7 +1799,12 @@ void VulkanRenderer::run_render_graph() {
 }
 
 void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources &node_resources) {
-    const auto &[handle, command_buffer, pipeline] = node_resources;
+    const auto &[handle, command_buffer, pipeline, descriptor_sets] = node_resources;
+
+    std::vector<vk::DescriptorSet> raw_descriptor_sets;
+    for (const auto &descriptor_set: descriptor_sets) {
+        raw_descriptor_sets.push_back(***descriptor_set);
+    }
 
     const auto &node_info = render_graph_info.render_graph->node(handle);
 
@@ -1787,9 +1845,7 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
         vk::PipelineBindPoint::eGraphics,
         *pipeline.get_layout(),
         0,
-        {
-            // todo - shader's descriptor sets!
-        },
+        raw_descriptor_sets,
         nullptr
     );
 
