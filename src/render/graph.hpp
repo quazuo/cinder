@@ -51,8 +51,13 @@ struct TransientTextureResource {
     bool is_hdr = false;
 };
 
+struct ModelResource {
+    std::string name;
+    std::filesystem::path path;
+};
+
 struct Shader {
-    using DescriptorSetDescription = std::vector<std::variant<std::monostate, ResourceHandle, ResourceHandleArray >>;
+    using DescriptorSetDescription = std::vector<std::variant<std::monostate, ResourceHandle, ResourceHandleArray> >;
 
     std::filesystem::path path;
     std::vector<DescriptorSetDescription> descriptor_set_descs;
@@ -86,16 +91,20 @@ struct Shader {
 
 class RenderPassContext {
     std::reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
+    std::reference_wrapper<const std::map<ResourceHandle, unique_ptr<Model> > > models;
 
 public:
-    explicit RenderPassContext(const vk::raii::CommandBuffer &cmdBuf) : command_buffer(cmdBuf) {
+    explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf,
+                               const std::map<ResourceHandle, unique_ptr<Model>> &models)
+        : command_buffer(cmd_buf), models(models) {
     }
 
-    void drawModel(const Model &model) const {
+    void draw_model(const ResourceHandle model_handle) const {
         uint32_t index_offset = 0;
         int32_t vertex_offset = 0;
         uint32_t instance_offset = 0;
 
+        const Model &model = *models.get().at(model_handle);
         model.bind_buffers(command_buffer);
 
         for (const auto &mesh: model.get_meshes()) {
@@ -154,6 +163,7 @@ class RenderGraph {
     std::map<ResourceHandle, UniformBuffer> uniform_buffers;
     std::map<ResourceHandle, ExternalTextureResource> external_resources;
     std::map<ResourceHandle, TransientTextureResource> transient_resources;
+    std::map<ResourceHandle, ModelResource> model_resources;
 
 public:
     [[nodiscard]] const RenderNode &node(const RenderNodeHandle handle) { return nodes.at(handle); }
@@ -164,15 +174,17 @@ public:
 
     [[nodiscard]] const auto &get_transient_resources() const { return transient_resources; }
 
+    [[nodiscard]] const auto &get_model_resources() const { return model_resources; }
+
     [[nodiscard]] vk::Format get_transient_texture_format(const ResourceHandle handle) const {
         if (handle == FINAL_IMAGE_RESOURCE_HANDLE) {
-            return vk::Format::eB8G8R8A8Srgb; // todo
+            throw std::invalid_argument("invalid handle in RenderGraph::get_transient_texture_format");
         }
 
         try {
             return transient_resources.at(handle).format;
         } catch (...) {
-            throw std::invalid_argument("invalid handle in RenderGraph::getTextureResourceFormat");
+            throw std::invalid_argument("invalid handle in RenderGraph::get_transient_texture_format");
         }
     }
 
@@ -238,21 +250,27 @@ public:
         return handle;
     }
 
-    ResourceHandle add_uniform_buffer(UniformBuffer &&buffer) {
+    [[nodiscard]] ResourceHandle add_uniform_buffer(UniformBuffer &&buffer) {
         const auto handle = get_new_resource_handle();
         uniform_buffers.emplace(handle, buffer);
         return handle;
     }
 
-    ResourceHandle add_external_resource(ExternalTextureResource &&resource) {
+    [[nodiscard]] ResourceHandle add_external_resource(ExternalTextureResource &&resource) {
         const auto handle = get_new_resource_handle();
         external_resources.emplace(handle, resource);
         return handle;
     }
 
-    ResourceHandle add_transient_resource(TransientTextureResource &&resource) {
+    [[nodiscard]] ResourceHandle add_transient_resource(TransientTextureResource &&resource) {
         const auto handle = get_new_resource_handle();
         transient_resources.emplace(handle, resource);
+        return handle;
+    }
+
+    [[nodiscard]] ResourceHandle add_model_resource(ModelResource &&resource) {
+        const auto handle = get_new_resource_handle();
+        model_resources.emplace(handle, resource);
         return handle;
     }
 

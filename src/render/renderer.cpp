@@ -1243,99 +1243,24 @@ void VulkanRenderer::create_command_buffers() {
 
 void VulkanRenderer::record_graphics_command_buffer() {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-
-    const vk::ImageMemoryBarrier2 barrier_to{
-        .srcStageMask = vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
-        .srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
-        .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
-        .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
-        .oldLayout = vk::ImageLayout::eGeneral,
-        .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
-        .image = **rt_target_texture->get_image(),
-        .subresourceRange = {
-            .aspectMask = vk::ImageAspectFlagBits::eColor,
-            .levelCount = 1,
-            .layerCount = 1,
-        }
-    };
-
-    const vk::ImageMemoryBarrier2 barrier_from{
-        .srcStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
-        .srcAccessMask = vk::AccessFlagBits2::eShaderRead,
-        .dstStageMask = vk::PipelineStageFlagBits2::eRayTracingShaderKHR,
-        .dstAccessMask = vk::AccessFlagBits2::eShaderWrite,
-        .oldLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
-        .newLayout = vk::ImageLayout::eGeneral,
-        .image = **rt_target_texture->get_image(),
-        .subresourceRange = {
-            .aspectMask = vk::ImageAspectFlagBits::eColor,
-            .levelCount = 1,
-            .layerCount = 1,
-        }
-    };
-
     constexpr auto rendering_flags = vk::RenderingFlagBits::eContentsSecondaryCommandBuffers;
 
     command_buffer.begin({});
 
     swap_chain->transition_to_attachment_layout(command_buffer);
 
-    // prepass
+    for (const auto &node_resources: render_graph_info.topo_sorted_nodes) {
+        // if size > 1, then this means that this pass (node) draws to the swapchain image
+        // and thus benefits from double or triple buffering
+        const auto &node_render_info = node_resources.render_infos.size() == 1
+                                       ? node_resources.render_infos[0]
+                                       : node_resources.render_infos[current_frame_idx];
+        const auto &node_command_buffer = node_resources.command_buffers.size() == 1
+                                          ? node_resources.command_buffers[0]
+                                          : node_resources.command_buffers[current_frame_idx];
 
-    if (frame_resources[current_frame_idx].prepass_cmd_buffer.was_recorded_this_frame) {
-        command_buffer.beginRendering(prepass_render_info->get(swap_chain->get_extent(), 1, rendering_flags));
-        command_buffer.executeCommands(**frame_resources[current_frame_idx].prepass_cmd_buffer);
-        command_buffer.endRendering();
-    }
-
-    // ssao pass
-
-    if (frame_resources[current_frame_idx].ssao_cmd_buffer.was_recorded_this_frame) {
-        command_buffer.beginRendering(ssao_render_info->get(swap_chain->get_extent(), 1, rendering_flags));
-        command_buffer.executeCommands(**frame_resources[current_frame_idx].ssao_cmd_buffer);
-        command_buffer.endRendering();
-    }
-
-    // rt pass
-
-    if (frame_resources[current_frame_idx].rt_cmd_buffer.was_recorded_this_frame) {
-        command_buffer.executeCommands(**frame_resources[current_frame_idx].rt_cmd_buffer);
-    }
-
-    // main pass
-
-    if (frame_resources[current_frame_idx].scene_cmd_buffer.was_recorded_this_frame) {
-        const auto &render_info = scene_render_infos[swap_chain->get_current_image_index()];
-        command_buffer.beginRendering(render_info.get(swap_chain->get_extent(), 1, rendering_flags));
-        command_buffer.executeCommands(**frame_resources[current_frame_idx].scene_cmd_buffer);
-        command_buffer.endRendering();
-    }
-
-    // debug quad pass
-
-    if (frame_resources[current_frame_idx].debug_cmd_buffer.was_recorded_this_frame) {
-        command_buffer.pipelineBarrier2(vk::DependencyInfo{
-            .imageMemoryBarrierCount = 1u,
-            .pImageMemoryBarriers = &barrier_to
-        });
-
-        const auto &render_info = scene_render_infos[swap_chain->get_current_image_index()];
-        command_buffer.beginRendering(render_info.get(swap_chain->get_extent(), 1, rendering_flags));
-        command_buffer.executeCommands(**frame_resources[current_frame_idx].debug_cmd_buffer);
-        command_buffer.endRendering();
-
-        command_buffer.pipelineBarrier2(vk::DependencyInfo{
-            .imageMemoryBarrierCount = 1u,
-            .pImageMemoryBarriers = &barrier_from
-        });
-    }
-
-    // gui pass
-
-    if (frame_resources[current_frame_idx].gui_cmd_buffer.was_recorded_this_frame) {
-        const auto &render_info = gui_render_infos[swap_chain->get_current_image_index()];
-        command_buffer.beginRendering(render_info.get(swap_chain->get_extent(), 1, rendering_flags));
-        command_buffer.executeCommands(**frame_resources[current_frame_idx].gui_cmd_buffer);
+        command_buffer.beginRendering(node_render_info.get(swap_chain->get_extent(), 1, rendering_flags));
+        command_buffer.executeCommands(*node_command_buffer);
         command_buffer.endRendering();
     }
 
@@ -1626,18 +1551,21 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
 
     const auto topo_sorted_handles = render_graph_info.render_graph->get_topo_sorted();
     const uint32_t n_nodes = topo_sorted_handles.size();
-    auto command_buffers = utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_nodes);
 
     for (uint32_t i = 0; i < n_nodes; i++) {
-        const auto handle = topo_sorted_handles[i];
-        auto descriptor_sets = create_node_descriptor_sets(handle);
-        auto pipeline = create_node_pipeline(handle, descriptor_sets);
+        const auto node_handle = topo_sorted_handles[i];
+        auto descriptor_sets = create_node_descriptor_sets(node_handle);
+        auto render_infos = create_node_render_infos(node_handle, descriptor_sets);
 
         render_graph_info.topo_sorted_nodes.emplace_back(RenderNodeResources{
-            .handle = handle,
-            .command_buffer = std::move(command_buffers[i]),
-            .pipeline = std::move(pipeline),
+            .handle = node_handle,
+            .command_buffers = utils::cmd::create_command_buffers(
+                ctx,
+                vk::CommandBufferLevel::eSecondary,
+                MAX_FRAMES_IN_FLIGHT
+            ),
             .descriptor_sets = std::move(descriptor_sets),
+            .render_infos = std::move(render_infos),
         });
     }
 }
@@ -1646,6 +1574,7 @@ void VulkanRenderer::create_render_graph_resources() {
     const auto &uniform_buffers = render_graph_info.render_graph->get_uniform_buffers();
     const auto &external_resources = render_graph_info.render_graph->get_external_resources();
     const auto &transient_resources = render_graph_info.render_graph->get_transient_resources();
+    const auto &model_resources = render_graph_info.render_graph->get_model_resources();
 
     for (const auto &[handle, description]: uniform_buffers) {
         render_graph_ubos.emplace(handle, utils::buf::create_uniform_buffer(ctx, description.size));
@@ -1698,11 +1627,16 @@ void VulkanRenderer::create_render_graph_resources() {
 
         render_graph_textures.emplace(handle, builder.create(ctx));
     }
+
+    for (const auto &[handle, description]: model_resources) {
+        model = make_unique<Model>(ctx, description.path, false);
+        render_graph_models.emplace(handle, std::move(model));
+    }
 }
 
 std::vector<shared_ptr<DescriptorSet> >
-VulkanRenderer::create_node_descriptor_sets(const RenderNodeHandle handle) const {
-    const auto &node_info = render_graph_info.render_graph->node(handle);
+VulkanRenderer::create_node_descriptor_sets(const RenderNodeHandle node_handle) const {
+    const auto &node_info = render_graph_info.render_graph->node(node_handle);
     const auto &vert_set_descs = node_info.vertex_shader->descriptor_set_descs;
     const auto &frag_set_descs = node_info.fragment_shader->descriptor_set_descs;
 
@@ -1740,41 +1674,36 @@ VulkanRenderer::create_node_descriptor_sets(const RenderNodeHandle handle) const
         for (size_t j = 0; j < set_desc.size(); j++) {
             if (std::holds_alternative<std::monostate>(set_desc[j])) continue;
 
+            bool is_ubo_descriptor = false;
+            bool is_tex_descriptor = false;
             vk::DescriptorType type{};
             vk::ShaderStageFlags stages{};
             uint32_t descriptor_count = 1;
 
             if (std::holds_alternative<ResourceHandle>(set_desc[j])) {
                 const auto res_handle = std::get<ResourceHandle>(set_desc[j]);
-
-                // todo - add check if it's mixed (and crash if so)
-                if (render_graph_ubos.contains(res_handle)) {
-                    type = vk::DescriptorType::eUniformBuffer;
-                } else if (render_graph_textures.contains(res_handle)) {
-                    type = vk::DescriptorType::eCombinedImageSampler;
-                } else {
-                    throw std::runtime_error("unknown resource handle");
-                }
+                is_ubo_descriptor = render_graph_ubos.contains(res_handle);
+                is_tex_descriptor = render_graph_textures.contains(res_handle);
             } else if (std::holds_alternative<ResourceHandleArray>(set_desc[j])) {
-                const auto& res_handles = std::get<ResourceHandleArray>(set_desc[j]);
-
-                const bool has_ubos = std::ranges::any_of(res_handles, [&](auto res_handle) {
+                const auto &res_handles = std::get<ResourceHandleArray>(set_desc[j]);
+                is_ubo_descriptor = std::ranges::any_of(res_handles, [&](auto res_handle) {
                     return render_graph_ubos.contains(res_handle);
                 });
-                const bool has_textures = std::ranges::any_of(res_handles, [&](auto res_handle) {
+                is_tex_descriptor = std::ranges::any_of(res_handles, [&](auto res_handle) {
                     return render_graph_textures.contains(res_handle);
                 });
-
-                // todo - add check if it's mixed (and crash if so)
-                if (has_ubos) {
-                    type = vk::DescriptorType::eUniformBuffer;
-                } else if (has_textures) {
-                    type = vk::DescriptorType::eCombinedImageSampler;
-                } else {
-                    throw std::runtime_error("unknown resource handle");
-                }
-
                 descriptor_count = res_handles.size();
+            }
+
+            if (is_ubo_descriptor && is_tex_descriptor) {
+                throw std::runtime_error("ambiguous resource handle type");
+            }
+            if (is_ubo_descriptor) {
+                type = vk::DescriptorType::eUniformBuffer;
+            } else if (is_tex_descriptor) {
+                type = vk::DescriptorType::eCombinedImageSampler;
+            } else {
+                throw std::runtime_error("unknown resource handle");
             }
 
             if (
@@ -1802,18 +1731,59 @@ VulkanRenderer::create_node_descriptor_sets(const RenderNodeHandle handle) const
         descriptor_sets.emplace_back(descriptor_set);
     }
 
+    for (size_t i = 0; i < merged_set_descs.size(); i++) {
+        const auto &set_desc = merged_set_descs[i];
+        const auto &descriptor_set = descriptor_sets[i];
+
+        for (uint32_t binding = 0; binding < set_desc.size(); binding++) {
+            if (std::holds_alternative<ResourceHandle>(set_desc[binding])) {
+                const auto res_handle = std::get<ResourceHandle>(set_desc[binding]);
+                queue_set_update_with_handle(*descriptor_set, res_handle, binding);
+            } else if (std::holds_alternative<ResourceHandleArray>(set_desc[binding])) {
+                const auto &res_handles = std::get<ResourceHandleArray>(set_desc[binding]);
+                for (uint32_t array_element = 0; array_element < res_handles.size(); array_element++) {
+                    queue_set_update_with_handle(*descriptor_set, res_handles[array_element], binding, array_element);
+                }
+            }
+        }
+
+        descriptor_set->commit_updates(ctx);
+    }
+
     return descriptor_sets;
 }
 
-GraphicsPipeline VulkanRenderer::create_node_pipeline(
-    const RenderNodeHandle handle,
+void VulkanRenderer::queue_set_update_with_handle(DescriptorSet &descriptor_set, const ResourceHandle res_handle,
+                                                  const uint32_t binding, const uint32_t array_element) const {
+    if (render_graph_ubos.contains(res_handle)) {
+        const auto &buffer = render_graph_ubos.at(res_handle);
+        descriptor_set.queue_update(
+            binding,
+            *buffer,
+            vk::DescriptorType::eUniformBuffer,
+            buffer->get_size(),
+            0,
+            array_element
+        );
+    } else if (render_graph_textures.contains(res_handle)) {
+        const auto &texture = render_graph_textures.at(res_handle);
+        descriptor_set.queue_update(ctx, binding, *texture, vk::DescriptorType::eCombinedImageSampler, array_element);
+    }
+}
+
+GraphicsPipelineBuilder VulkanRenderer::create_node_pipeline_builder(
+    const RenderNodeHandle node_handle,
     const std::vector<shared_ptr<DescriptorSet> > &descriptor_sets
 ) const {
-    const auto &node_info = render_graph_info.render_graph->node(handle);
+    const auto &node_info = render_graph_info.render_graph->node(node_handle);
 
     std::vector<vk::Format> color_formats;
     for (const auto &target: node_info.color_targets) {
-        color_formats.push_back(render_graph_info.render_graph->get_transient_texture_format(target));
+        if (target == FINAL_IMAGE_RESOURCE_HANDLE) {
+            color_formats.push_back(swap_chain->get_image_format());
+        } else {
+            color_formats.push_back(render_graph_info.render_graph->get_transient_texture_format(target));
+        }
     }
 
     std::vector<vk::DescriptorSetLayout> descriptor_set_layouts;
@@ -1843,6 +1813,8 @@ GraphicsPipeline VulkanRenderer::create_node_pipeline(
     if (node_info.depth_target) {
         builder.with_depth_format(
             render_graph_info.render_graph->get_transient_texture_format(*node_info.depth_target));
+    } else if (has_swapchain_target(node_handle)) {
+        builder.with_depth_format(swap_chain->get_depth_format());
     } else {
         builder.with_depth_stencil({
             .depthTestEnable = vk::False,
@@ -1850,20 +1822,82 @@ GraphicsPipeline VulkanRenderer::create_node_pipeline(
         });
     }
 
-    return builder.create(ctx);
+    return builder;
+}
+
+std::vector<RenderInfo> VulkanRenderer::create_node_render_infos(
+    const RenderNodeHandle node_handle,
+    const std::vector<shared_ptr<DescriptorSet> > &descriptor_sets
+) const {
+    const auto &node_info = render_graph_info.render_graph->node(node_handle);
+    auto pipeline_builder = create_node_pipeline_builder(node_handle, descriptor_sets);
+    const auto pipeline = make_shared<GraphicsPipeline>(pipeline_builder.create(ctx));
+    std::vector<RenderInfo> render_infos;
+
+    if (has_swapchain_target(node_handle)) {
+        for (auto &swap_chain_targets: swap_chain->get_render_targets(ctx)) {
+            std::vector<RenderTarget> color_targets;
+
+            for (auto color_target_handle: node_info.color_targets) {
+                if (color_target_handle == FINAL_IMAGE_RESOURCE_HANDLE) {
+                    color_targets.emplace_back(std::move(swap_chain_targets.color_target));
+                } else {
+                    const auto& target_texture = render_graph_textures.at(color_target_handle);
+                    color_targets.emplace_back(target_texture->get_image().get_view(ctx), target_texture->get_format());
+                }
+            }
+
+            if (node_info.depth_target) {
+                throw std::runtime_error("depth target must be left unspecified for nodes targeting the final image");
+            }
+
+            render_infos.emplace_back(
+                pipeline_builder,
+                pipeline,
+                std::move(color_targets),
+                std::move(swap_chain_targets.depth_target)
+            );
+        }
+    } else {
+        std::vector<RenderTarget> color_targets;
+        std::optional<RenderTarget> depth_target;
+
+        for (auto color_target_handle: node_info.color_targets) {
+            const auto& target_texture = render_graph_textures.at(color_target_handle);
+            color_targets.emplace_back(target_texture->get_image().get_view(ctx), target_texture->get_format());
+        }
+
+        if (node_info.depth_target) {
+            const auto& target_texture = render_graph_textures.at(*node_info.depth_target);
+            depth_target = RenderTarget(target_texture->get_image().get_view(ctx), target_texture->get_format());
+        }
+
+        if (depth_target) {
+            render_infos.emplace_back(pipeline_builder, pipeline, std::move(color_targets), std::move(*depth_target));
+        } else {
+            render_infos.emplace_back(pipeline_builder, pipeline, std::move(color_targets));
+        }
+    }
+
+    return render_infos;
 }
 
 void VulkanRenderer::run_render_graph() {
-    const size_t n_passes = render_graph_info.topo_sorted_nodes.size();
+    start_frame();
 
-    for (size_t i = 0; i < n_passes; i++) {
-        const auto &node_resources = render_graph_info.topo_sorted_nodes[i];
+    for (const auto &node_resources: render_graph_info.topo_sorted_nodes) {
         record_render_graph_node_commands(node_resources);
     }
+
+    record_graphics_command_buffer();
+
+    end_frame();
 }
 
 void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources &node_resources) {
-    const auto &[handle, command_buffer, pipeline, descriptor_sets] = node_resources;
+    const auto &[handle, command_buffers, descriptor_sets, render_infos] = node_resources;
+    const auto &command_buffer = command_buffers[current_frame_idx];
+    const auto &render_info = render_infos[has_swapchain_target(node_resources.handle) ? current_frame_idx : 0];
 
     std::vector<vk::DescriptorSet> raw_descriptor_sets;
     for (const auto &descriptor_set: descriptor_sets) {
@@ -1874,13 +1908,19 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
 
     std::vector<vk::Format> color_formats;
     for (const auto &target: node_info.color_targets) {
-        color_formats.push_back(render_graph_info.render_graph->get_transient_texture_format(target));
+        if (target == FINAL_IMAGE_RESOURCE_HANDLE) {
+            color_formats.push_back(swap_chain->get_image_format());
+        } else {
+            color_formats.push_back(render_graph_info.render_graph->get_transient_texture_format(target));
+        }
     }
 
-    const vk::Format depth_format = node_info.depth_target
-                                    ? render_graph_info.render_graph->get_transient_texture_format(
-                                        *node_info.depth_target)
-                                    : vk::Format{};
+    auto depth_format = static_cast<vk::Format>(0);
+    if (node_info.depth_target) {
+        depth_format = render_graph_info.render_graph->get_transient_texture_format(*node_info.depth_target);
+    } else if (has_swapchain_target(handle)) {
+        depth_format = swap_chain->get_depth_format();
+    }
 
     const vk::StructureChain inheritance_info{
         vk::CommandBufferInheritanceInfo{},
@@ -1901,6 +1941,7 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
 
     utils::cmd::set_dynamic_states(command_buffer, swap_chain->get_extent());
 
+    const auto &pipeline = render_info.get_pipeline();
     command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
 
     command_buffer.bindDescriptorSets(
@@ -1911,10 +1952,16 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
         nullptr
     );
 
-    RenderPassContext passCtx{command_buffer};
-    node_info.body(passCtx);
+    RenderPassContext pass_ctx{command_buffer, render_graph_models};
+    node_info.body(pass_ctx);
 
     command_buffer.end();
+}
+
+bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle handle) const {
+    return render_graph_info.render_graph->node(handle)
+            .get_all_targets_set()
+            .contains(FINAL_IMAGE_RESOURCE_HANDLE);
 }
 
 // ==================== render loop ====================
@@ -1964,11 +2011,6 @@ void VulkanRenderer::render_gui(const std::function<void()> &render_commands) {
 }
 
 bool VulkanRenderer::start_frame() {
-    while (!queued_frame_begin_actions.empty()) {
-        queued_frame_begin_actions.front()();
-        queued_frame_begin_actions.pop();
-    }
-
     const auto &sync = frame_resources[current_frame_idx].sync;
 
     const std::vector wait_semaphores = {
@@ -1989,7 +2031,10 @@ bool VulkanRenderer::start_frame() {
         throw std::runtime_error("waitSemaphores on renderFinishedTimeline failed");
     }
 
-    update_graphics_uniform_buffer();
+    while (!queued_frame_begin_actions.empty()) {
+        queued_frame_begin_actions.front()();
+        queued_frame_begin_actions.pop();
+    }
 
     const auto &[result, image_index] = swap_chain->acquire_next_image(*sync.image_available_semaphore);
 
@@ -2011,8 +2056,6 @@ bool VulkanRenderer::start_frame() {
 }
 
 void VulkanRenderer::end_frame() {
-    record_graphics_command_buffer();
-
     auto &sync = frame_resources[current_frame_idx].sync;
 
     const std::vector wait_semaphores = {

@@ -125,13 +125,15 @@ class VulkanRenderer {
 
     unique_ptr<SwapChain> swap_chain;
 
+    unique_ptr<vk::raii::DescriptorPool> descriptor_pool;
+
     // render graph
 
     struct RenderNodeResources {
         RenderNodeHandle handle;
-        vk::raii::CommandBuffer command_buffer;
-        GraphicsPipeline pipeline;
+        vk::raii::CommandBuffers command_buffers;
         std::vector<shared_ptr<DescriptorSet> > descriptor_sets;
+        std::vector<RenderInfo> render_infos;
     };
 
     struct {
@@ -141,6 +143,7 @@ class VulkanRenderer {
 
     std::map<ResourceHandle, unique_ptr<Buffer> > render_graph_ubos;
     std::map<ResourceHandle, unique_ptr<Texture> > render_graph_textures;
+    std::map<ResourceHandle, unique_ptr<Model> > render_graph_models;
 
     // model
 
@@ -164,8 +167,6 @@ class VulkanRenderer {
     unique_ptr<Texture> rt_target_texture;
 
     // descriptors
-
-    unique_ptr<vk::raii::DescriptorPool> descriptor_pool;
 
     unique_ptr<MaterialsDescriptorSet> materials_descriptor_set;
     unique_ptr<MeshesDescriptorSet> meshes_descriptor_set;
@@ -428,12 +429,20 @@ public:
 private:
     void create_render_graph_resources();
 
-    [[nodiscard]] std::vector<shared_ptr<DescriptorSet> > create_node_descriptor_sets(RenderNodeHandle handle) const;
+    [[nodiscard]] std::vector<shared_ptr<DescriptorSet> > create_node_descriptor_sets(RenderNodeHandle node_handle) const;
 
-    [[nodiscard]] GraphicsPipeline
-    create_node_pipeline(RenderNodeHandle handle, const std::vector<shared_ptr<DescriptorSet>> &descriptor_sets) const;
+    void queue_set_update_with_handle(DescriptorSet &descriptor_set, ResourceHandle res_handle,
+                                      uint32_t binding, uint32_t array_element = 0) const;
+
+    [[nodiscard]] GraphicsPipelineBuilder create_node_pipeline_builder(
+        RenderNodeHandle node_handle, const std::vector<shared_ptr<DescriptorSet> > &descriptor_sets) const;
+
+    [[nodiscard]] std::vector<RenderInfo> create_node_render_infos(
+        RenderNodeHandle node_handle, const std::vector<shared_ptr<DescriptorSet> > &descriptor_sets) const;
 
     void record_render_graph_node_commands(const RenderNodeResources &node_resources);
+
+    [[nodiscard]] bool has_swapchain_target(RenderNodeHandle handle) const;
 
 public:
     void run_render_graph();

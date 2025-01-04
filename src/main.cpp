@@ -135,7 +135,12 @@ private:
 
         constexpr auto depth_format = vk::Format::eD32Sfloat;
 
-        // const auto scene_model = Model(RendererContext() /* todo */, "model.gltf", true);
+        // ================== models ==================
+
+        const auto scene_model = render_graph.add_model_resource({
+            "scene-model",
+            "../assets/example models/kettle/kettle.obj"
+        });
 
         // ================== uniform buffers ==================
 
@@ -208,9 +213,9 @@ private:
             prepass_fragment_shader,
             {g_buffer_normal, g_buffer_pos},
             g_buffer_depth,
-            [&](RenderPassContext &ctx) {
-                // std::cout << "prepass\n";
-                // ctx.draw_model(scene_model);
+            [scene_model](RenderPassContext &ctx) {
+                std::cout << "prepass\n";
+                ctx.draw_model(scene_model);
             }
         });
 
@@ -241,9 +246,9 @@ private:
             main_fragment_shader,
             {FINAL_IMAGE_RESOURCE_HANDLE},
             {},
-            [&](RenderPassContext &ctx) {
-                // std::cout << "main\n";
-                // ctx.draw_model(scene_model);
+            [scene_model](RenderPassContext &ctx) {
+                std::cout << "main\n";
+                ctx.draw_model(scene_model);
             }
         });
 
