@@ -1274,8 +1274,7 @@ void VulkanRenderer::record_graphics_command_buffer() {
 
     constexpr auto rendering_flags = vk::RenderingFlagBits::eContentsSecondaryCommandBuffers;
 
-    constexpr vk::CommandBufferBeginInfo begin_info;
-    command_buffer.begin(begin_info);
+    command_buffer.begin({});
 
     swap_chain->transition_to_attachment_layout(command_buffer);
 
@@ -1816,7 +1815,7 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
     const vk::Format depth_format = node_info.depth_target
                                         ? render_graph_info.render_graph->get_transient_texture_format(
                                             *node_info.depth_target)
-                                        : static_cast<vk::Format>(0);
+                                        : vk::Format{};
 
     const vk::StructureChain inheritance_info{
         vk::CommandBufferInheritanceInfo{},
@@ -1830,12 +1829,10 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
         }
     };
 
-    const vk::CommandBufferBeginInfo begin_info{
+    command_buffer.begin(vk::CommandBufferBeginInfo{
         .flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue,
         .pInheritanceInfo = &inheritance_info.get<vk::CommandBufferInheritanceInfo>(),
-    };
-
-    command_buffer.begin(begin_info);
+    });
 
     utils::cmd::set_dynamic_states(command_buffer, swap_chain->get_extent());
 
@@ -1887,12 +1884,10 @@ void VulkanRenderer::render_gui(const std::function<void()> &render_commands) {
         }
     };
 
-    const vk::CommandBufferBeginInfo begin_info{
+    command_buffer.begin(vk::CommandBufferBeginInfo{
         .flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue,
         .pInheritanceInfo = &inheritance_info.get<vk::CommandBufferInheritanceInfo>(),
-    };
-
-    command_buffer.begin(begin_info);
+    });
 
     gui_renderer->begin_rendering();
     render_commands();
@@ -2048,12 +2043,10 @@ void VulkanRenderer::run_prepass() {
         prepass_render_info->get_inheritance_rendering_info()
     };
 
-    const vk::CommandBufferBeginInfo begin_info{
+    command_buffer.begin(vk::CommandBufferBeginInfo{
         .flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue,
         .pInheritanceInfo = &inheritance_info.get<vk::CommandBufferInheritanceInfo>(),
-    };
-
-    command_buffer.begin(begin_info);
+    });
 
     utils::cmd::set_dynamic_states(command_buffer, swap_chain->get_extent());
 
@@ -2087,12 +2080,10 @@ void VulkanRenderer::run_ssao_pass() {
         ssao_render_info->get_inheritance_rendering_info()
     };
 
-    const vk::CommandBufferBeginInfo begin_info{
+    command_buffer.begin(vk::CommandBufferBeginInfo{
         .flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue,
         .pInheritanceInfo = &inheritance_info.get<vk::CommandBufferInheritanceInfo>(),
-    };
-
-    command_buffer.begin(begin_info);
+    });
 
     utils::cmd::set_dynamic_states(command_buffer, swap_chain->get_extent());
 
@@ -2121,11 +2112,9 @@ void VulkanRenderer::raytrace() {
 
     static constexpr vk::CommandBufferInheritanceInfo inheritance_info{};
 
-    static constexpr vk::CommandBufferBeginInfo begin_info{
+    command_buffer.begin(vk::CommandBufferBeginInfo{
         .pInheritanceInfo = &inheritance_info,
-    };
-
-    command_buffer.begin(begin_info);
+    });
 
     command_buffer.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, ***rt_pipeline);
 
@@ -2171,12 +2160,10 @@ void VulkanRenderer::draw_scene() {
         scene_render_infos[0].get_inheritance_rendering_info()
     };
 
-    const vk::CommandBufferBeginInfo begin_info{
+    command_buffer.begin(vk::CommandBufferBeginInfo{
         .flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue,
         .pInheritanceInfo = &inheritance_info.get<vk::CommandBufferInheritanceInfo>(),
-    };
-
-    command_buffer.begin(begin_info);
+    });
 
     utils::cmd::set_dynamic_states(command_buffer, swap_chain->get_extent());
 
@@ -2228,12 +2215,10 @@ void VulkanRenderer::draw_debug_quad() {
         debug_quad_render_infos[0].get_inheritance_rendering_info()
     };
 
-    const vk::CommandBufferBeginInfo begin_info{
+    command_buffer.begin(vk::CommandBufferBeginInfo{
         .flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue,
         .pInheritanceInfo = &inheritance_info.get<vk::CommandBufferInheritanceInfo>(),
-    };
-
-    command_buffer.begin(begin_info);
+    });
 
     utils::cmd::set_dynamic_states(command_buffer, swap_chain->get_extent());
 
