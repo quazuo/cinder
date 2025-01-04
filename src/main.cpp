@@ -133,7 +133,7 @@ private:
     void build_render_graph() {
         RenderGraph render_graph;
 
-        constexpr auto depth_format = vk::Format::eD32SfloatS8Uint;
+        constexpr auto depth_format = vk::Format::eD32Sfloat;
 
         // const auto scene_model = Model(RendererContext() /* todo */, "model.gltf", true);
 
@@ -148,11 +148,19 @@ private:
 
         const auto base_color_texture = render_graph.add_external_resource(ExternalTextureResource{
             "base-color-texture",
+            {"../assets/example models/kettle/kettle-albedo.png"},
             vk::Format::eR8G8B8A8Srgb
         });
 
         const auto normal_texture = render_graph.add_external_resource(ExternalTextureResource{
             "normal-texture",
+            {"../assets/example models/kettle/kettle-normal.png"},
+            vk::Format::eR8G8B8A8Unorm,
+        });
+
+        const auto orm_texture = render_graph.add_external_resource(ExternalTextureResource{
+            "orm-texture",
+            {"../assets/example models/kettle/kettle-orm.png"},
             vk::Format::eR8G8B8A8Unorm,
         });
 
@@ -201,6 +209,7 @@ private:
             {g_buffer_normal, g_buffer_pos},
             g_buffer_depth,
             [&](RenderPassContext &ctx) {
+                // std::cout << "prepass\n";
                 // ctx.draw_model(scene_model);
             }
         });
@@ -218,7 +227,11 @@ private:
             "../shaders/obj/main-frag.spv",
             {
                 {uniform_buffer, ssao_texture},
-                {}
+                {
+                    ResourceHandleArray{base_color_texture},
+                    ResourceHandleArray{normal_texture},
+                    ResourceHandleArray{orm_texture}
+                }
             }
         });
 
@@ -229,6 +242,7 @@ private:
             {FINAL_IMAGE_RESOURCE_HANDLE},
             {},
             [&](RenderPassContext &ctx) {
+                // std::cout << "main\n";
                 // ctx.draw_model(scene_model);
             }
         });

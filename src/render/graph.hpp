@@ -7,6 +7,7 @@
 #include <map>
 #include <memory>
 #include <set>
+#include <variant>
 
 #include "mesh/model.hpp"
 #include "vk/image.hpp"
@@ -24,6 +25,7 @@ namespace detail {
 using RenderNodeHandle = uint32_t;
 
 static constexpr ResourceHandle FINAL_IMAGE_RESOURCE_HANDLE = -1;
+static constexpr std::monostate EMPTY_DESCRIPTOR_SET_BINDING = {};
 
 struct UniformBuffer {
     std::string name;
@@ -34,31 +36,31 @@ struct ExternalTextureResource {
     std::string name;
     std::vector<std::filesystem::path> paths;
     vk::Format format;
-    bool use_mipmaps                   = true;
-    bool is_cubemap                    = false;
-    bool is_hdr                        = false;
+    bool use_mipmaps = true;
+    bool is_cubemap = false;
+    bool is_hdr = false;
     std::optional<SwizzleDesc> swizzle = {};
 };
 
 struct TransientTextureResource {
     std::string name;
-    vk::Extent2D extent;
     vk::Format format;
+    vk::Extent2D extent = {0, 0}; // {0, 0} means we're using the swapchain image's extent
     bool use_mipmaps = false;
-    bool is_cubemap  = false;
-    bool is_hdr      = false;
+    bool is_cubemap = false;
+    bool is_hdr = false;
 };
 
 struct Shader {
-    using DescriptorSetDescription = std::vector<std::optional<ResourceHandle> >;
+    using DescriptorSetDescription = std::vector<std::variant<std::monostate, ResourceHandle, ResourceHandleArray >>;
 
     std::filesystem::path path;
     std::vector<DescriptorSetDescription> descriptor_set_descs;
 
-    Shader(std::filesystem::path&& path_, std::vector<DescriptorSetDescription>&& descriptor_set_descs_)
+    Shader(std::filesystem::path &&path_, std::vector<DescriptorSetDescription> &&descriptor_set_descs_)
         : path(path_), descriptor_set_descs(descriptor_set_descs_) {
-        for (auto& set_desc: descriptor_set_descs) {
-            while (!set_desc.back().has_value()) {
+        for (auto &set_desc: descriptor_set_descs) {
+            while (!set_desc.empty() && std::holds_alternative<std::monostate>(set_desc.back())) {
                 set_desc.pop_back();
             }
         }
@@ -68,7 +70,14 @@ struct Shader {
         std::set<ResourceHandle> result;
 
         for (const auto &set: descriptor_set_descs) {
-            result.insert(set.begin(), set.end());
+            for (const auto &binding: set) {
+                if (std::holds_alternative<ResourceHandle>(binding)) {
+                    result.insert(std::get<ResourceHandle>(binding));
+                } else if (std::holds_alternative<ResourceHandleArray>(binding)) {
+                    result.insert(std::get<ResourceHandleArray>(binding).begin(),
+                                  std::get<ResourceHandleArray>(binding).end());
+                }
+            }
         }
 
         return result;
@@ -83,8 +92,8 @@ public:
     }
 
     void drawModel(const Model &model) const {
-        uint32_t index_offset    = 0;
-        int32_t vertex_offset    = 0;
+        uint32_t index_offset = 0;
+        int32_t vertex_offset = 0;
         uint32_t instance_offset = 0;
 
         model.bind_buffers(command_buffer);
@@ -116,7 +125,7 @@ struct RenderNode {
     RenderNodeBodyFn body;
 
     struct {
-        bool use_msaa                  = false;
+        bool use_msaa = false;
         vk::CullModeFlagBits cull_mode = vk::CullModeFlagBits::eBack;
     } custom_config;
 
@@ -195,7 +204,7 @@ public:
         const auto handle = get_new_node_handle();
         nodes.emplace(handle, node);
 
-        const auto targets_set      = node.get_all_targets_set();
+        const auto targets_set = node.get_all_targets_set();
         const auto shader_resources = node.get_all_shader_resources_set();
 
         if (!detail::empty_intersection(targets_set, shader_resources)) {
@@ -206,7 +215,7 @@ public:
 
         // for each existing node A...
         for (const auto &[other_handle, other_node]: nodes) {
-            const auto other_targets_set      = other_node.get_all_targets_set();
+            const auto other_targets_set = other_node.get_all_targets_set();
             const auto other_shader_resources = other_node.get_all_shader_resources_set();
 
             // ...if any of the new node's targets is sampled in A,

@@ -99,14 +99,14 @@ private:
 
 class VulkanRenderer {
     using CubemapCaptureDescriptorSet = FixedDescriptorSet<Buffer, Texture>;
-    using DebugQuadDescriptorSet      = FixedDescriptorSet<Texture>;
-    using MaterialsDescriptorSet      = FixedDescriptorSet<Texture, Texture, Texture, Texture>;
-    using SceneDescriptorSet          = FixedDescriptorSet<Buffer, Texture>;
-    using SkyboxDescriptorSet         = FixedDescriptorSet<Buffer, Texture>;
-    using PrepassDescriptorSet        = FixedDescriptorSet<Buffer>;
-    using RtDescriptorSet             = FixedDescriptorSet<Buffer, AccelerationStructure, Texture>;
-    using SsaoDescriptorSet           = FixedDescriptorSet<Buffer, Texture, Texture, Texture, Texture>;
-    using MeshesDescriptorSet         = FixedDescriptorSet<Buffer, Buffer, Buffer>;
+    using DebugQuadDescriptorSet = FixedDescriptorSet<Texture>;
+    using MaterialsDescriptorSet = FixedDescriptorSet<Texture, Texture, Texture, Texture>;
+    using SceneDescriptorSet = FixedDescriptorSet<Buffer, Texture>;
+    using SkyboxDescriptorSet = FixedDescriptorSet<Buffer, Texture>;
+    using PrepassDescriptorSet = FixedDescriptorSet<Buffer>;
+    using RtDescriptorSet = FixedDescriptorSet<Buffer, AccelerationStructure, Texture>;
+    using SsaoDescriptorSet = FixedDescriptorSet<Buffer, Texture, Texture, Texture, Texture>;
+    using MeshesDescriptorSet = FixedDescriptorSet<Buffer, Buffer, Buffer>;
 
     GLFWwindow *window = nullptr;
 
@@ -131,7 +131,7 @@ class VulkanRenderer {
         RenderNodeHandle handle;
         vk::raii::CommandBuffer command_buffer;
         GraphicsPipeline pipeline;
-        std::vector<shared_ptr<DescriptorSet>> descriptor_sets;
+        std::vector<shared_ptr<DescriptorSet> > descriptor_sets;
     };
 
     struct {
@@ -139,8 +139,8 @@ class VulkanRenderer {
         std::vector<RenderNodeResources> topo_sorted_nodes;
     } render_graph_info;
 
-    std::map<ResourceHandle, unique_ptr<Buffer>> render_graph_ubos;
-    std::map<ResourceHandle, unique_ptr<Texture>> render_graph_textures;
+    std::map<ResourceHandle, unique_ptr<Buffer> > render_graph_ubos;
+    std::map<ResourceHandle, unique_ptr<Texture> > render_graph_textures;
 
     // model
 
@@ -236,7 +236,7 @@ class VulkanRenderer {
     // miscellaneous constants
 
     static constexpr auto prepass_color_format = vk::Format::eR16G16B16A16Sfloat;
-    static constexpr auto hdr_envmap_format    = vk::Format::eR32G32B32A32Sfloat;
+    static constexpr auto hdr_envmap_format = vk::Format::eR32G32B32A32Sfloat;
 
     static constexpr uint32_t MATERIAL_TEX_ARRAY_SIZE = 32;
 
@@ -258,15 +258,15 @@ class VulkanRenderer {
     glm::quat model_rotation{1, 0, 0, 0};
 
     glm::quat light_direction = glm::normalize(glm::vec3(1, 1.5, -2));
-    glm::vec3 light_color     = glm::normalize(glm::vec3(23.47, 21.31, 20.79));
-    float light_intensity     = 20.0f;
+    glm::vec3 light_color = glm::normalize(glm::vec3(23.47, 21.31, 20.79));
+    float light_intensity = 20.0f;
 
     float debug_number = 0;
 
     bool cull_back_faces = false;
     bool wireframe_mode = false;
-    bool use_ssao       = false;
-    bool use_msaa       = false;
+    bool use_ssao = false;
+    bool use_msaa = false;
 
 public:
     explicit VulkanRenderer();
@@ -306,7 +306,7 @@ public:
     void load_orm_map(const std::filesystem::path &path);
 
     void load_orm_map(const std::filesystem::path &ao_path, const std::filesystem::path &roughness_path,
-                    const std::filesystem::path &metallic_path);
+                      const std::filesystem::path &metallic_path);
 
     void load_rma_map(const std::filesystem::path &path);
 
@@ -327,9 +327,9 @@ private:
 
     void create_surface();
 
-    vkb::PhysicalDevice pick_physical_device(const vkb::Instance& vkb_instance);
+    vkb::PhysicalDevice pick_physical_device(const vkb::Instance &vkb_instance);
 
-    void create_logical_device(const vkb::PhysicalDevice& vkb_physical_device);
+    void create_logical_device(const vkb::PhysicalDevice &vkb_physical_device);
 
     // ==================== assets ====================
 
@@ -428,11 +428,12 @@ public:
 private:
     void create_render_graph_resources();
 
-    [[nodiscard]] std::vector<shared_ptr<DescriptorSet>> create_node_descriptor_sets(RenderNodeHandle handle) const;
+    [[nodiscard]] std::vector<shared_ptr<DescriptorSet> > create_node_descriptor_sets(RenderNodeHandle handle) const;
 
-    [[nodiscard]] GraphicsPipeline create_node_pipeline(RenderNodeHandle handle) const;
+    [[nodiscard]] GraphicsPipeline
+    create_node_pipeline(RenderNodeHandle handle, const std::vector<shared_ptr<DescriptorSet>> &descriptor_sets) const;
 
-    void record_render_graph_node_commands(const RenderNodeResources& node_resources);
+    void record_render_graph_node_commands(const RenderNodeResources &node_resources);
 
 public:
     void run_render_graph();
@@ -457,7 +458,7 @@ public:
 
 private:
     void draw_model(const vk::raii::CommandBuffer &command_buffer, bool do_push_constants,
-                   const GraphicsPipeline &pipeline) const;
+                    const GraphicsPipeline &pipeline) const;
 
     void capture_cubemap() const;
 

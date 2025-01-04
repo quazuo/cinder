@@ -16,3 +16,4 @@ using std::int16_t;
 using std::int8_t;
 
 using ResourceHandle = uint32_t;
+using ResourceHandleArray = std::vector<ResourceHandle>;

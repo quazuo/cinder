@@ -10,9 +10,11 @@ layout (location = 2) in mat3 TBN;
 
 layout (location = 0) out vec4 outColor;
 
-layout (push_constant) uniform PushConstants {
-    uint material_id;
-} constants;
+//layout (push_constant) uniform PushConstants {
+//    uint material_id;
+//} constants;
+
+#define material_id 0
 
 layout (set = 0, binding = 0) uniform UniformBufferObject {
     WindowRes window;
@@ -22,7 +24,8 @@ layout (set = 0, binding = 0) uniform UniformBufferObject {
 
 layout (set = 0, binding = 1) uniform sampler2D ssaoSampler;
 
-#define MATERIAL_TEX_ARRAY_SIZE 32
+// 32
+#define MATERIAL_TEX_ARRAY_SIZE 1
 
 layout (set = 1, binding = 0) uniform sampler2D baseColorSamplers[MATERIAL_TEX_ARRAY_SIZE];
 layout (set = 1, binding = 1) uniform sampler2D normalSamplers[MATERIAL_TEX_ARRAY_SIZE];
@@ -45,19 +48,19 @@ float getBlurredSsao() {
 }
 
 void main() {
-    vec4 base_color = texture(baseColorSamplers[constants.material_id], fragTexCoord);
+    vec4 base_color = texture(baseColorSamplers[material_id], fragTexCoord);
 
     if (base_color.a < 0.1) discard;
 
-    vec3 normal = texture(normalSamplers[constants.material_id], fragTexCoord).rgb;
+    vec3 normal = texture(normalSamplers[material_id], fragTexCoord).rgb;
     normal = normalize(normal * 2.0 - 1.0);
     normal = normalize(TBN * normal);
 
     float ao = ubo.misc.use_ssao == 1u
     ? getBlurredSsao()
-    : texture(ormSamplers[constants.material_id], fragTexCoord).r;
-    float roughness = texture(ormSamplers[constants.material_id], fragTexCoord).g;
-    float metallic = texture(ormSamplers[constants.material_id], fragTexCoord).b;
+    : texture(ormSamplers[material_id], fragTexCoord).r;
+    float roughness = texture(ormSamplers[material_id], fragTexCoord).g;
+    float metallic = texture(ormSamplers[material_id], fragTexCoord).b;
 
     // light related values
     vec3 light_dir = normalize(ubo.misc.light_direction);

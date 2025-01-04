@@ -9,6 +9,7 @@
 #include <vector>
 #include <filesystem>
 #include <array>
+#include <mutex>
 #include <random>
 
 #include "camera.hpp"
@@ -66,7 +67,7 @@ struct GraphicsUBO {
 
 namespace zrx {
 VulkanRenderer::VulkanRenderer() {
-    constexpr int INIT_WINDOW_WIDTH  = 1200;
+    constexpr int INIT_WINDOW_WIDTH = 1200;
     constexpr int INIT_WINDOW_HEIGHT = 800;
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -166,7 +167,7 @@ void VulkanRenderer::framebuffer_resize_callback(GLFWwindow *window, const int w
 void VulkanRenderer::bind_mouse_drag_actions() {
     input_manager->bind_mouse_drag_callback(GLFW_MOUSE_BUTTON_RIGHT, [&](const double dx, const double dy) {
         static constexpr float speed = 0.002;
-        const float camera_distance  = glm::length(camera->get_pos());
+        const float camera_distance = glm::length(camera->get_pos());
 
         const auto view_vectors = camera->get_view_vectors();
 
@@ -181,12 +182,14 @@ vkb::Instance VulkanRenderer::create_instance() {
     auto instance_result = vkb::InstanceBuilder().set_app_name("Rayzor")
             .request_validation_layers()
             .enable_layer("VK_LAYER_KHRONOS_validation")
-            .set_debug_callback([](const VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-                                   const VkDebugUtilsMessageTypeFlagsEXT messageType,
-                                   const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
-                                   void *p_user_data) -> VkBool32 {
-                    const auto severity = vkb::to_string_message_severity(messageSeverity);
-                    const auto type     = vkb::to_string_message_type(messageType);
+            .set_debug_callback([](
+            const VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+            const VkDebugUtilsMessageTypeFlagsEXT messageType,
+            const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
+            void *p_user_data) -> VkBool32 {
+                    const auto severity = vkb::to_string_message_severity(
+                        messageSeverity);
+                    const auto type = vkb::to_string_message_type(messageType);
 
                     std::stringstream ss;
                     ss << "[" << severity << ": " << type << "]\n" << pCallbackData->pMessage << "\n\n";
@@ -198,8 +201,7 @@ vkb::Instance VulkanRenderer::create_instance() {
                     }
 
                     return VK_FALSE;
-                }
-            )
+                })
             .require_api_version(1, 3)
             .set_minimum_instance_version(1, 3)
             .enable_extensions(get_required_extensions())
@@ -216,7 +218,7 @@ vkb::Instance VulkanRenderer::create_instance() {
 
 std::vector<const char *> VulkanRenderer::get_required_extensions() {
     uint32_t glfw_extension_count = 0;
-    const char **glfw_extensions  = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
+    const char **glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
 
     std::vector extensions(glfw_extensions, glfw_extensions + glfw_extension_count);
 
@@ -299,20 +301,20 @@ void VulkanRenderer::create_logical_device(const vkb::PhysicalDevice &vkb_physic
 
     ctx.device = make_unique<vk::raii::Device>(*ctx.physical_device, device_result.value().device);
 
-    auto graphics_queue_result       = device_result.value().get_queue(vkb::QueueType::graphics);
+    auto graphics_queue_result = device_result.value().get_queue(vkb::QueueType::graphics);
     auto graphics_queue_index_result = device_result.value().get_queue_index(vkb::QueueType::graphics);
     if (!graphics_queue_result || !graphics_queue_index_result) {
         throw std::runtime_error("failed to get graphics queue: " + device_result.error().message());
     }
 
-    auto present_queue_result       = device_result.value().get_queue(vkb::QueueType::present);
+    auto present_queue_result = device_result.value().get_queue(vkb::QueueType::present);
     auto present_queue_index_result = device_result.value().get_queue_index(vkb::QueueType::present);
     if (!present_queue_result || !present_queue_index_result) {
         throw std::runtime_error("failed to get present queue: " + device_result.error().message());
     }
 
     ctx.graphics_queue = make_unique<vk::raii::Queue>(*ctx.device, graphics_queue_result.value());
-    present_queue      = make_unique<vk::raii::Queue>(*ctx.device, present_queue_result.value());
+    present_queue = make_unique<vk::raii::Queue>(*ctx.device, present_queue_result.value());
 
     queue_family_indices = {
         .graphics_compute_family = graphics_queue_index_result.value(),
@@ -671,8 +673,8 @@ void VulkanRenderer::create_scene_descriptor_sets() {
 }
 
 void VulkanRenderer::create_materials_descriptor_set() {
-    constexpr auto scope            = vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eClosestHitKHR;
-    constexpr auto type             = vk::DescriptorType::eCombinedImageSampler;
+    constexpr auto scope = vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eClosestHitKHR;
+    constexpr auto type = vk::DescriptorType::eCombinedImageSampler;
     constexpr auto descriptor_count = MATERIAL_TEX_ARRAY_SIZE;
 
     materials_descriptor_set = make_unique<MaterialsDescriptorSet>(
@@ -743,8 +745,8 @@ void VulkanRenderer::create_cubemap_capture_descriptor_set() {
             vk::ShaderStageFlagBits::eVertex,
         },
         envmap_texture
-            ? ResourcePack{*envmap_texture, vk::ShaderStageFlagBits::eFragment}
-            : ResourcePack<Texture>{1, vk::ShaderStageFlagBits::eFragment}
+        ? ResourcePack{*envmap_texture, vk::ShaderStageFlagBits::eFragment}
+        : ResourcePack<Texture>{1, vk::ShaderStageFlagBits::eFragment}
     );
 }
 
@@ -1187,7 +1189,7 @@ VulkanRenderer::create_local_buffer(const std::vector<ElemType> &contents, const
 void VulkanRenderer::create_uniform_buffers() {
     for (auto &res: frame_resources) {
         res.graphics_uniform_buffer = utils::buf::create_uniform_buffer(ctx, sizeof(GraphicsUBO));
-        res.graphics_ubo_mapped     = res.graphics_uniform_buffer->map();
+        res.graphics_ubo_mapped = res.graphics_uniform_buffer->map();
     }
 }
 
@@ -1203,7 +1205,7 @@ void VulkanRenderer::create_command_pool() {
 }
 
 void VulkanRenderer::create_command_buffers() {
-    constexpr uint32_t n_buffers = frame_resources.size();
+    const uint32_t n_buffers = frame_resources.size();
 
     auto graphics_command_buffers =
             utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::ePrimary, n_buffers);
@@ -1380,7 +1382,7 @@ void VulkanRenderer::create_tlas() {
 
     const vk::AccelerationStructureDeviceAddressInfoKHR blas_address_info{.accelerationStructure = *model->get_blas()};
     const vk::DeviceAddress blas_reference = ctx.device->getAccelerationStructureAddressKHR(blas_address_info);
-    constexpr auto flags                   = vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable; // todo
+    constexpr auto flags = vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable; // todo
 
     instances.emplace_back(vk::AccelerationStructureInstanceKHR{
         .transform = transform_matrix,
@@ -1460,7 +1462,7 @@ void VulkanRenderer::create_tlas() {
 
     build_info.srcAccelerationStructure = nullptr;
     build_info.dstAccelerationStructure = ***tlas;
-    build_info.scratchData              = ctx.device->getBufferAddress({.buffer = *scratch_buffer});
+    build_info.scratchData = ctx.device->getBufferAddress({.buffer = *scratch_buffer});
 
     static constexpr vk::AccelerationStructureBuildRangeInfoKHR range_info{
         .primitiveCount = instance_count,
@@ -1628,19 +1630,21 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
 
     for (uint32_t i = 0; i < n_nodes; i++) {
         const auto handle = topo_sorted_handles[i];
+        auto descriptor_sets = create_node_descriptor_sets(handle);
+        auto pipeline = create_node_pipeline(handle, descriptor_sets);
 
         render_graph_info.topo_sorted_nodes.emplace_back(RenderNodeResources{
             .handle = handle,
             .command_buffer = std::move(command_buffers[i]),
-            .pipeline = create_node_pipeline(handle),
-            .descriptor_sets = create_node_descriptor_sets(handle),
+            .pipeline = std::move(pipeline),
+            .descriptor_sets = std::move(descriptor_sets),
         });
     }
 }
 
 void VulkanRenderer::create_render_graph_resources() {
-    const auto &uniform_buffers     = render_graph_info.render_graph->get_uniform_buffers();
-    const auto &external_resources  = render_graph_info.render_graph->get_external_resources();
+    const auto &uniform_buffers = render_graph_info.render_graph->get_uniform_buffers();
+    const auto &external_resources = render_graph_info.render_graph->get_external_resources();
     const auto &transient_resources = render_graph_info.render_graph->get_transient_resources();
 
     for (const auto &[handle, description]: uniform_buffers) {
@@ -1649,13 +1653,14 @@ void VulkanRenderer::create_render_graph_resources() {
 
     for (const auto &[handle, description]: external_resources) {
         const auto attachment_type = utils::img::is_depth_format(description.format)
-                                         ? vk::ImageUsageFlagBits::eDepthStencilAttachment
-                                         : vk::ImageUsageFlagBits::eColorAttachment;
+                                     ? vk::ImageUsageFlagBits::eDepthStencilAttachment
+                                     : vk::ImageUsageFlagBits::eColorAttachment;
 
         auto builder = TextureBuilder()
                 .from_paths(description.paths)
                 .use_format(description.format)
-                .use_usage(vk::ImageUsageFlagBits::eTransferDst
+                .use_usage(vk::ImageUsageFlagBits::eTransferSrc
+                           | vk::ImageUsageFlagBits::eTransferDst
                            | vk::ImageUsageFlagBits::eSampled
                            | attachment_type);
 
@@ -1670,11 +1675,17 @@ void VulkanRenderer::create_render_graph_resources() {
 
     for (const auto &[handle, description]: transient_resources) {
         const auto attachment_type = utils::img::is_depth_format(description.format)
-                                         ? vk::ImageUsageFlagBits::eDepthStencilAttachment
-                                         : vk::ImageUsageFlagBits::eColorAttachment;
+                                     ? vk::ImageUsageFlagBits::eDepthStencilAttachment
+                                     : vk::ImageUsageFlagBits::eColorAttachment;
+
+        auto extent = description.extent;
+
+        if (extent.width == 0 || extent.height == 0) {
+            extent = swap_chain->get_extent();
+        }
 
         auto builder = TextureBuilder()
-                .as_uninitialized({description.extent.width, description.extent.height, 1u})
+                .as_uninitialized({extent.width, extent.height, 1u})
                 .use_format(description.format)
                 .use_usage(vk::ImageUsageFlagBits::eTransferSrc
                            | vk::ImageUsageFlagBits::eTransferDst
@@ -1692,18 +1703,27 @@ void VulkanRenderer::create_render_graph_resources() {
 std::vector<shared_ptr<DescriptorSet> >
 VulkanRenderer::create_node_descriptor_sets(const RenderNodeHandle handle) const {
     const auto &node_info = render_graph_info.render_graph->node(handle);
+    const auto &vert_set_descs = node_info.vertex_shader->descriptor_set_descs;
+    const auto &frag_set_descs = node_info.fragment_shader->descriptor_set_descs;
 
-    std::vector<Shader::DescriptorSetDescription> merged_set_descs = node_info.vertex_shader->descriptor_set_descs;
-    for (size_t i = 0; i < node_info.fragment_shader->descriptor_set_descs.size(); i++) {
-        const auto &frag_set_desc = node_info.fragment_shader->descriptor_set_descs[i];
+    auto merged_set_descs = vert_set_descs;
+    if (merged_set_descs.size() < frag_set_descs.size()) {
+        merged_set_descs.resize(frag_set_descs.size());
+    }
+
+    for (size_t i = 0; i < frag_set_descs.size(); i++) {
+        const auto &frag_set_desc = frag_set_descs[i];
 
         if (merged_set_descs[i].size() < frag_set_desc.size()) {
-            merged_set_descs.reserve(frag_set_desc.size());
+            merged_set_descs[i].resize(frag_set_desc.size());
         }
 
         for (size_t j = 0; j < frag_set_desc.size(); j++) {
-            if (frag_set_desc[j]) {
-                if (merged_set_descs[i][j] && merged_set_descs[i][j] != frag_set_desc[j]) {
+            if (!std::holds_alternative<std::monostate>(frag_set_desc[j])) {
+                if (
+                    !std::holds_alternative<std::monostate>(merged_set_descs[i][j])
+                    && merged_set_descs[i][j] != frag_set_desc[j]
+                ) {
                     throw std::runtime_error("incompatible shader descriptor set bindings for node " + node_info.name);
                 }
 
@@ -1718,26 +1738,65 @@ VulkanRenderer::create_node_descriptor_sets(const RenderNodeHandle handle) const
         DescriptorLayoutBuilder builder;
 
         for (size_t j = 0; j < set_desc.size(); j++) {
-            if (!set_desc[j]) continue;
+            if (std::holds_alternative<std::monostate>(set_desc[j])) continue;
 
             vk::DescriptorType type{};
             vk::ShaderStageFlags stages{};
+            uint32_t descriptor_count = 1;
 
-            if (render_graph_ubos.contains(*set_desc[j])) {
-                type = vk::DescriptorType::eUniformBuffer;
-            } else if (render_graph_textures.contains(*set_desc[j])) {
-                type = vk::DescriptorType::eCombinedImageSampler;
-            } else {
-                throw std::runtime_error("unknown resource handle");
+            if (std::holds_alternative<ResourceHandle>(set_desc[j])) {
+                const auto res_handle = std::get<ResourceHandle>(set_desc[j]);
+
+                // todo - add check if it's mixed (and crash if so)
+                if (render_graph_ubos.contains(res_handle)) {
+                    type = vk::DescriptorType::eUniformBuffer;
+                } else if (render_graph_textures.contains(res_handle)) {
+                    type = vk::DescriptorType::eCombinedImageSampler;
+                } else {
+                    throw std::runtime_error("unknown resource handle");
+                }
+            } else if (std::holds_alternative<ResourceHandleArray>(set_desc[j])) {
+                const auto& res_handles = std::get<ResourceHandleArray>(set_desc[j]);
+
+                const bool has_ubos = std::ranges::any_of(res_handles, [&](auto res_handle) {
+                    return render_graph_ubos.contains(res_handle);
+                });
+                const bool has_textures = std::ranges::any_of(res_handles, [&](auto res_handle) {
+                    return render_graph_textures.contains(res_handle);
+                });
+
+                // todo - add check if it's mixed (and crash if so)
+                if (has_ubos) {
+                    type = vk::DescriptorType::eUniformBuffer;
+                } else if (has_textures) {
+                    type = vk::DescriptorType::eCombinedImageSampler;
+                } else {
+                    throw std::runtime_error("unknown resource handle");
+                }
+
+                descriptor_count = res_handles.size();
             }
 
-            if (node_info.vertex_shader->descriptor_set_descs[i][j]) stages |= vk::ShaderStageFlagBits::eVertex;
-            if (node_info.fragment_shader->descriptor_set_descs[i][j]) stages |= vk::ShaderStageFlagBits::eFragment;
+            if (
+                vert_set_descs.size() >= i + 1
+                && vert_set_descs[i].size() >= j + 1
+                && !std::holds_alternative<std::monostate>(vert_set_descs[i][j])
+            ) {
+                stages |= vk::ShaderStageFlagBits::eVertex;
+            }
 
-            builder.add_binding(type, stages);
+            if (
+                frag_set_descs.size() >= i + 1
+                && frag_set_descs[i].size() >= j + 1
+                && !std::holds_alternative<std::monostate>(frag_set_descs[i][j])
+            ) {
+                stages |= vk::ShaderStageFlagBits::eFragment;
+            }
+
+            builder.add_binding(type, stages, descriptor_count);
         }
 
-        auto layout         = std::make_shared<vk::raii::DescriptorSetLayout>(builder.create(ctx));
+        auto layout = std::make_shared<vk::raii::DescriptorSetLayout>(builder.create(ctx));
         auto descriptor_set = std::make_shared<DescriptorSet>(
             utils::desc::create_descriptor_set(ctx, *descriptor_pool, layout));
         descriptor_sets.emplace_back(descriptor_set);
@@ -1746,12 +1805,20 @@ VulkanRenderer::create_node_descriptor_sets(const RenderNodeHandle handle) const
     return descriptor_sets;
 }
 
-GraphicsPipeline VulkanRenderer::create_node_pipeline(const RenderNodeHandle handle) const {
+GraphicsPipeline VulkanRenderer::create_node_pipeline(
+    const RenderNodeHandle handle,
+    const std::vector<shared_ptr<DescriptorSet> > &descriptor_sets
+) const {
     const auto &node_info = render_graph_info.render_graph->node(handle);
 
     std::vector<vk::Format> color_formats;
     for (const auto &target: node_info.color_targets) {
         color_formats.push_back(render_graph_info.render_graph->get_transient_texture_format(target));
+    }
+
+    std::vector<vk::DescriptorSetLayout> descriptor_set_layouts;
+    for (const auto &set: descriptor_sets) {
+        descriptor_set_layouts.emplace_back(*set->get_layout());
     }
 
     auto builder = GraphicsPipelineBuilder()
@@ -1766,13 +1833,11 @@ GraphicsPipeline VulkanRenderer::create_node_pipeline(const RenderNodeHandle han
             })
             .with_multisampling({
                 .rasterizationSamples = node_info.custom_config.use_msaa
-                                            ? get_msaa_sample_count()
-                                            : vk::SampleCountFlagBits::e1,
+                                        ? get_msaa_sample_count()
+                                        : vk::SampleCountFlagBits::e1,
                 .minSampleShading = 1.0f,
             })
-            .with_descriptor_layouts({
-                // todo - shader's descriptor sets! (layouts)
-            })
+            .with_descriptor_layouts(descriptor_set_layouts)
             .with_color_formats(color_formats);
 
     if (node_info.depth_target) {
@@ -1813,9 +1878,9 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
     }
 
     const vk::Format depth_format = node_info.depth_target
-                                        ? render_graph_info.render_graph->get_transient_texture_format(
-                                            *node_info.depth_target)
-                                        : vk::Format{};
+                                    ? render_graph_info.render_graph->get_transient_texture_format(
+                                        *node_info.depth_target)
+                                    : vk::Format{};
 
     const vk::StructureChain inheritance_info{
         vk::CommandBufferInheritanceInfo{},
@@ -1824,8 +1889,8 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
             .pColorAttachmentFormats = color_formats.data(),
             .depthAttachmentFormat = depth_format,
             .rasterizationSamples = node_info.custom_config.use_msaa
-                                        ? get_msaa_sample_count()
-                                        : vk::SampleCountFlagBits::e1,
+                                    ? get_msaa_sample_count()
+                                    : vk::SampleCountFlagBits::e1,
         }
     };
 
@@ -1936,11 +2001,11 @@ bool VulkanRenderer::start_frame() {
         throw std::runtime_error("failed to acquire swap chain image!");
     }
 
-    frame_resources[current_frame_idx].scene_cmd_buffer.was_recorded_this_frame   = false;
+    frame_resources[current_frame_idx].scene_cmd_buffer.was_recorded_this_frame = false;
     frame_resources[current_frame_idx].prepass_cmd_buffer.was_recorded_this_frame = false;
-    frame_resources[current_frame_idx].ssao_cmd_buffer.was_recorded_this_frame    = false;
-    frame_resources[current_frame_idx].gui_cmd_buffer.was_recorded_this_frame     = false;
-    frame_resources[current_frame_idx].debug_cmd_buffer.was_recorded_this_frame   = false;
+    frame_resources[current_frame_idx].ssao_cmd_buffer.was_recorded_this_frame = false;
+    frame_resources[current_frame_idx].gui_cmd_buffer.was_recorded_this_frame = false;
+    frame_resources[current_frame_idx].debug_cmd_buffer.was_recorded_this_frame = false;
 
     return true;
 }
@@ -2130,7 +2195,7 @@ void VulkanRenderer::raytrace() {
         nullptr
     );
 
-    const auto &sbt    = rt_pipeline->get_sbt();
+    const auto &sbt = rt_pipeline->get_sbt();
     const auto &extent = rt_target_texture->get_image().get_extent();
 
     command_buffer.traceRaysKHR(
@@ -2244,8 +2309,8 @@ void VulkanRenderer::draw_debug_quad() {
 
 void VulkanRenderer::draw_model(const vk::raii::CommandBuffer &command_buffer, const bool do_push_constants,
                                 const GraphicsPipeline &pipeline) const {
-    uint32_t index_offset    = 0;
-    int32_t vertex_offset    = 0;
+    uint32_t index_offset = 0;
+    int32_t vertex_offset = 0;
     uint32_t instance_offset = 0;
 
     model->bind_buffers(command_buffer);

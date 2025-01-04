@@ -224,7 +224,7 @@ class TextureBuilder {
     bool has_mipmaps          = false;
     bool is_uninitialized     = false;
 
-    std::optional<SwizzleDesc> swizzle = default_swizzle;
+    std::optional<SwizzleDesc> swizzle;
 
     vk::SamplerAddressMode address_mode = vk::SamplerAddressMode::eRepeat;
 
