@@ -231,7 +231,7 @@ private:
             ModelVertex()
         });
 
-        const auto prepass_fragment_shader = std::make_shared<Shader>(Shader{
+        const auto prepass_fragment_shader = std::make_shared<Shader>(FragmentShader{
             "../shaders/obj/prepass-frag.spv",
             {
                 {uniform_buffer}
@@ -258,7 +258,7 @@ private:
             ScreenSpaceQuadVertex()
         });
 
-        const auto ssao_fragment_shader = std::make_shared<Shader>(Shader{
+        const auto ssao_fragment_shader = std::make_shared<Shader>(FragmentShader{
             "../shaders/obj/ssao-frag.spv",
             {
                 {uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos},
@@ -286,7 +286,7 @@ private:
         //     }
         // });
         //
-        // const auto skybox_fragment_shader = std::make_shared<Shader>(Shader{
+        // const auto skybox_fragment_shader = std::make_shared<Shader>(FragmentShader{
         //     "../shaders/obj/skybox-frag.spv",
         //     {
         //         {uniform_buffer, skybox_texture},
@@ -314,7 +314,7 @@ private:
             ModelVertex()
         });
 
-        const auto main_fragment_shader = std::make_shared<Shader>(Shader{
+        const auto main_fragment_shader = std::make_shared<Shader>(FragmentShader{
             "../shaders/obj/main-frag.spv",
             {
                 {uniform_buffer, ssao_texture},
