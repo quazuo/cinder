@@ -147,6 +147,7 @@ public:
 
 struct RenderNode {
     using RenderNodeBodyFn = std::function<void(RenderPassContext &)>;
+    using ShouldRunPredicate = std::function<bool()>;
 
     std::string name;
     std::shared_ptr<VertexShader> vertex_shader;
@@ -154,6 +155,7 @@ struct RenderNode {
     std::vector<ResourceHandle> color_targets;
     std::optional<ResourceHandle> depth_target;
     RenderNodeBodyFn body;
+    std::optional<ShouldRunPredicate> should_run_predicate;
 
     struct {
         bool use_msaa                  = false;

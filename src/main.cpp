@@ -81,6 +81,7 @@ class Engine {
     float debug_number = 0;
 
     bool use_ssao = false;
+    bool should_compute_ibl = true;
 
 public:
     Engine() {
@@ -163,11 +164,6 @@ private:
             "../assets/example models/kettle/kettle.obj"
         });
 
-        const auto skybox_cube_model = render_graph.add_model_resource({
-            "skybox-cube-model",
-            "../assets/example models/kettle/kettle.obj"
-        });
-
         // ================== uniform buffers ==================
 
         const auto uniform_buffer = render_graph.add_uniform_buffer({
@@ -199,16 +195,23 @@ private:
             vk::Format::eR8G8B8A8Unorm,
         });
 
+        const auto envmap_texture = render_graph.add_external_resource(ExternalTextureResource{
+            "envmap-texture",
+            {"../assets/envmaps/cobblestone.hdr"},
+            vk::Format::eR32G32B32A32Sfloat,
+            vk::TextureFlagBitsZRX::HDR | vk::TextureFlagBitsZRX::MIPMAPS
+        });
+
         // ================== transient resources ==================
 
         const auto g_buffer_normal = render_graph.add_transient_resource(TransientTextureResource{
             "g-buffer-normal",
-            vk::Format::eR8G8B8A8Unorm,
+            vk::Format::eR16G16B16A16Sfloat,
         });
 
         const auto g_buffer_pos = render_graph.add_transient_resource(TransientTextureResource{
             "g-buffer-pos",
-            vk::Format::eR8G8B8A8Unorm,
+            vk::Format::eR16G16B16A16Sfloat,
         });
 
         const auto g_buffer_depth = render_graph.add_transient_resource(TransientTextureResource{
@@ -247,7 +250,8 @@ private:
             [scene_model](const RenderPassContext &ctx) {
                 std::cout << "prepass\n";
                 ctx.draw_model(scene_model);
-            }
+            },
+            [&] { return use_ssao; }
         });
 
         // ================== ssao pass ==================
@@ -274,7 +278,8 @@ private:
             [](const RenderPassContext &ctx) {
                 std::cout << "ssao\n";
                 ctx.draw_screenspace_quad();
-            }
+            },
+            [&] { return use_ssao; }
         });
 
         // ================== skybox pass ==================

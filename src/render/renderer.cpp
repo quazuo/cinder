@@ -1195,6 +1195,10 @@ void VulkanRenderer::record_graphics_command_buffer() {
     swap_chain->transition_to_attachment_layout(command_buffer);
 
     for (const auto &node_resources: render_graph_info.topo_sorted_nodes) {
+        if (!should_run_node_pass(node_resources.handle)) {
+            continue;
+        }
+
         // if size > 1, then this means that this pass (node) draws to the swapchain image
         // and thus benefits from double or triple buffering
         const auto &node_render_info = node_resources.render_infos.size() == 1
@@ -1797,7 +1801,9 @@ std::vector<RenderInfo> VulkanRenderer::create_node_render_infos(
 void VulkanRenderer::run_render_graph() {
     if (start_frame()) {
         for (const auto &node_resources: render_graph_info.topo_sorted_nodes) {
-            record_render_graph_node_commands(node_resources);
+            if (should_run_node_pass(node_resources.handle)) {
+                record_render_graph_node_commands(node_resources);
+            }
         }
 
         record_graphics_command_buffer();
@@ -1874,6 +1880,11 @@ bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle handle) const {
     return render_graph_info.render_graph->nodes.at(handle)
             .get_all_targets_set()
             .contains(FINAL_IMAGE_RESOURCE_HANDLE);
+}
+
+bool VulkanRenderer::should_run_node_pass(const RenderNodeHandle handle) const {
+    const auto& node = render_graph_info.render_graph->nodes.at(handle);
+    return node.should_run_predicate ? (*node.should_run_predicate)() : true;
 }
 
 // ==================== render loop ====================

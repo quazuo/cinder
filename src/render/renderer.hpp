@@ -425,6 +425,8 @@ private:
 
     [[nodiscard]] bool has_swapchain_target(RenderNodeHandle handle) const;
 
+    [[nodiscard]] bool should_run_node_pass(RenderNodeHandle handle) const;
+
 public:
     void run_render_graph();
 
