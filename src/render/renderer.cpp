@@ -17,6 +17,7 @@
 #include "mesh/model.hpp"
 #include "mesh/vertex.hpp"
 #include "src/utils/glfw-statics.hpp"
+#include "vk/image.hpp"
 #include "vk/buffer.hpp"
 #include "vk/swapchain.hpp"
 #include "vk/cmd.hpp"
@@ -106,7 +107,6 @@ VulkanRenderer::VulkanRenderer() {
     create_descriptor_pool();
 
     create_uniform_buffers();
-    update_graphics_uniform_buffer();
 
     create_prepass_textures();
     // create_prepass_descriptor_sets();
@@ -131,11 +131,11 @@ VulkanRenderer::VulkanRenderer() {
     // create_scene_render_infos();
     // create_gui_render_infos();
 
-    load_model("../assets/example models/kettle/kettle.obj");
-    load_base_color_texture("../assets/example models/kettle/kettle-albedo.png");
-    load_normal_map("../assets/example models/kettle/kettle-normal.png");
-    load_orm_map("../assets/example models/kettle/kettle-orm.png");
-    create_tlas();
+    // load_model("../assets/example models/kettle/kettle.obj");
+    // load_base_color_texture("../assets/example models/kettle/kettle-albedo.png");
+    // load_normal_map("../assets/example models/kettle/kettle-normal.png");
+    // load_orm_map("../assets/example models/kettle/kettle-orm.png");
+    // create_tlas();
 
     // create_meshes_descriptor_set();
     //
@@ -366,7 +366,7 @@ void VulkanRenderer::load_base_color_texture(const std::filesystem::path &path) 
     separate_material.base_color.reset();
     separate_material.base_color = TextureBuilder()
             .from_paths({path})
-            .make_mipmaps()
+            .with_flags(vk::TextureFlagBitsZRX::MIPMAPS)
             .create(ctx);
 
     materials_descriptor_set->update_binding<0>(*separate_material.base_color);
@@ -411,7 +411,7 @@ void VulkanRenderer::load_orm_map(const std::filesystem::path &ao_path, const st
                 metallic_path.empty() ? SwizzleComponent::ZERO : SwizzleComponent::B,
                 SwizzleComponent::A
             })
-            .make_mipmaps()
+            .with_flags(vk::TextureFlagBitsZRX::MIPMAPS)
             .create(ctx);
 
     materials_descriptor_set->update_binding<2>(*separate_material.orm);
@@ -436,11 +436,10 @@ void VulkanRenderer::load_environment_map(const std::filesystem::path &path) {
     wait_idle();
 
     envmap_texture = TextureBuilder()
-            .as_hdr()
+            .with_flags(vk::TextureFlagBitsZRX::MIPMAPS | vk::TextureFlagBitsZRX::HDR)
             .use_format(hdr_envmap_format)
             .from_paths({path})
             .with_sampler_address_mode(vk::SamplerAddressMode::eClampToEdge)
-            .make_mipmaps()
             .create(ctx);
 
     cubemap_capture_descriptor_set->update_binding<1>(*envmap_texture);
@@ -496,15 +495,13 @@ void VulkanRenderer::create_prepass_textures() {
 
 void VulkanRenderer::create_skybox_texture() {
     skybox_texture = TextureBuilder()
-            .as_cubemap()
+            .with_flags(vk::TextureFlagBitsZRX::MIPMAPS | vk::TextureFlagBitsZRX::HDR | vk::TextureFlagBitsZRX::CUBEMAP)
             .as_uninitialized({2048, 2048, 1})
-            .as_hdr()
             .use_format(hdr_envmap_format)
             .use_usage(vk::ImageUsageFlagBits::eTransferSrc
                        | vk::ImageUsageFlagBits::eTransferDst
                        | vk::ImageUsageFlagBits::eSampled
                        | vk::ImageUsageFlagBits::eColorAttachment)
-            .make_mipmaps()
             .create(ctx);
 }
 
@@ -1586,6 +1583,7 @@ void VulkanRenderer::create_render_graph_resources() {
                                      : vk::ImageUsageFlagBits::eColorAttachment;
 
         auto builder = TextureBuilder()
+                .with_flags(description.tex_flags)
                 .from_paths(description.paths)
                 .use_format(description.format)
                 .use_usage(vk::ImageUsageFlagBits::eTransferSrc
@@ -1593,11 +1591,8 @@ void VulkanRenderer::create_render_graph_resources() {
                            | vk::ImageUsageFlagBits::eSampled
                            | attachment_type);
 
-        if (description.use_mipmaps) builder.make_mipmaps();
         if (description.paths.size() > 1) builder.as_separate_channels();
         if (description.swizzle) builder.with_swizzle(*description.swizzle);
-        if (description.is_cubemap) builder.as_cubemap();
-        if (description.is_hdr) builder.as_hdr();
 
         render_graph_textures.emplace(handle, builder.create(ctx));
     }
@@ -1614,16 +1609,13 @@ void VulkanRenderer::create_render_graph_resources() {
         }
 
         auto builder = TextureBuilder()
+                .with_flags(description.tex_flags)
                 .as_uninitialized({extent.width, extent.height, 1u})
                 .use_format(description.format)
                 .use_usage(vk::ImageUsageFlagBits::eTransferSrc
                            | vk::ImageUsageFlagBits::eTransferDst
                            | vk::ImageUsageFlagBits::eSampled
                            | attachment_type);
-
-        if (description.use_mipmaps) builder.make_mipmaps();
-        if (description.is_cubemap) builder.as_cubemap();
-        if (description.is_hdr) builder.as_hdr();
 
         render_graph_textures.emplace(handle, builder.create(ctx));
     }
@@ -1885,6 +1877,9 @@ std::vector<RenderInfo> VulkanRenderer::create_node_render_infos(
 void VulkanRenderer::run_render_graph() {
     start_frame();
 
+    // band-aid fix to just check if it works
+    update_graphics_uniform_buffer();
+
     for (const auto &node_resources: render_graph_info.topo_sorted_nodes) {
         record_render_graph_node_commands(node_resources);
     }
@@ -2029,6 +2024,10 @@ bool VulkanRenderer::start_frame() {
 
     if (ctx.device->waitSemaphores(wait_info, UINT64_MAX) != vk::Result::eSuccess) {
         throw std::runtime_error("waitSemaphores on renderFinishedTimeline failed");
+    }
+
+    for (const auto& action: repeated_frame_begin_actions) {
+        action();
     }
 
     while (!queued_frame_begin_actions.empty()) {
@@ -2476,6 +2475,6 @@ void VulkanRenderer::update_graphics_uniform_buffer() const {
         graphics_ubo.matrices.cubemap_capture_views[i] = cubemap_face_views[i];
     }
 
-    memcpy(frame_resources[current_frame_idx].graphics_ubo_mapped, &graphics_ubo, sizeof(graphics_ubo));
+    memcpy(render_graph_ubos.begin()->second->map(), &graphics_ubo, sizeof(graphics_ubo));
 }
 } // zrx

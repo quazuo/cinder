@@ -7,6 +7,26 @@
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
 
+
+// for these bits, we're leveraging the already available flag system from vulkan-hpp.
+// for this reason, the following code needs to be in the vulkan-hpp namespace.
+namespace VULKAN_HPP_NAMESPACE {
+    enum class TextureFlagBitsZRX : uint32_t {
+        CUBEMAP = 1 << 0,
+        HDR     = 1 << 1,
+        MIPMAPS = 1 << 2,
+    };
+
+    using TextureFlagsZRX = Flags<TextureFlagBitsZRX>;
+
+    template<>
+    struct FlagTraits<TextureFlagBitsZRX> {
+        static VULKAN_HPP_CONST_OR_CONSTEXPR bool isBitmask        = true;
+        static VULKAN_HPP_CONST_OR_CONSTEXPR TextureFlagsZRX allFlags =
+                TextureFlagBitsZRX::CUBEMAP | TextureFlagBitsZRX::HDR | TextureFlagBitsZRX::MIPMAPS;
+    };
+}
+
 namespace zrx {
 /**
  * Parameters defining which mip levels and layers of a given image are available for a given view.
@@ -218,10 +238,8 @@ class TextureBuilder {
     vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eTransferSrc
                                 | vk::ImageUsageFlagBits::eTransferDst
                                 | vk::ImageUsageFlagBits::eSampled;
-    bool is_cubemap           = false;
+    vk::TextureFlagsZRX tex_flags{};
     bool is_separate_channels = false;
-    bool is_hdr               = false;
-    bool has_mipmaps          = false;
     bool is_uninitialized     = false;
 
     std::optional<SwizzleDesc> swizzle;
@@ -247,19 +265,15 @@ public:
 
     TextureBuilder &use_usage(vk::ImageUsageFlags u);
 
-    TextureBuilder &as_cubemap();
+    TextureBuilder &with_flags(vk::TextureFlagsZRX flags);
 
     TextureBuilder &as_separate_channels();
-
-    TextureBuilder &as_hdr();
-
-    TextureBuilder &make_mipmaps();
 
     TextureBuilder &with_sampler_address_mode(vk::SamplerAddressMode mode);
 
     TextureBuilder &as_uninitialized(vk::Extent3D extent);
 
-    TextureBuilder &with_swizzle(const SwizzleDesc& sw);
+    TextureBuilder &with_swizzle(const SwizzleDesc &sw);
 
     /**
      * Designates the texture's contents to be initialized with data stored in a given file.
@@ -332,11 +346,11 @@ public:
 namespace utils::img {
     [[nodiscard]] vk::raii::ImageView
     create_image_view(const RendererContext &ctx, vk::Image image, vk::Format format, vk::ImageAspectFlags aspect_flags,
-                    uint32_t basemip_level = 0, uint32_t mip_levels = 1, uint32_t layer = 0);
+                      uint32_t basemip_level = 0, uint32_t mip_levels = 1, uint32_t layer = 0);
 
     [[nodiscard]] vk::raii::ImageView
     create_cube_image_view(const RendererContext &ctx, vk::Image image, vk::Format format,
-                        vk::ImageAspectFlags aspect_flags, uint32_t base_mip_level = 0, uint32_t mip_levels = 1);
+                           vk::ImageAspectFlags aspect_flags, uint32_t base_mip_level = 0, uint32_t mip_levels = 1);
 
     [[nodiscard]] bool is_depth_format(vk::Format format);
 

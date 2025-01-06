@@ -608,23 +608,13 @@ TextureBuilder &TextureBuilder::use_usage(const vk::ImageUsageFlags u) {
     return *this;
 }
 
-TextureBuilder &TextureBuilder::as_cubemap() {
-    is_cubemap = true;
+TextureBuilder &TextureBuilder::with_flags(const vk::TextureFlagsZRX flags) {
+    tex_flags = flags;
     return *this;
 }
 
 TextureBuilder &TextureBuilder::as_separate_channels() {
     is_separate_channels = true;
-    return *this;
-}
-
-TextureBuilder &TextureBuilder::as_hdr() {
-    is_hdr = true;
-    return *this;
-}
-
-TextureBuilder &TextureBuilder::make_mipmaps() {
-    has_mipmaps = true;
     return *this;
 }
 
@@ -639,7 +629,7 @@ TextureBuilder &TextureBuilder::as_uninitialized(const vk::Extent3D extent) {
     return *this;
 }
 
-TextureBuilder &TextureBuilder::with_swizzle(const SwizzleDesc& sw) {
+TextureBuilder &TextureBuilder::with_swizzle(const SwizzleDesc &sw) {
     swizzle = sw;
     return *this;
 }
@@ -685,12 +675,14 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
     const auto staging_buffer = is_uninitialized ? nullptr : make_staging_buffer(ctx, loaded_tex_data);
 
     uint32_t mip_levels = 1;
-    if (has_mipmaps) {
+    if (tex_flags & vk::TextureFlagBitsZRX::MIPMAPS) {
         mip_levels = static_cast<uint32_t>(std::floor(std::log2(std::max(extent.width, extent.height)))) + 1;
     }
 
     const vk::ImageCreateInfo image_info{
-        .flags = is_cubemap ? vk::ImageCreateFlagBits::eCubeCompatible : static_cast<vk::ImageCreateFlags>(0),
+        .flags = tex_flags & vk::TextureFlagBitsZRX::CUBEMAP
+                     ? vk::ImageCreateFlagBits::eCubeCompatible
+                     : static_cast<vk::ImageCreateFlags>(0),
         .imageType = vk::ImageType::e2D,
         .format = format,
         .extent = extent,
@@ -706,7 +698,7 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
     const bool is_depth     = !!(usage & vk::ImageUsageFlagBits::eDepthStencilAttachment);
     const auto aspect_flags = is_depth ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor;
 
-    if (is_cubemap) {
+    if (tex_flags & vk::TextureFlagBitsZRX::CUBEMAP) {
         texture->image = make_unique<CubeImage>(
             ctx,
             image_info,
@@ -723,7 +715,7 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
 
     texture->create_sampler(ctx, address_mode);
 
-    if (is_uninitialized && !has_mipmaps) {
+    if (is_uninitialized && !(tex_flags & vk::TextureFlagBitsZRX::MIPMAPS)) {
         utils::cmd::do_single_time_commands(ctx, [&](const auto &cmd_buffer) {
             texture->image->transition_layout(
                 vk::ImageLayout::eUndefined,
@@ -743,7 +735,7 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
                 texture->image->copy_from_buffer(**staging_buffer, cmd_buffer);
             }
 
-            if (!has_mipmaps) {
+            if (!(tex_flags & vk::TextureFlagBitsZRX::MIPMAPS)) {
                 texture->image->transition_layout(
                     vk::ImageLayout::eTransferDstOptimal,
                     layout,
@@ -752,7 +744,7 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
             }
         });
 
-        if (has_mipmaps) {
+        if (tex_flags & vk::TextureFlagBitsZRX::MIPMAPS) {
             texture->generate_mipmaps(ctx, layout);
         }
     }
@@ -778,7 +770,7 @@ void TextureBuilder::check_params() const {
         throw std::invalid_argument("cannot simultaneously set texture as uninitialized and specify sources!");
     }
 
-    if (is_cubemap) {
+    if (tex_flags & vk::TextureFlagBitsZRX::CUBEMAP) {
         if (memory_source) {
             throw std::invalid_argument("cubemaps from a memory source are currently not supported!");
         }
@@ -858,7 +850,7 @@ uint32_t TextureBuilder::get_layer_count() const {
     if (memory_source || is_from_swizzle_fill) return 1;
 
     const uint32_t sources_count = is_uninitialized
-                                       ? (is_cubemap ? 6 : 1)
+                                       ? (tex_flags & vk::TextureFlagBitsZRX::CUBEMAP ? 6 : 1)
                                        : paths.size();
     return is_separate_channels ? sources_count / 3 : sources_count;
 }
@@ -874,13 +866,13 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_paths() const {
             continue;
         }
 
-        stbi_set_flip_vertically_on_load(is_hdr);
+        stbi_set_flip_vertically_on_load(tex_flags & vk::TextureFlagBitsZRX::HDR ? 1 : 0);
         const int desired_channels = is_separate_channels ? STBI_grey : STBI_rgb_alpha;
         void *src;
 
         int curr_tex_width, curr_tex_height;
 
-        if (is_hdr) {
+        if (tex_flags & vk::TextureFlagBitsZRX::HDR) {
             src = stbi_loadf(path.string().c_str(), &curr_tex_width, &curr_tex_height, &tex_channels, desired_channels);
         } else {
             src = stbi_load(path.string().c_str(), &curr_tex_width, &curr_tex_height, &tex_channels, desired_channels);

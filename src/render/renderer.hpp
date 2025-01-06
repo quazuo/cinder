@@ -97,6 +97,8 @@ private:
     void make_attachment_infos();
 };
 
+using FrameBeginCallback = std::function<void()>;
+
 class VulkanRenderer {
     using CubemapCaptureDescriptorSet = FixedDescriptorSet<Buffer, Texture>;
     using DebugQuadDescriptorSet = FixedDescriptorSet<Texture>;
@@ -243,7 +245,7 @@ class VulkanRenderer {
 
     // miscellaneous state variables
 
-    using FrameBeginCallback = std::function<void()>;
+    std::vector<FrameBeginCallback> repeated_frame_begin_actions;
     std::queue<FrameBeginCallback> queued_frame_begin_actions;
 
     uint32_t current_frame_idx = 0;

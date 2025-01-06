@@ -36,19 +36,15 @@ struct ExternalTextureResource {
     std::string name;
     std::vector<std::filesystem::path> paths;
     vk::Format format;
-    bool use_mipmaps = true;
-    bool is_cubemap = false;
-    bool is_hdr = false;
-    std::optional<SwizzleDesc> swizzle = {};
+    vk::TextureFlagsZRX tex_flags = vk::TextureFlagBitsZRX::MIPMAPS;
+    std::optional<SwizzleDesc> swizzle {};
 };
 
 struct TransientTextureResource {
     std::string name;
     vk::Format format;
     vk::Extent2D extent = {0, 0}; // {0, 0} means we're using the swapchain image's extent
-    bool use_mipmaps = false;
-    bool is_cubemap = false;
-    bool is_hdr = false;
+    vk::TextureFlagsZRX tex_flags {};
 };
 
 struct ModelResource {
