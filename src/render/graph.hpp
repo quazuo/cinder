@@ -85,15 +85,14 @@ struct Shader {
     }
 };
 
-class RenderPassContext {
+struct RenderPassContext {
     std::reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
     std::reference_wrapper<const std::map<ResourceHandle, unique_ptr<Model> > > models;
 
-public:
-    explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf,
-                               const std::map<ResourceHandle, unique_ptr<Model>> &models)
-        : command_buffer(cmd_buf), models(models) {
-    }
+    // explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf,
+    //                            const std::map<ResourceHandle, unique_ptr<Model>> &models)
+    //     : command_buffer(cmd_buf), models(models) {
+    // }
 
     void draw_model(const ResourceHandle model_handle) const {
         uint32_t index_offset = 0;
@@ -152,6 +151,14 @@ struct RenderNode {
     }
 };
 
+struct FrameBeginActionContext {
+    std::reference_wrapper<const std::map<ResourceHandle, unique_ptr<Buffer> > > ubos;
+    std::reference_wrapper<const std::map<ResourceHandle, unique_ptr<Texture> > > textures;
+    std::reference_wrapper<const std::map<ResourceHandle, unique_ptr<Model> > > models;
+};
+
+using FrameBeginCallback = std::function<void(const FrameBeginActionContext&)>;
+
 class RenderGraph {
     std::map<RenderNodeHandle, RenderNode> nodes;
     std::map<RenderNodeHandle, std::set<RenderNodeHandle> > dependency_graph;
@@ -161,29 +168,11 @@ class RenderGraph {
     std::map<ResourceHandle, TransientTextureResource> transient_resources;
     std::map<ResourceHandle, ModelResource> model_resources;
 
+    std::vector<FrameBeginCallback> frame_begin_callbacks;
+
+    friend class VulkanRenderer;
+
 public:
-    [[nodiscard]] const RenderNode &node(const RenderNodeHandle handle) { return nodes.at(handle); }
-
-    [[nodiscard]] const auto &get_uniform_buffers() const { return uniform_buffers; }
-
-    [[nodiscard]] const auto &get_external_resources() const { return external_resources; }
-
-    [[nodiscard]] const auto &get_transient_resources() const { return transient_resources; }
-
-    [[nodiscard]] const auto &get_model_resources() const { return model_resources; }
-
-    [[nodiscard]] vk::Format get_transient_texture_format(const ResourceHandle handle) const {
-        if (handle == FINAL_IMAGE_RESOURCE_HANDLE) {
-            throw std::invalid_argument("invalid handle in RenderGraph::get_transient_texture_format");
-        }
-
-        try {
-            return transient_resources.at(handle).format;
-        } catch (...) {
-            throw std::invalid_argument("invalid handle in RenderGraph::get_transient_texture_format");
-        }
-    }
-
     [[nodiscard]] std::vector<RenderNodeHandle> get_topo_sorted() const {
         std::vector<RenderNodeHandle> result;
 
@@ -268,6 +257,10 @@ public:
         const auto handle = get_new_resource_handle();
         model_resources.emplace(handle, resource);
         return handle;
+    }
+
+    void add_frame_begin_action(FrameBeginCallback&& callback) {
+        frame_begin_callbacks.emplace_back(std::move(callback));
     }
 
 private:

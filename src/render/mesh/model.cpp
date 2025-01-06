@@ -219,7 +219,7 @@ Model::Model(const RendererContext &ctx, const std::filesystem::path &path, cons
     normalize_scale();
 
     create_buffers(ctx);
-    create_blas(ctx);
+    // create_blas(ctx);
 }
 
 void Model::add_instances(const aiNode *node, const glm::mat4 &base_transform) {

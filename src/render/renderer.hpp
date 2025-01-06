@@ -97,8 +97,6 @@ private:
     void make_attachment_infos();
 };
 
-using FrameBeginCallback = std::function<void()>;
-
 class VulkanRenderer {
     using CubemapCaptureDescriptorSet = FixedDescriptorSet<Buffer, Texture>;
     using DebugQuadDescriptorSet = FixedDescriptorSet<Texture>;
@@ -111,10 +109,6 @@ class VulkanRenderer {
     using MeshesDescriptorSet = FixedDescriptorSet<Buffer, Buffer, Buffer>;
 
     GLFWwindow *window = nullptr;
-
-    unique_ptr<Camera> camera;
-
-    unique_ptr<InputManager> input_manager;
 
     vk::raii::Context vk_ctx;
     unique_ptr<vk::raii::Instance> instance;
@@ -252,23 +246,10 @@ class VulkanRenderer {
 
     bool framebuffer_resized = false;
 
-    glm::vec3 background_color = glm::vec3(26, 26, 26) / 255.0f;
-
     vk::SampleCountFlagBits msaa_sample_count = vk::SampleCountFlagBits::e1;
-
-    float model_scale = 1.0f;
-    glm::vec3 model_translate{};
-    glm::quat model_rotation{1, 0, 0, 0};
-
-    glm::quat light_direction = glm::normalize(glm::vec3(1, 1.5, -2));
-    glm::vec3 light_color = glm::normalize(glm::vec3(23.47, 21.31, 20.79));
-    float light_intensity = 20.0f;
-
-    float debug_number = 0;
 
     bool cull_back_faces = false;
     bool wireframe_mode = false;
-    bool use_ssao = false;
     bool use_msaa = false;
 
 public:
@@ -319,8 +300,6 @@ public:
 
 private:
     static void framebuffer_resize_callback(GLFWwindow *window, int width, int height);
-
-    void bind_mouse_drag_actions();
 
     // ==================== startup ====================
 
@@ -451,6 +430,8 @@ public:
 
     // ==================== render loop ====================
 
+    void do_frame_begin_actions();
+
     bool start_frame();
 
     void end_frame();
@@ -472,7 +453,5 @@ private:
                     const GraphicsPipeline &pipeline) const;
 
     void capture_cubemap() const;
-
-    void update_graphics_uniform_buffer() const;
 };
 } // zrx

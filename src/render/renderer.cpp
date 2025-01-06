@@ -81,11 +81,6 @@ VulkanRenderer::VulkanRenderer() {
 
     glfwSetFramebufferSizeCallback(window, framebuffer_resize_callback);
 
-    camera = make_unique<Camera>(window);
-
-    input_manager = make_unique<InputManager>(window);
-    bind_mouse_drag_actions();
-
     const auto vkb_instance = create_instance();
     create_surface();
     const auto vkb_physical_device = pick_physical_device(vkb_instance);
@@ -106,47 +101,10 @@ VulkanRenderer::VulkanRenderer() {
 
     create_descriptor_pool();
 
-    create_uniform_buffers();
-
-    create_prepass_textures();
-    // create_prepass_descriptor_sets();
-    // create_prepass_render_info();
-    //
-    create_ssao_textures();
-    // create_ssao_descriptor_sets();
-    // create_ssao_render_info();
-    //
-    create_skybox_vertex_buffer();
-    create_skybox_texture();
-    // create_skybox_descriptor_sets();
-    // create_skybox_render_infos();
-    //
-    // create_cubemap_capture_descriptor_set();
-    // create_cubemap_capture_render_info();
-    //
-    create_screen_space_quad_vertex_buffer();
-    //
-    create_materials_descriptor_set();
-    // create_scene_descriptor_sets();
-    // create_scene_render_infos();
-    // create_gui_render_infos();
-
-    // load_model("../assets/example models/kettle/kettle.obj");
-    // load_base_color_texture("../assets/example models/kettle/kettle-albedo.png");
-    // load_normal_map("../assets/example models/kettle/kettle-normal.png");
-    // load_orm_map("../assets/example models/kettle/kettle-orm.png");
-    // create_tlas();
-
     // create_meshes_descriptor_set();
-    //
     // create_rt_target_texture();
     // create_rt_descriptor_sets();
     // create_rt_pipeline();
-    //
-    // load_environment_map("../assets/envmaps/vienna_hdr");
-    //
-    // create_debug_quad_descriptor_set();
-    // create_debug_quad_render_infos();
 
     create_sync_objects();
 
@@ -162,18 +120,6 @@ void VulkanRenderer::framebuffer_resize_callback(GLFWwindow *window, const int w
     const auto user_data = static_cast<GlfwStaticUserData *>(glfwGetWindowUserPointer(window));
     if (!user_data) throw std::runtime_error("unexpected null window user pointer");
     user_data->renderer->framebuffer_resized = true;
-}
-
-void VulkanRenderer::bind_mouse_drag_actions() {
-    input_manager->bind_mouse_drag_callback(GLFW_MOUSE_BUTTON_RIGHT, [&](const double dx, const double dy) {
-        static constexpr float speed = 0.002;
-        const float camera_distance = glm::length(camera->get_pos());
-
-        const auto view_vectors = camera->get_view_vectors();
-
-        model_translate += camera_distance * speed * view_vectors.right * static_cast<float>(dx);
-        model_translate -= camera_distance * speed * view_vectors.up * static_cast<float>(dy);
-    });
 }
 
 // ==================== instance creation ====================
@@ -751,7 +697,7 @@ void VulkanRenderer::create_debug_quad_descriptor_set() {
     debug_quad_descriptor_set = make_unique<DebugQuadDescriptorSet>(
         ctx,
         *descriptor_pool,
-        ResourcePack<Texture>{*rt_target_texture, vk::ShaderStageFlagBits::eFragment}
+        ResourcePack{*rt_target_texture, vk::ShaderStageFlagBits::eFragment}
     );
 }
 
@@ -1471,45 +1417,25 @@ void VulkanRenderer::init_imgui() {
 void VulkanRenderer::render_gui_section() {
     constexpr auto section_flags = ImGuiTreeNodeFlags_DefaultOpen;
 
-    if (ImGui::CollapsingHeader("Model ", section_flags)) {
-        if (ImGui::Button("Load model...")) {
-            ImGui::OpenPopup("Load model");
-        }
-
-        ImGui::Separator();
-
-        ImGui::DragFloat("Model scale", &model_scale, 0.01, 0, std::numeric_limits<float>::max());
-
-        ImGui::gizmo3D("Model rotation", model_rotation, 160);
-
-        if (ImGui::Button("Reset scale")) { model_scale = 1; }
-        ImGui::SameLine();
-        if (ImGui::Button("Reset rotation")) { model_rotation = {1, 0, 0, 0}; }
-        ImGui::SameLine();
-        if (ImGui::Button("Reset position")) { model_translate = {0, 0, 0}; }
-    }
-
-    if (ImGui::CollapsingHeader("Advanced ", section_flags)) {
+    if (ImGui::CollapsingHeader("Renderer ", section_flags)) {
         // todo - convert these 2 to dynamic states
         if (ImGui::Checkbox("Cull backfaces", &cull_back_faces)) {
-            queued_frame_begin_actions.emplace([&] {
+            queued_frame_begin_actions.emplace([&](const FrameBeginActionContext& fba_ctx) {
                 wait_idle();
                 scene_render_infos[0].reload_shaders(ctx);
             });
         }
 
         if (ImGui::Checkbox("Wireframe mode", &wireframe_mode)) {
-            queued_frame_begin_actions.emplace([&] {
+            queued_frame_begin_actions.emplace([&](const FrameBeginActionContext& fba_ctx) {
                 wait_idle();
                 scene_render_infos[0].reload_shaders(ctx);
             });
         }
 
-        ImGui::Checkbox("SSAO", &use_ssao);
-
         static bool use_msaa_dummy = use_msaa;
         if (ImGui::Checkbox("MSAA", &use_msaa_dummy)) {
-            queued_frame_begin_actions.emplace([this] {
+            queued_frame_begin_actions.emplace([this](const FrameBeginActionContext& fba_ctx) {
                 use_msaa = use_msaa_dummy;
 
                 wait_idle();
@@ -1523,20 +1449,7 @@ void VulkanRenderer::render_gui_section() {
                 init_imgui();
             });
         }
-
-#ifndef NDEBUG
-        ImGui::Separator();
-        ImGui::DragFloat("Debug number", &debug_number, 0.01, 0, std::numeric_limits<float>::max());
-#endif
     }
-
-    if (ImGui::CollapsingHeader("Lighting ", section_flags)) {
-        ImGui::SliderFloat("Light intensity", &light_intensity, 0.0f, 100.0f, "%.2f");
-        ImGui::ColorEdit3("Light color", &light_color.x);
-        ImGui::gizmo3D("Light direction", light_direction, 160, imguiGizmo::modeDirection);
-    }
-
-    camera->render_gui_section();
 }
 
 // ==================== render graph ====================
@@ -1565,13 +1478,15 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
             .render_infos = std::move(render_infos),
         });
     }
+
+    repeated_frame_begin_actions = render_graph_info.render_graph->frame_begin_callbacks;
 }
 
 void VulkanRenderer::create_render_graph_resources() {
-    const auto &uniform_buffers = render_graph_info.render_graph->get_uniform_buffers();
-    const auto &external_resources = render_graph_info.render_graph->get_external_resources();
-    const auto &transient_resources = render_graph_info.render_graph->get_transient_resources();
-    const auto &model_resources = render_graph_info.render_graph->get_model_resources();
+    const auto &uniform_buffers = render_graph_info.render_graph->uniform_buffers;
+    const auto &external_resources = render_graph_info.render_graph->external_resources;
+    const auto &transient_resources = render_graph_info.render_graph->transient_resources;
+    const auto &model_resources = render_graph_info.render_graph->model_resources;
 
     for (const auto &[handle, description]: uniform_buffers) {
         render_graph_ubos.emplace(handle, utils::buf::create_uniform_buffer(ctx, description.size));
@@ -1628,7 +1543,7 @@ void VulkanRenderer::create_render_graph_resources() {
 
 std::vector<shared_ptr<DescriptorSet> >
 VulkanRenderer::create_node_descriptor_sets(const RenderNodeHandle node_handle) const {
-    const auto &node_info = render_graph_info.render_graph->node(node_handle);
+    const auto &node_info = render_graph_info.render_graph->nodes.at(node_handle);
     const auto &vert_set_descs = node_info.vertex_shader->descriptor_set_descs;
     const auto &frag_set_descs = node_info.fragment_shader->descriptor_set_descs;
 
@@ -1767,14 +1682,14 @@ GraphicsPipelineBuilder VulkanRenderer::create_node_pipeline_builder(
     const RenderNodeHandle node_handle,
     const std::vector<shared_ptr<DescriptorSet> > &descriptor_sets
 ) const {
-    const auto &node_info = render_graph_info.render_graph->node(node_handle);
+    const auto &node_info = render_graph_info.render_graph->nodes.at(node_handle);
 
     std::vector<vk::Format> color_formats;
-    for (const auto &target: node_info.color_targets) {
-        if (target == FINAL_IMAGE_RESOURCE_HANDLE) {
+    for (const auto &target_handle: node_info.color_targets) {
+        if (target_handle == FINAL_IMAGE_RESOURCE_HANDLE) {
             color_formats.push_back(swap_chain->get_image_format());
         } else {
-            color_formats.push_back(render_graph_info.render_graph->get_transient_texture_format(target));
+            color_formats.push_back(render_graph_info.render_graph->transient_resources.at(target_handle).format);
         }
     }
 
@@ -1804,7 +1719,7 @@ GraphicsPipelineBuilder VulkanRenderer::create_node_pipeline_builder(
 
     if (node_info.depth_target) {
         builder.with_depth_format(
-            render_graph_info.render_graph->get_transient_texture_format(*node_info.depth_target));
+            render_graph_info.render_graph->transient_resources.at(*node_info.depth_target).format);
     } else if (has_swapchain_target(node_handle)) {
         builder.with_depth_format(swap_chain->get_depth_format());
     } else {
@@ -1821,7 +1736,7 @@ std::vector<RenderInfo> VulkanRenderer::create_node_render_infos(
     const RenderNodeHandle node_handle,
     const std::vector<shared_ptr<DescriptorSet> > &descriptor_sets
 ) const {
-    const auto &node_info = render_graph_info.render_graph->node(node_handle);
+    const auto &node_info = render_graph_info.render_graph->nodes.at(node_handle);
     auto pipeline_builder = create_node_pipeline_builder(node_handle, descriptor_sets);
     const auto pipeline = make_shared<GraphicsPipeline>(pipeline_builder.create(ctx));
     std::vector<RenderInfo> render_infos;
@@ -1875,18 +1790,15 @@ std::vector<RenderInfo> VulkanRenderer::create_node_render_infos(
 }
 
 void VulkanRenderer::run_render_graph() {
-    start_frame();
+    if (start_frame()) {
+        for (const auto &node_resources: render_graph_info.topo_sorted_nodes) {
+            record_render_graph_node_commands(node_resources);
+        }
 
-    // band-aid fix to just check if it works
-    update_graphics_uniform_buffer();
+        record_graphics_command_buffer();
 
-    for (const auto &node_resources: render_graph_info.topo_sorted_nodes) {
-        record_render_graph_node_commands(node_resources);
+        end_frame();
     }
-
-    record_graphics_command_buffer();
-
-    end_frame();
 }
 
 void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources &node_resources) {
@@ -1899,20 +1811,20 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
         raw_descriptor_sets.push_back(***descriptor_set);
     }
 
-    const auto &node_info = render_graph_info.render_graph->node(handle);
+    const auto &node_info = render_graph_info.render_graph->nodes.at(handle);
 
     std::vector<vk::Format> color_formats;
-    for (const auto &target: node_info.color_targets) {
-        if (target == FINAL_IMAGE_RESOURCE_HANDLE) {
+    for (const auto &target_handle: node_info.color_targets) {
+        if (target_handle == FINAL_IMAGE_RESOURCE_HANDLE) {
             color_formats.push_back(swap_chain->get_image_format());
         } else {
-            color_formats.push_back(render_graph_info.render_graph->get_transient_texture_format(target));
+            color_formats.push_back(render_graph_info.render_graph->transient_resources.at(target_handle).format);
         }
     }
 
     auto depth_format = static_cast<vk::Format>(0);
     if (node_info.depth_target) {
-        depth_format = render_graph_info.render_graph->get_transient_texture_format(*node_info.depth_target);
+        depth_format = render_graph_info.render_graph->transient_resources.at(*node_info.depth_target).format;
     } else if (has_swapchain_target(handle)) {
         depth_format = swap_chain->get_depth_format();
     }
@@ -1954,7 +1866,7 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
 }
 
 bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle handle) const {
-    return render_graph_info.render_graph->node(handle)
+    return render_graph_info.render_graph->nodes.at(handle)
             .get_all_targets_set()
             .contains(FINAL_IMAGE_RESOURCE_HANDLE);
 }
@@ -1962,15 +1874,20 @@ bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle handle) const {
 // ==================== render loop ====================
 
 void VulkanRenderer::tick(const float delta_time) {
-    glfwPollEvents();
-    camera->tick(delta_time);
+    (void) delta_time;
+    // unused rn
+}
 
-    if (
-        !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow)
-        && !ImGui::IsAnyItemActive()
-        && !ImGui::IsAnyItemFocused()
-    ) {
-        input_manager->tick(delta_time);
+void VulkanRenderer::do_frame_begin_actions() {
+    const FrameBeginActionContext fba_ctx { render_graph_ubos, render_graph_textures, render_graph_models };
+
+    for (const auto& action: repeated_frame_begin_actions) {
+        action(fba_ctx);
+    }
+
+    while (!queued_frame_begin_actions.empty()) {
+        queued_frame_begin_actions.front()(fba_ctx);
+        queued_frame_begin_actions.pop();
     }
 }
 
@@ -2026,14 +1943,7 @@ bool VulkanRenderer::start_frame() {
         throw std::runtime_error("waitSemaphores on renderFinishedTimeline failed");
     }
 
-    for (const auto& action: repeated_frame_begin_actions) {
-        action();
-    }
-
-    while (!queued_frame_begin_actions.empty()) {
-        queued_frame_begin_actions.front()();
-        queued_frame_begin_actions.pop();
-    }
+    do_frame_begin_actions();
 
     const auto &[result, image_index] = swap_chain->acquire_next_image(*sync.image_available_semaphore);
 
@@ -2044,12 +1954,6 @@ bool VulkanRenderer::start_frame() {
     if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR) {
         throw std::runtime_error("failed to acquire swap chain image!");
     }
-
-    frame_resources[current_frame_idx].scene_cmd_buffer.was_recorded_this_frame = false;
-    frame_resources[current_frame_idx].prepass_cmd_buffer.was_recorded_this_frame = false;
-    frame_resources[current_frame_idx].ssao_cmd_buffer.was_recorded_this_frame = false;
-    frame_resources[current_frame_idx].gui_cmd_buffer.was_recorded_this_frame = false;
-    frame_resources[current_frame_idx].debug_cmd_buffer.was_recorded_this_frame = false;
 
     return true;
 }
@@ -2176,7 +2080,7 @@ void VulkanRenderer::run_prepass() {
 }
 
 void VulkanRenderer::run_ssao_pass() {
-    if (!model || !use_ssao) {
+    if (!model) {
         return;
     }
 
@@ -2419,62 +2323,5 @@ void VulkanRenderer::capture_cubemap() const {
     utils::cmd::end_single_time_commands(command_buffer, *ctx.graphics_queue);
 
     skybox_texture->generate_mipmaps(ctx, vk::ImageLayout::eShaderReadOnlyOptimal);
-}
-
-void VulkanRenderer::update_graphics_uniform_buffer() const {
-    const glm::mat4 model = glm::translate(model_translate)
-                            * mat4_cast(model_rotation)
-                            * glm::scale(glm::vec3(model_scale));
-    const glm::mat4 view = camera->get_view_matrix();
-    const glm::mat4 proj = camera->get_projection_matrix();
-
-    glm::ivec2 window_size{};
-    glfwGetWindowSize(window, &window_size.x, &window_size.y);
-
-    const auto &[z_near, z_far] = camera->get_clipping_planes();
-
-    static const glm::mat4 cubemap_face_projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
-
-    GraphicsUBO graphics_ubo{
-        .window = {
-            .window_width = static_cast<uint32_t>(window_size.x),
-            .window_height = static_cast<uint32_t>(window_size.y),
-        },
-        .matrices = {
-            .model = model,
-            .view = view,
-            .proj = proj,
-            .view_inverse = glm::inverse(view),
-            .proj_inverse = glm::inverse(proj),
-            .vp_inverse = glm::inverse(proj * view),
-            .static_view = camera->get_static_view_matrix(),
-            .cubemap_capture_proj = cubemap_face_projection
-        },
-        .misc = {
-            .debug_number = debug_number,
-            .z_near = z_near,
-            .z_far = z_far,
-            .use_ssao = use_ssao ? 1u : 0,
-            .light_intensity = light_intensity,
-            .light_dir = glm::vec3(mat4_cast(light_direction) * glm::vec4(-1, 0, 0, 0)),
-            .light_color = light_color,
-            .camera_pos = camera->get_pos(),
-        }
-    };
-
-    static const std::array cubemap_face_views{
-        glm::lookAt(glm::vec3(0), glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0)),
-        glm::lookAt(glm::vec3(0), glm::vec3(1, 0, 0), glm::vec3(0, 1, 0)),
-        glm::lookAt(glm::vec3(0), glm::vec3(0, 1, 0), glm::vec3(0, 0, -1)),
-        glm::lookAt(glm::vec3(0), glm::vec3(0, -1, 0), glm::vec3(0, 0, 1)),
-        glm::lookAt(glm::vec3(0), glm::vec3(0, 0, 1), glm::vec3(0, 1, 0)),
-        glm::lookAt(glm::vec3(0), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0))
-    };
-
-    for (size_t i = 0; i < 6; i++) {
-        graphics_ubo.matrices.cubemap_capture_views[i] = cubemap_face_views[i];
-    }
-
-    memcpy(render_graph_ubos.begin()->second->map(), &graphics_ubo, sizeof(graphics_ubo));
 }
 } // zrx

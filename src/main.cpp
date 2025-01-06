@@ -7,6 +7,7 @@
 #include <random>
 #include <GLFW/glfw3native.h>
 
+#include "render/camera.hpp"
 #include "render/graph.hpp"
 #include "render/renderer.hpp"
 #include "render/gui/gui.hpp"
@@ -53,6 +54,8 @@ class Engine {
     VulkanRenderer renderer;
     std::unique_ptr<InputManager> input_manager;
 
+    unique_ptr<Camera> camera;
+
     float last_time = 0.0f;
 
     bool is_gui_enabled = false;
@@ -65,12 +68,28 @@ class Engine {
 
     std::string curr_error_message;
 
+    // misc state variables
+
+    float model_scale = 1.0f;
+    glm::vec3 model_translate{};
+    glm::quat model_rotation{1, 0, 0, 0};
+
+    glm::quat light_direction = glm::normalize(glm::vec3(1, 1.5, -2));
+    glm::vec3 light_color = glm::normalize(glm::vec3(23.47, 21.31, 20.79));
+    float light_intensity = 20.0f;
+
+    float debug_number = 0;
+
+    bool use_ssao = false;
+
 public:
     Engine() {
         window = renderer.get_window();
+        camera = make_unique<Camera>(window);
 
         input_manager = std::make_unique<InputManager>(window);
         bind_key_actions();
+        bind_mouse_drag_actions();
 
         build_render_graph();
     }
@@ -87,12 +106,15 @@ public:
 
 private:
     void tick() {
+        glfwPollEvents();
+
         const auto current_time = static_cast<float>(glfwGetTime());
         const float delta_time = current_time - last_time;
         last_time = current_time;
 
         input_manager->tick(delta_time);
         renderer.tick(delta_time);
+        camera->tick(delta_time);
 
         renderer.run_render_graph();
 
@@ -100,7 +122,6 @@ private:
         //     if (is_gui_enabled) {
         //         renderer.render_gui([&] {
         //             render_gui_section(delta_time);
-        //             renderer.render_gui_section();
         //         });
         //     }
         //
@@ -142,11 +163,20 @@ private:
             "../assets/example models/kettle/kettle.obj"
         });
 
+        const auto skybox_cube_model = render_graph.add_model_resource({
+            "skybox-cube-model",
+            "../assets/example models/kettle/kettle.obj"
+        });
+
         // ================== uniform buffers ==================
 
         const auto uniform_buffer = render_graph.add_uniform_buffer({
             "general-ubo",
             sizeof(GraphicsUBO)
+        });
+
+        render_graph.add_frame_begin_action([this, uniform_buffer](const FrameBeginActionContext& fba_ctx) {
+            update_graphics_uniform_buffer(*fba_ctx.ubos.get().at(uniform_buffer));
         });
 
         // ================== external resources ==================
@@ -213,11 +243,37 @@ private:
             prepass_fragment_shader,
             {g_buffer_normal, g_buffer_pos},
             g_buffer_depth,
-            [scene_model](RenderPassContext &ctx) {
-                std::cout << "prepass\n";
+            [scene_model](const RenderPassContext &ctx) {
                 ctx.draw_model(scene_model);
             }
         });
+
+        // ================== skybox pass ==================
+
+        // const auto skybox_vertex_shader = std::make_shared<Shader>(Shader{
+        //     "../shaders/obj/skybox-vert.spv",
+        //     {
+        //         {uniform_buffer}
+        //     }
+        // });
+        //
+        // const auto skybox_fragment_shader = std::make_shared<Shader>(Shader{
+        //     "../shaders/obj/skybox-frag.spv",
+        //     {
+        //         {uniform_buffer, skybox_texture},
+        //     }
+        // });
+        //
+        // render_graph.add_node({
+        //     "skybox",
+        //     skybox_vertex_shader,
+        //     skybox_fragment_shader,
+        //     {FINAL_IMAGE_RESOURCE_HANDLE},
+        //     {},
+        //     [skybox_cube_model](const RenderPassContext &ctx) {
+        //         ctx.draw_model(skybox_cube_model);
+        //     }
+        // });
 
         // ================== main pass ==================
 
@@ -246,8 +302,7 @@ private:
             main_fragment_shader,
             {FINAL_IMAGE_RESOURCE_HANDLE},
             {},
-            [scene_model](RenderPassContext &ctx) {
-                std::cout << "main\n";
+            [scene_model](const RenderPassContext &ctx) {
                 ctx.draw_model(scene_model);
             }
         });
@@ -255,10 +310,79 @@ private:
         renderer.register_render_graph(render_graph);
     }
 
+    void update_graphics_uniform_buffer(Buffer& buffer) const {
+        const glm::mat4 model = glm::translate(model_translate)
+                                * mat4_cast(model_rotation)
+                                * glm::scale(glm::vec3(model_scale));
+        const glm::mat4 view = camera->get_view_matrix();
+        const glm::mat4 proj = camera->get_projection_matrix();
+
+        glm::ivec2 window_size{};
+        glfwGetWindowSize(window, &window_size.x, &window_size.y);
+
+        const auto &[z_near, z_far] = camera->get_clipping_planes();
+
+        static const glm::mat4 cubemap_face_projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+
+        GraphicsUBO graphics_ubo{
+            .window = {
+                .window_width = static_cast<uint32_t>(window_size.x),
+                .window_height = static_cast<uint32_t>(window_size.y),
+            },
+            .matrices = {
+                .model = model,
+                .view = view,
+                .proj = proj,
+                .view_inverse = glm::inverse(view),
+                .proj_inverse = glm::inverse(proj),
+                .vp_inverse = glm::inverse(proj * view),
+                .static_view = camera->get_static_view_matrix(),
+                .cubemap_capture_proj = cubemap_face_projection
+            },
+            .misc = {
+                .debug_number = debug_number,
+                .z_near = z_near,
+                .z_far = z_far,
+                .use_ssao = use_ssao ? 1u : 0,
+                .light_intensity = light_intensity,
+                .light_dir = glm::vec3(mat4_cast(light_direction) * glm::vec4(-1, 0, 0, 0)),
+                .light_color = light_color,
+                .camera_pos = camera->get_pos(),
+            }
+        };
+
+        static const std::array cubemap_face_views{
+            glm::lookAt(glm::vec3(0), glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0)),
+            glm::lookAt(glm::vec3(0), glm::vec3(1, 0, 0), glm::vec3(0, 1, 0)),
+            glm::lookAt(glm::vec3(0), glm::vec3(0, 1, 0), glm::vec3(0, 0, -1)),
+            glm::lookAt(glm::vec3(0), glm::vec3(0, -1, 0), glm::vec3(0, 0, 1)),
+            glm::lookAt(glm::vec3(0), glm::vec3(0, 0, 1), glm::vec3(0, 1, 0)),
+            glm::lookAt(glm::vec3(0), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0))
+        };
+
+        for (size_t i = 0; i < 6; i++) {
+            graphics_ubo.matrices.cubemap_capture_views[i] = cubemap_face_views[i];
+        }
+
+        memcpy(buffer.map(), &graphics_ubo, sizeof(graphics_ubo));
+    }
+
     void bind_key_actions() {
         input_manager->bind_callback(GLFW_KEY_GRAVE_ACCENT, EActivationType::PRESS_ONCE, [&](const float delta_time) {
             (void) delta_time;
             is_gui_enabled = !is_gui_enabled;
+        });
+    }
+
+    void bind_mouse_drag_actions() {
+        input_manager->bind_mouse_drag_callback(GLFW_MOUSE_BUTTON_RIGHT, [&](const double dx, const double dy) {
+            static constexpr float speed = 0.002;
+            const float camera_distance = glm::length(camera->get_pos());
+
+            const auto view_vectors = camera->get_view_vectors();
+
+            model_translate += camera_distance * speed * view_vectors.right * static_cast<float>(dx);
+            model_translate -= camera_distance * speed * view_vectors.up * static_cast<float>(dy);
         });
     }
 
@@ -297,6 +421,42 @@ private:
 
             file_browser.Display();
         }
+
+        if (ImGui::CollapsingHeader("Model ", section_flags)) {
+            if (ImGui::Button("Load model...")) {
+                ImGui::OpenPopup("Load model");
+            }
+
+            ImGui::Separator();
+
+            ImGui::DragFloat("Model scale", &model_scale, 0.01, 0, std::numeric_limits<float>::max());
+
+            ImGui::gizmo3D("Model rotation", model_rotation, 160);
+
+            if (ImGui::Button("Reset scale")) { model_scale = 1; }
+            ImGui::SameLine();
+            if (ImGui::Button("Reset rotation")) { model_rotation = {1, 0, 0, 0}; }
+            ImGui::SameLine();
+            if (ImGui::Button("Reset position")) { model_translate = {0, 0, 0}; }
+        }
+
+        if (ImGui::CollapsingHeader("Advanced ", section_flags)) {
+            ImGui::Checkbox("SSAO", &use_ssao);
+
+#ifndef NDEBUG
+            ImGui::Separator();
+            ImGui::DragFloat("Debug number", &debug_number, 0.01, 0, std::numeric_limits<float>::max());
+#endif
+        }
+
+        if (ImGui::CollapsingHeader("Lighting ", section_flags)) {
+            ImGui::SliderFloat("Light intensity", &light_intensity, 0.0f, 100.0f, "%.2f");
+            ImGui::ColorEdit3("Light color", &light_color.x);
+            ImGui::gizmo3D("Light direction", light_direction, 160, imguiGizmo::modeDirection);
+        }
+
+        camera->render_gui_section();
+        renderer.render_gui_section();
     }
 
     void render_tex_load_button(const std::string &label, const FileType file_type,

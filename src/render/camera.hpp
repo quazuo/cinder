@@ -7,10 +7,9 @@
 struct GLFWwindow;
 
 namespace zrx {
-class Rotator {
+struct Rotator {
     glm::vec2 rot = {0, 0};
 
-public:
     [[nodiscard]] glm::vec2 operator*() const { return rot; }
 
     Rotator& operator=(glm::vec2 other);
@@ -40,7 +39,7 @@ class Camera {
 
     bool is_locked_cursor = false;
     bool is_locked_cam = true;
-    float locked_radius = 2.0f;
+    float locked_radius = 20.0f;
     Rotator locked_rotator;
 
     float rotation_speed = 2.5f;
