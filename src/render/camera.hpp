@@ -7,9 +7,10 @@
 struct GLFWwindow;
 
 namespace zrx {
-struct Rotator {
+class Rotator {
     glm::vec2 rot = {0, 0};
 
+public:
     [[nodiscard]] glm::vec2 operator*() const { return rot; }
 
     Rotator& operator=(glm::vec2 other);

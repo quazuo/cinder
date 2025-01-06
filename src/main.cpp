@@ -223,11 +223,12 @@ private:
 
         // ================== prepass ==================
 
-        const auto prepass_vertex_shader = std::make_shared<Shader>(Shader{
+        const auto prepass_vertex_shader = std::make_shared<VertexShader>(VertexShader{
             "../shaders/obj/prepass-vert.spv",
             {
                 {uniform_buffer}
-            }
+            },
+            ModelVertex()
         });
 
         const auto prepass_fragment_shader = std::make_shared<Shader>(Shader{
@@ -244,13 +245,41 @@ private:
             {g_buffer_normal, g_buffer_pos},
             g_buffer_depth,
             [scene_model](const RenderPassContext &ctx) {
+                std::cout << "prepass\n";
                 ctx.draw_model(scene_model);
+            }
+        });
+
+        // ================== ssao pass ==================
+
+        const auto ssao_vertex_shader = std::make_shared<VertexShader>(VertexShader{
+            "../shaders/obj/ssao-vert.spv",
+            {},
+            ScreenSpaceQuadVertex()
+        });
+
+        const auto ssao_fragment_shader = std::make_shared<Shader>(Shader{
+            "../shaders/obj/ssao-frag.spv",
+            {
+                {uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos},
+            }
+        });
+
+        render_graph.add_node({
+            "ssao",
+            ssao_vertex_shader,
+            ssao_fragment_shader,
+            {ssao_texture},
+            {},
+            [](const RenderPassContext &ctx) {
+                std::cout << "ssao\n";
+                ctx.draw_screenspace_quad();
             }
         });
 
         // ================== skybox pass ==================
 
-        // const auto skybox_vertex_shader = std::make_shared<Shader>(Shader{
+        // const auto skybox_vertex_shader = std::make_shared<VertexShader>(VertexShader{
         //     "../shaders/obj/skybox-vert.spv",
         //     {
         //         {uniform_buffer}
@@ -277,11 +306,12 @@ private:
 
         // ================== main pass ==================
 
-        const auto main_vertex_shader = std::make_shared<Shader>(Shader{
+        const auto main_vertex_shader = std::make_shared<VertexShader>(VertexShader{
             "../shaders/obj/main-vert.spv",
             {
                 {uniform_buffer}
-            }
+            },
+            ModelVertex()
         });
 
         const auto main_fragment_shader = std::make_shared<Shader>(Shader{
@@ -303,6 +333,7 @@ private:
             {FINAL_IMAGE_RESOURCE_HANDLE},
             {},
             [scene_model](const RenderPassContext &ctx) {
+                std::cout << "main\n";
                 ctx.draw_model(scene_model);
             }
         });

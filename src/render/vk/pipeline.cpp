@@ -37,13 +37,22 @@ GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_fragment_shader(const std
     return *this;
 }
 
+GraphicsPipelineBuilder &
+GraphicsPipelineBuilder::with_vertices(std::vector<vk::VertexInputBindingDescription> bindings,
+                                       std::vector<vk::VertexInputAttributeDescription> attributes) {
+    vertex_bindings   = std::move(bindings);
+    vertex_attributes = std::move(attributes);
+    return *this;
+}
+
 GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_descriptor_layouts(
     const std::vector<vk::DescriptorSetLayout> &layouts) {
     descriptor_set_layouts = layouts;
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_push_constants(const std::vector<vk::PushConstantRange> &ranges) {
+GraphicsPipelineBuilder &
+GraphicsPipelineBuilder::with_push_constants(const std::vector<vk::PushConstantRange> &ranges) {
     push_constant_ranges = ranges;
     return *this;
 }
@@ -166,12 +175,12 @@ GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) con
     };
 
     const auto depth_stencil = depth_stencil_override
-                                  ? *depth_stencil_override
-                                  : vk::PipelineDepthStencilStateCreateInfo{
-                                      .depthTestEnable = vk::True,
-                                      .depthWriteEnable = vk::True,
-                                      .depthCompareOp = vk::CompareOp::eLess,
-                                  };
+                                   ? *depth_stencil_override
+                                   : vk::PipelineDepthStencilStateCreateInfo{
+                                       .depthTestEnable = vk::True,
+                                       .depthWriteEnable = vk::True,
+                                       .depthCompareOp = vk::CompareOp::eLess,
+                                   };
 
     const vk::PipelineLayoutCreateInfo pipeline_layout_info{
         .setLayoutCount = static_cast<uint32_t>(descriptor_set_layouts.size()),
@@ -259,8 +268,8 @@ RtPipeline RtPipelineBuilder::create(const RendererContext &ctx) const {
     RtPipeline result;
 
     auto [pipeline, layout] = build_pipeline(ctx);
-    result.pipeline = make_unique<decltype(pipeline)>(std::move(pipeline));
-    result.layout = make_unique<decltype(layout)>(std::move(layout));
+    result.pipeline         = make_unique<decltype(pipeline)>(std::move(pipeline));
+    result.layout           = make_unique<decltype(layout)>(std::move(layout));
 
     result.sbt = build_sbt(ctx, *result.pipeline);
 
@@ -290,8 +299,8 @@ RtPipelineBuilder::build_pipeline(const RendererContext &ctx) const {
         eShaderGroupCount
     };
 
-    const vk::raii::ShaderModule raygen_shader_module = create_shader_module(ctx, raygen_shader_path);
-    const vk::raii::ShaderModule miss_shader_module = create_shader_module(ctx, miss_shader_path);
+    const vk::raii::ShaderModule raygen_shader_module      = create_shader_module(ctx, raygen_shader_path);
+    const vk::raii::ShaderModule miss_shader_module        = create_shader_module(ctx, miss_shader_path);
     const vk::raii::ShaderModule closest_hit_shader_module = create_shader_module(ctx, closest_hit_shader_path);
 
     std::array<vk::PipelineShaderStageCreateInfo, eShaderGroupCount> shader_stages;
@@ -323,13 +332,13 @@ RtPipelineBuilder::build_pipeline(const RendererContext &ctx) const {
 
     std::vector shader_groups(eShaderGroupCount, shader_group_template);
 
-    shader_groups[eRaygen].type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
+    shader_groups[eRaygen].type          = vk::RayTracingShaderGroupTypeKHR::eGeneral;
     shader_groups[eRaygen].generalShader = eRaygen;
 
-    shader_groups[eMiss].type = vk::RayTracingShaderGroupTypeKHR::eGeneral;
+    shader_groups[eMiss].type          = vk::RayTracingShaderGroupTypeKHR::eGeneral;
     shader_groups[eMiss].generalShader = eMiss;
 
-    shader_groups[eClosestHit].type = vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
+    shader_groups[eClosestHit].type             = vk::RayTracingShaderGroupTypeKHR::eTrianglesHitGroup;
     shader_groups[eClosestHit].closestHitShader = eClosestHit;
 
     const vk::PipelineLayoutCreateInfo pipeline_layout_info{
@@ -371,10 +380,10 @@ RtPipelineBuilder::build_sbt(const RendererContext &ctx, const vk::raii::Pipelin
         vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
     const auto rt_properties = properties.get<vk::PhysicalDeviceRayTracingPipelinePropertiesKHR>();
 
-    constexpr uint32_t miss_count = 1;
-    constexpr uint32_t hit_count = 1;
-    constexpr uint32_t handle_count = 1 + miss_count + hit_count; // 1 for raygen count (always 1)
-    const uint32_t handle_size = rt_properties.shaderGroupHandleSize;
+    constexpr uint32_t miss_count      = 1;
+    constexpr uint32_t hit_count       = 1;
+    constexpr uint32_t handle_count    = 1 + miss_count + hit_count; // 1 for raygen count (always 1)
+    const uint32_t handle_size         = rt_properties.shaderGroupHandleSize;
     const uint32_t handle_size_aligned = align_up(
         handle_size,
         rt_properties.shaderGroupHandleAlignment);
@@ -396,10 +405,10 @@ RtPipelineBuilder::build_sbt(const RendererContext &ctx, const vk::raii::Pipelin
     };
 
     const uint32_t data_size = handle_count * handle_size;
-    std::vector handles = pipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>(0, handle_count, data_size);
+    std::vector handles      = pipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>(0, handle_count, data_size);
 
     const VkDeviceSize sbt_size = rgen_region.size + miss_region.size + hit_region.size;
-    auto sbt_buffer = make_unique<Buffer>(
+    auto sbt_buffer             = make_unique<Buffer>(
         **ctx.allocator,
         sbt_size,
         vk::BufferUsageFlagBits::eShaderBindingTableKHR
@@ -410,11 +419,11 @@ RtPipelineBuilder::build_sbt(const RendererContext &ctx, const vk::raii::Pipelin
     );
 
     const vk::DeviceAddress sbt_address = ctx.device->getBufferAddress({.buffer = **sbt_buffer});
-    rgen_region.deviceAddress = sbt_address;
-    miss_region.deviceAddress = rgen_region.deviceAddress + rgen_region.size;
-    hit_region.deviceAddress = miss_region.deviceAddress + miss_region.size;
+    rgen_region.deviceAddress           = sbt_address;
+    miss_region.deviceAddress           = rgen_region.deviceAddress + rgen_region.size;
+    hit_region.deviceAddress            = miss_region.deviceAddress + miss_region.size;
 
-    auto get_handle_ptr = [&](const uint32_t i) { return handles.data() + i * handle_size; };
+    auto get_handle_ptr     = [&](const uint32_t i) { return handles.data() + i * handle_size; };
     auto *sbt_buffer_mapped = static_cast<uint8_t *>(sbt_buffer->map());
 
     uint32_t handle_index = 0;

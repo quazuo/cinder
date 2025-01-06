@@ -101,6 +101,8 @@ VulkanRenderer::VulkanRenderer() {
 
     create_descriptor_pool();
 
+    create_screen_space_quad_vertex_buffer();
+
     // create_meshes_descriptor_set();
     // create_rt_target_texture();
     // create_rt_descriptor_sets();
@@ -1701,7 +1703,10 @@ GraphicsPipelineBuilder VulkanRenderer::create_node_pipeline_builder(
     auto builder = GraphicsPipelineBuilder()
             .with_vertex_shader(node_info.vertex_shader->path)
             .with_fragment_shader(node_info.fragment_shader->path)
-            .with_vertices<ModelVertex>()
+            .with_vertices(
+                node_info.vertex_shader->binding_descriptions,
+                node_info.vertex_shader->attribute_descriptions
+            )
             .with_rasterizer({
                 .polygonMode = vk::PolygonMode::eFill,
                 .cullMode = node_info.custom_config.cull_mode,
@@ -1859,7 +1864,7 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
         nullptr
     );
 
-    RenderPassContext pass_ctx{command_buffer, render_graph_models};
+    RenderPassContext pass_ctx{command_buffer, render_graph_models, *screen_space_quad_vertex_buffer};
     node_info.body(pass_ctx);
 
     command_buffer.end();

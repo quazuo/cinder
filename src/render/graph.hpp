@@ -11,6 +11,7 @@
 
 #include "mesh/model.hpp"
 #include "vk/image.hpp"
+#include "vk/buffer.hpp"
 
 namespace zrx {
 namespace detail {
@@ -24,7 +25,7 @@ namespace detail {
 
 using RenderNodeHandle = uint32_t;
 
-static constexpr ResourceHandle FINAL_IMAGE_RESOURCE_HANDLE = -1;
+static constexpr ResourceHandle FINAL_IMAGE_RESOURCE_HANDLE  = -1;
 static constexpr std::monostate EMPTY_DESCRIPTOR_SET_BINDING = {};
 
 struct UniformBuffer {
@@ -37,14 +38,14 @@ struct ExternalTextureResource {
     std::vector<std::filesystem::path> paths;
     vk::Format format;
     vk::TextureFlagsZRX tex_flags = vk::TextureFlagBitsZRX::MIPMAPS;
-    std::optional<SwizzleDesc> swizzle {};
+    std::optional<SwizzleDesc> swizzle{};
 };
 
 struct TransientTextureResource {
     std::string name;
     vk::Format format;
     vk::Extent2D extent = {0, 0}; // {0, 0} means we're using the swapchain image's extent
-    vk::TextureFlagsZRX tex_flags {};
+    vk::TextureFlagsZRX tex_flags{};
 };
 
 struct ModelResource {
@@ -85,18 +86,39 @@ struct Shader {
     }
 };
 
-struct RenderPassContext {
-    std::reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
-    std::reference_wrapper<const std::map<ResourceHandle, unique_ptr<Model> > > models;
 
-    // explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf,
-    //                            const std::map<ResourceHandle, unique_ptr<Model>> &models)
-    //     : command_buffer(cmd_buf), models(models) {
-    // }
+struct VertexShader : Shader {
+    std::vector<vk::VertexInputBindingDescription> binding_descriptions;
+    std::vector<vk::VertexInputAttributeDescription> attribute_descriptions;
+
+    template<typename VertexType>
+        requires VertexLike<VertexType>
+    VertexShader(std::filesystem::path &&path_, std::vector<DescriptorSetDescription> &&descriptor_set_descs_,
+                 VertexType &&vertex_example)
+        : Shader(std::move(path_), std::move(descriptor_set_descs_)),
+          binding_descriptions(VertexType::get_binding_descriptions()),
+          attribute_descriptions(VertexType::get_attribute_descriptions()) {
+        (void) vertex_example; // used only to infer the type of VertexType as we can't explicitly specialize the ctor
+    }
+};
+
+using FragmentShader = Shader;
+
+class RenderPassContext {
+    std::reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
+    std::reference_wrapper<const std::map<ResourceHandle, unique_ptr<Model> >> models;
+    std::reference_wrapper<const Buffer> ss_quad_vertex_buffer;
+
+public:
+    explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf,
+                               const std::map<ResourceHandle, unique_ptr<Model> > &models,
+                               const Buffer &ss_quad_vb)
+        : command_buffer(cmd_buf), models(models), ss_quad_vertex_buffer(ss_quad_vb) {
+    }
 
     void draw_model(const ResourceHandle model_handle) const {
-        uint32_t index_offset = 0;
-        int32_t vertex_offset = 0;
+        uint32_t index_offset    = 0;
+        int32_t vertex_offset    = 0;
         uint32_t instance_offset = 0;
 
         const Model &model = *models.get().at(model_handle);
@@ -116,20 +138,25 @@ struct RenderPassContext {
             instance_offset += static_cast<uint32_t>(mesh.instances.size());
         }
     }
+
+    void draw_screenspace_quad() const {
+        command_buffer.get().bindVertexBuffers(0, *ss_quad_vertex_buffer.get(), {0});
+        command_buffer.get().draw(screen_space_quad_vertices.size(), 1, 0, 0);
+    }
 };
 
 struct RenderNode {
     using RenderNodeBodyFn = std::function<void(RenderPassContext &)>;
 
     std::string name;
-    std::shared_ptr<Shader> vertex_shader;
-    std::shared_ptr<Shader> fragment_shader;
+    std::shared_ptr<VertexShader> vertex_shader;
+    std::shared_ptr<FragmentShader> fragment_shader;
     std::vector<ResourceHandle> color_targets;
     std::optional<ResourceHandle> depth_target;
     RenderNodeBodyFn body;
 
     struct {
-        bool use_msaa = false;
+        bool use_msaa                  = false;
         vk::CullModeFlagBits cull_mode = vk::CullModeFlagBits::eBack;
     } custom_config;
 
@@ -152,12 +179,12 @@ struct RenderNode {
 };
 
 struct FrameBeginActionContext {
-    std::reference_wrapper<const std::map<ResourceHandle, unique_ptr<Buffer> > > ubos;
-    std::reference_wrapper<const std::map<ResourceHandle, unique_ptr<Texture> > > textures;
-    std::reference_wrapper<const std::map<ResourceHandle, unique_ptr<Model> > > models;
+    std::reference_wrapper<const std::map<ResourceHandle, unique_ptr<Buffer> >> ubos;
+    std::reference_wrapper<const std::map<ResourceHandle, unique_ptr<Texture> >> textures;
+    std::reference_wrapper<const std::map<ResourceHandle, unique_ptr<Model> >> models;
 };
 
-using FrameBeginCallback = std::function<void(const FrameBeginActionContext&)>;
+using FrameBeginCallback = std::function<void(const FrameBeginActionContext &)>;
 
 class RenderGraph {
     std::map<RenderNodeHandle, RenderNode> nodes;
@@ -201,7 +228,7 @@ public:
         const auto handle = get_new_node_handle();
         nodes.emplace(handle, node);
 
-        const auto targets_set = node.get_all_targets_set();
+        const auto targets_set      = node.get_all_targets_set();
         const auto shader_resources = node.get_all_shader_resources_set();
 
         if (!detail::empty_intersection(targets_set, shader_resources)) {
@@ -212,7 +239,7 @@ public:
 
         // for each existing node A...
         for (const auto &[other_handle, other_node]: nodes) {
-            const auto other_targets_set = other_node.get_all_targets_set();
+            const auto other_targets_set      = other_node.get_all_targets_set();
             const auto other_shader_resources = other_node.get_all_shader_resources_set();
 
             // ...if any of the new node's targets is sampled in A,
@@ -259,7 +286,7 @@ public:
         return handle;
     }
 
-    void add_frame_begin_action(FrameBeginCallback&& callback) {
+    void add_frame_begin_action(FrameBeginCallback &&callback) {
         frame_begin_callbacks.emplace_back(std::move(callback));
     }
 

@@ -96,6 +96,9 @@ public:
         return *this;
     }
 
+    GraphicsPipelineBuilder &with_vertices(std::vector<vk::VertexInputBindingDescription> bindings,
+                                           std::vector<vk::VertexInputAttributeDescription> attributes);
+
     GraphicsPipelineBuilder &with_descriptor_layouts(const std::vector<vk::DescriptorSetLayout> &layouts);
 
     GraphicsPipelineBuilder &with_push_constants(const std::vector<vk::PushConstantRange> &ranges);

@@ -282,8 +282,8 @@ void Camera::tick_mouse_movement(const float delta_time) {
     const float mouse_speed = 0.002f * rotation_speed;
 
     rotator += {
-        mouse_speed * (static_cast<float>(window_size.x / 2) - static_cast<float>(std::floor(cursor_pos.x))),
-        mouse_speed * (static_cast<float>(window_size.y / 2) - static_cast<float>(std::floor(cursor_pos.y)))
+        mouse_speed * (static_cast<float>(window_size.x) / 2 - static_cast<float>(std::floor(cursor_pos.x))),
+        mouse_speed * (static_cast<float>(window_size.y) / 2 - static_cast<float>(std::floor(cursor_pos.y)))
     };
 
     center_cursor();
@@ -329,8 +329,8 @@ void Camera::center_cursor() const {
 
     glfwSetCursorPos(
         window,
-        window_size.x / 2,
-        window_size.y / 2
+        static_cast<float>(window_size.x) / 2,
+        static_cast<float>(window_size.y) / 2
     );
 }
 } // zrx
