@@ -1204,5 +1204,11 @@ namespace utils::img {
                 throw std::runtime_error("unexpected_format_in_utils::img::get_format_size_in_bytes");
         }
     }
+
+    vk::ImageUsageFlagBits get_format_attachment_type(const vk::Format format) {
+        return utils::img::is_depth_format(format)
+               ? vk::ImageUsageFlagBits::eDepthStencilAttachment
+               : vk::ImageUsageFlagBits::eColorAttachment;
+    }
 } // utils::img
 } // zrx

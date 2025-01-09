@@ -102,11 +102,7 @@ VulkanRenderer::VulkanRenderer() {
     create_descriptor_pool();
 
     create_screen_space_quad_vertex_buffer();
-
-    // create_meshes_descriptor_set();
-    // create_rt_target_texture();
-    // create_rt_descriptor_sets();
-    // create_rt_pipeline();
+    create_skybox_vertex_buffer();
 
     create_sync_objects();
 
@@ -1211,6 +1207,22 @@ void VulkanRenderer::record_graphics_command_buffer() {
         command_buffer.beginRendering(node_render_info.get(swap_chain->get_extent(), 1, rendering_flags));
         command_buffer.executeCommands(*node_command_buffer);
         command_buffer.endRendering();
+
+        // regenerate mipmaps for each target that had them
+        for (const auto color_target: render_graph_info.render_graph->nodes.at(node_resources.handle).color_targets) {
+            if (color_target == FINAL_IMAGE_RESOURCE_HANDLE) continue;
+
+            auto &target_texture = render_graph_textures.at(color_target);
+            if (target_texture->get_mip_levels() == 1) continue;
+
+            target_texture->get_image().transition_layout(
+                vk::ImageLayout::eShaderReadOnlyOptimal,
+                vk::ImageLayout::eTransferDstOptimal,
+                command_buffer
+            );
+
+            target_texture->generate_mipmaps(ctx, vk::ImageLayout::eShaderReadOnlyOptimal);
+        }
     }
 
     swap_chain->transition_to_present_layout(command_buffer);
@@ -1426,14 +1438,14 @@ void VulkanRenderer::render_gui_section() {
     if (ImGui::CollapsingHeader("Renderer ", section_flags)) {
         // todo - convert these 2 to dynamic states
         if (ImGui::Checkbox("Cull backfaces", &cull_back_faces)) {
-            queued_frame_begin_actions.emplace([&](const FrameBeginActionContext& fba_ctx) {
+            queued_frame_begin_actions.emplace([&](const FrameBeginActionContext &fba_ctx) {
                 wait_idle();
                 scene_render_infos[0].reload_shaders(ctx);
             });
         }
 
         if (ImGui::Checkbox("Wireframe mode", &wireframe_mode)) {
-            queued_frame_begin_actions.emplace([&](const FrameBeginActionContext& fba_ctx) {
+            queued_frame_begin_actions.emplace([&](const FrameBeginActionContext &fba_ctx) {
                 wait_idle();
                 scene_render_infos[0].reload_shaders(ctx);
             });
@@ -1441,7 +1453,7 @@ void VulkanRenderer::render_gui_section() {
 
         static bool use_msaa_dummy = use_msaa;
         if (ImGui::Checkbox("MSAA", &use_msaa_dummy)) {
-            queued_frame_begin_actions.emplace([this](const FrameBeginActionContext& fba_ctx) {
+            queued_frame_begin_actions.emplace([this](const FrameBeginActionContext &fba_ctx) {
                 use_msaa = use_msaa_dummy;
 
                 wait_idle();
@@ -1489,20 +1501,11 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
 }
 
 void VulkanRenderer::create_render_graph_resources() {
-    const auto &uniform_buffers = render_graph_info.render_graph->uniform_buffers;
-    const auto &external_resources = render_graph_info.render_graph->external_resources;
-    const auto &transient_resources = render_graph_info.render_graph->transient_resources;
-    const auto &model_resources = render_graph_info.render_graph->model_resources;
-
-    for (const auto &[handle, description]: uniform_buffers) {
+    for (const auto &[handle, description]: render_graph_info.render_graph->uniform_buffers) {
         render_graph_ubos.emplace(handle, utils::buf::create_uniform_buffer(ctx, description.size));
     }
 
-    for (const auto &[handle, description]: external_resources) {
-        const auto attachment_type = utils::img::is_depth_format(description.format)
-                                     ? vk::ImageUsageFlagBits::eDepthStencilAttachment
-                                     : vk::ImageUsageFlagBits::eColorAttachment;
-
+    for (const auto &[handle, description]: render_graph_info.render_graph->external_tex_resources) {
         auto builder = TextureBuilder()
                 .with_flags(description.tex_flags)
                 .from_paths(description.paths)
@@ -1510,7 +1513,7 @@ void VulkanRenderer::create_render_graph_resources() {
                 .use_usage(vk::ImageUsageFlagBits::eTransferSrc
                            | vk::ImageUsageFlagBits::eTransferDst
                            | vk::ImageUsageFlagBits::eSampled
-                           | attachment_type);
+                           | utils::img::get_format_attachment_type(description.format));
 
         if (description.paths.size() > 1) builder.as_separate_channels();
         if (description.swizzle) builder.with_swizzle(*description.swizzle);
@@ -1518,14 +1521,23 @@ void VulkanRenderer::create_render_graph_resources() {
         render_graph_textures.emplace(handle, builder.create(ctx));
     }
 
-    for (const auto &[handle, description]: transient_resources) {
-        const auto attachment_type = utils::img::is_depth_format(description.format)
-                                     ? vk::ImageUsageFlagBits::eDepthStencilAttachment
-                                     : vk::ImageUsageFlagBits::eColorAttachment;
+    for (const auto &[handle, description]: render_graph_info.render_graph->empty_tex_resources) {
+        auto builder = TextureBuilder()
+                .with_flags(description.tex_flags)
+                .as_uninitialized(description.extent)
+                .use_format(description.format)
+                .use_usage(vk::ImageUsageFlagBits::eTransferSrc
+                           | vk::ImageUsageFlagBits::eTransferDst
+                           | vk::ImageUsageFlagBits::eSampled
+                           | utils::img::get_format_attachment_type(description.format));
 
+        render_graph_textures.emplace(handle, builder.create(ctx));
+    }
+
+    for (const auto &[handle, description]: render_graph_info.render_graph->transient_tex_resources) {
         auto extent = description.extent;
 
-        if (extent.width == 0 || extent.height == 0) {
+        if (extent.width == 0 && extent.height == 0) {
             extent = swap_chain->get_extent();
         }
 
@@ -1536,12 +1548,12 @@ void VulkanRenderer::create_render_graph_resources() {
                 .use_usage(vk::ImageUsageFlagBits::eTransferSrc
                            | vk::ImageUsageFlagBits::eTransferDst
                            | vk::ImageUsageFlagBits::eSampled
-                           | attachment_type);
+                           | utils::img::get_format_attachment_type(description.format));
 
         render_graph_textures.emplace(handle, builder.create(ctx));
     }
 
-    for (const auto &[handle, description]: model_resources) {
+    for (const auto &[handle, description]: render_graph_info.render_graph->model_resources) {
         model = make_unique<Model>(ctx, description.path, false);
         render_graph_models.emplace(handle, std::move(model));
     }
@@ -1692,11 +1704,7 @@ GraphicsPipelineBuilder VulkanRenderer::create_node_pipeline_builder(
 
     std::vector<vk::Format> color_formats;
     for (const auto &target_handle: node_info.color_targets) {
-        if (target_handle == FINAL_IMAGE_RESOURCE_HANDLE) {
-            color_formats.push_back(swap_chain->get_image_format());
-        } else {
-            color_formats.push_back(render_graph_info.render_graph->transient_resources.at(target_handle).format);
-        }
+        color_formats.push_back(get_target_format(target_handle));
     }
 
     std::vector<vk::DescriptorSetLayout> descriptor_set_layouts;
@@ -1727,10 +1735,12 @@ GraphicsPipelineBuilder VulkanRenderer::create_node_pipeline_builder(
             .with_color_formats(color_formats);
 
     if (node_info.depth_target) {
-        builder.with_depth_format(
-            render_graph_info.render_graph->transient_resources.at(*node_info.depth_target).format);
-    } else if (has_swapchain_target(node_handle)) {
-        builder.with_depth_format(swap_chain->get_depth_format());
+        if (*node_info.depth_target == FINAL_IMAGE_RESOURCE_HANDLE) {
+            builder.with_depth_format(swap_chain->get_depth_format());
+        } else {
+            builder.with_depth_format(
+                render_graph_info.render_graph->transient_tex_resources.at(*node_info.depth_target).format);
+        }
     } else {
         builder.with_depth_stencil({
             .depthTestEnable = vk::False,
@@ -1751,40 +1761,46 @@ std::vector<RenderInfo> VulkanRenderer::create_node_render_infos(
     std::vector<RenderInfo> render_infos;
 
     if (has_swapchain_target(node_handle)) {
+        bool is_first_with_final_target = is_first_node_targetting_final_image(node_handle);
+
         for (auto &swap_chain_targets: swap_chain->get_render_targets(ctx)) {
             std::vector<RenderTarget> color_targets;
+
+            if (!is_first_with_final_target) {
+                // has to be overridden, otherwise this render pass will clear the swapchain image
+                swap_chain_targets.color_target.override_attachment_config(vk::AttachmentLoadOp::eLoad);
+            }
 
             for (auto color_target_handle: node_info.color_targets) {
                 if (color_target_handle == FINAL_IMAGE_RESOURCE_HANDLE) {
                     color_targets.emplace_back(std::move(swap_chain_targets.color_target));
                 } else {
-                    const auto& target_texture = render_graph_textures.at(color_target_handle);
+                    const auto &target_texture = render_graph_textures.at(color_target_handle);
                     color_targets.emplace_back(target_texture->get_image().get_view(ctx), target_texture->get_format());
                 }
             }
 
             if (node_info.depth_target) {
-                throw std::runtime_error("depth target must be left unspecified for nodes targeting the final image");
+                render_infos.emplace_back(
+                    pipeline_builder,
+                    pipeline,
+                    std::move(color_targets),
+                    std::move(swap_chain_targets.depth_target));
+            } else {
+                render_infos.emplace_back(pipeline_builder, pipeline, std::move(color_targets));
             }
-
-            render_infos.emplace_back(
-                pipeline_builder,
-                pipeline,
-                std::move(color_targets),
-                std::move(swap_chain_targets.depth_target)
-            );
         }
     } else {
         std::vector<RenderTarget> color_targets;
         std::optional<RenderTarget> depth_target;
 
         for (auto color_target_handle: node_info.color_targets) {
-            const auto& target_texture = render_graph_textures.at(color_target_handle);
+            const auto &target_texture = render_graph_textures.at(color_target_handle);
             color_targets.emplace_back(target_texture->get_image().get_view(ctx), target_texture->get_format());
         }
 
         if (node_info.depth_target) {
-            const auto& target_texture = render_graph_textures.at(*node_info.depth_target);
+            const auto &target_texture = render_graph_textures.at(*node_info.depth_target);
             depth_target = RenderTarget(target_texture->get_image().get_view(ctx), target_texture->get_format());
         }
 
@@ -1826,18 +1842,16 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
 
     std::vector<vk::Format> color_formats;
     for (const auto &target_handle: node_info.color_targets) {
-        if (target_handle == FINAL_IMAGE_RESOURCE_HANDLE) {
-            color_formats.push_back(swap_chain->get_image_format());
-        } else {
-            color_formats.push_back(render_graph_info.render_graph->transient_resources.at(target_handle).format);
-        }
+        color_formats.push_back(get_target_format(target_handle));
     }
 
     auto depth_format = static_cast<vk::Format>(0);
     if (node_info.depth_target) {
-        depth_format = render_graph_info.render_graph->transient_resources.at(*node_info.depth_target).format;
-    } else if (has_swapchain_target(handle)) {
-        depth_format = swap_chain->get_depth_format();
+        if (*node_info.depth_target == FINAL_IMAGE_RESOURCE_HANDLE) {
+            depth_format = swap_chain->get_depth_format();
+        } else {
+            depth_format = render_graph_info.render_graph->transient_tex_resources.at(*node_info.depth_target).format;
+        }
     }
 
     const vk::StructureChain inheritance_info{
@@ -1870,7 +1884,12 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
         nullptr
     );
 
-    RenderPassContext pass_ctx{command_buffer, render_graph_models, *screen_space_quad_vertex_buffer};
+    const RenderPassContext pass_ctx{
+        command_buffer,
+        render_graph_models,
+        *screen_space_quad_vertex_buffer,
+        *skybox_vertex_buffer
+    };
     node_info.body(pass_ctx);
 
     command_buffer.end();
@@ -1882,9 +1901,26 @@ bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle handle) const {
             .contains(FINAL_IMAGE_RESOURCE_HANDLE);
 }
 
+bool VulkanRenderer::is_first_node_targetting_final_image(const RenderNodeHandle handle) const {
+    if (!has_swapchain_target(handle)) return false;
+
+    auto first_it = std::ranges::find_if(render_graph_info.topo_sorted_nodes, [&](const RenderNodeResources &res) {
+        return has_swapchain_target(res.handle);
+    });
+
+    return first_it == render_graph_info.topo_sorted_nodes.end() || first_it->handle == handle;
+}
+
 bool VulkanRenderer::should_run_node_pass(const RenderNodeHandle handle) const {
-    const auto& node = render_graph_info.render_graph->nodes.at(handle);
+    const auto &node = render_graph_info.render_graph->nodes.at(handle);
     return node.should_run_predicate ? (*node.should_run_predicate)() : true;
+}
+
+vk::Format VulkanRenderer::get_target_format(const ResourceHandle handle) const {
+    if (handle == FINAL_IMAGE_RESOURCE_HANDLE) {
+        return swap_chain->get_image_format();
+    }
+    return render_graph_textures.at(handle)->get_format();
 }
 
 // ==================== render loop ====================
@@ -1895,9 +1931,9 @@ void VulkanRenderer::tick(const float delta_time) {
 }
 
 void VulkanRenderer::do_frame_begin_actions() {
-    const FrameBeginActionContext fba_ctx { render_graph_ubos, render_graph_textures, render_graph_models };
+    const FrameBeginActionContext fba_ctx{render_graph_ubos, render_graph_textures, render_graph_models};
 
-    for (const auto& action: repeated_frame_begin_actions) {
+    for (const auto &action: repeated_frame_begin_actions) {
         action(fba_ctx);
     }
 

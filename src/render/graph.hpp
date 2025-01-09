@@ -41,6 +41,13 @@ struct ExternalTextureResource {
     std::optional<SwizzleDesc> swizzle{};
 };
 
+struct EmptyTextureResource {
+    std::string name;
+    vk::Extent3D extent;
+    vk::Format format;
+    vk::TextureFlagsZRX tex_flags = vk::TextureFlagBitsZRX::MIPMAPS;
+};
+
 struct TransientTextureResource {
     std::string name;
     vk::Format format;
@@ -108,12 +115,13 @@ class RenderPassContext {
     std::reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
     std::reference_wrapper<const std::map<ResourceHandle, unique_ptr<Model> >> models;
     std::reference_wrapper<const Buffer> ss_quad_vertex_buffer;
+    std::reference_wrapper<const Buffer> skybox_vertex_buffer;
 
 public:
     explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf,
                                const std::map<ResourceHandle, unique_ptr<Model> > &models,
-                               const Buffer &ss_quad_vb)
-        : command_buffer(cmd_buf), models(models), ss_quad_vertex_buffer(ss_quad_vb) {
+                               const Buffer &ss_quad_vb, const Buffer& skybox_vb)
+        : command_buffer(cmd_buf), models(models), ss_quad_vertex_buffer(ss_quad_vb), skybox_vertex_buffer(skybox_vb) {
     }
 
     void draw_model(const ResourceHandle model_handle) const {
@@ -143,10 +151,15 @@ public:
         command_buffer.get().bindVertexBuffers(0, *ss_quad_vertex_buffer.get(), {0});
         command_buffer.get().draw(screen_space_quad_vertices.size(), 1, 0, 0);
     }
+
+    void draw_skybox() const {
+        command_buffer.get().bindVertexBuffers(0, *skybox_vertex_buffer.get(), {0});
+        command_buffer.get().draw(skybox_vertices.size(), 1, 0, 0);
+    }
 };
 
 struct RenderNode {
-    using RenderNodeBodyFn = std::function<void(RenderPassContext &)>;
+    using RenderNodeBodyFn = std::function<void(const RenderPassContext &)>;
     using ShouldRunPredicate = std::function<bool()>;
 
     std::string name;
@@ -193,8 +206,9 @@ class RenderGraph {
     std::map<RenderNodeHandle, std::set<RenderNodeHandle> > dependency_graph;
 
     std::map<ResourceHandle, UniformBuffer> uniform_buffers;
-    std::map<ResourceHandle, ExternalTextureResource> external_resources;
-    std::map<ResourceHandle, TransientTextureResource> transient_resources;
+    std::map<ResourceHandle, ExternalTextureResource> external_tex_resources;
+    std::map<ResourceHandle, EmptyTextureResource> empty_tex_resources;
+    std::map<ResourceHandle, TransientTextureResource> transient_tex_resources;
     std::map<ResourceHandle, ModelResource> model_resources;
 
     std::vector<FrameBeginCallback> frame_begin_callbacks;
@@ -270,15 +284,21 @@ public:
         return handle;
     }
 
-    [[nodiscard]] ResourceHandle add_external_resource(ExternalTextureResource &&resource) {
+    [[nodiscard]] ResourceHandle add_external_tex_resource(ExternalTextureResource &&resource) {
         const auto handle = get_new_resource_handle();
-        external_resources.emplace(handle, resource);
+        external_tex_resources.emplace(handle, resource);
         return handle;
     }
 
-    [[nodiscard]] ResourceHandle add_transient_resource(TransientTextureResource &&resource) {
+    [[nodiscard]] ResourceHandle add_empty_tex_resource(EmptyTextureResource &&resource) {
         const auto handle = get_new_resource_handle();
-        transient_resources.emplace(handle, resource);
+        empty_tex_resources.emplace(handle, resource);
+        return handle;
+    }
+
+    [[nodiscard]] ResourceHandle add_transient_tex_resource(TransientTextureResource &&resource) {
+        const auto handle = get_new_resource_handle();
+        transient_tex_resources.emplace(handle, resource);
         return handle;
     }
 

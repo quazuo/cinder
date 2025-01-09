@@ -81,7 +81,7 @@ class Engine {
     float debug_number = 0;
 
     bool use_ssao = false;
-    bool should_compute_ibl = true;
+    bool should_compute_skybox = true;
 
 public:
     Engine() {
@@ -177,68 +177,98 @@ private:
 
         // ================== external resources ==================
 
-        const auto base_color_texture = render_graph.add_external_resource(ExternalTextureResource{
+        const auto base_color_texture = render_graph.add_external_tex_resource(ExternalTextureResource{
             "base-color-texture",
             {"../assets/example models/kettle/kettle-albedo.png"},
             vk::Format::eR8G8B8A8Srgb
         });
 
-        const auto normal_texture = render_graph.add_external_resource(ExternalTextureResource{
+        const auto normal_texture = render_graph.add_external_tex_resource(ExternalTextureResource{
             "normal-texture",
             {"../assets/example models/kettle/kettle-normal.png"},
             vk::Format::eR8G8B8A8Unorm,
         });
 
-        const auto orm_texture = render_graph.add_external_resource(ExternalTextureResource{
+        const auto orm_texture = render_graph.add_external_tex_resource(ExternalTextureResource{
             "orm-texture",
             {"../assets/example models/kettle/kettle-orm.png"},
             vk::Format::eR8G8B8A8Unorm,
         });
 
-        const auto envmap_texture = render_graph.add_external_resource(ExternalTextureResource{
+        const auto envmap_texture = render_graph.add_external_tex_resource(ExternalTextureResource{
             "envmap-texture",
-            {"../assets/envmaps/cobblestone.hdr"},
+            {"../assets/envmaps/vienna.hdr"},
             vk::Format::eR32G32B32A32Sfloat,
             vk::TextureFlagBitsZRX::HDR | vk::TextureFlagBitsZRX::MIPMAPS
         });
 
+        const auto skybox_texture = render_graph.add_empty_tex_resource(EmptyTextureResource{
+            "skybox-texture",
+            {2048, 2048, 1},
+            vk::Format::eR8G8B8A8Srgb,
+            vk::TextureFlagBitsZRX::MIPMAPS | vk::TextureFlagBitsZRX::HDR | vk::TextureFlagBitsZRX::CUBEMAP
+       });
+
         // ================== transient resources ==================
 
-        const auto g_buffer_normal = render_graph.add_transient_resource(TransientTextureResource{
+        const auto g_buffer_normal = render_graph.add_transient_tex_resource(TransientTextureResource{
             "g-buffer-normal",
             vk::Format::eR16G16B16A16Sfloat,
         });
 
-        const auto g_buffer_pos = render_graph.add_transient_resource(TransientTextureResource{
+        const auto g_buffer_pos = render_graph.add_transient_tex_resource(TransientTextureResource{
             "g-buffer-pos",
             vk::Format::eR16G16B16A16Sfloat,
         });
 
-        const auto g_buffer_depth = render_graph.add_transient_resource(TransientTextureResource{
+        const auto g_buffer_depth = render_graph.add_transient_tex_resource(TransientTextureResource{
             "g-buffer-depth",
             depth_format,
         });
 
-        const auto ssao_texture = render_graph.add_transient_resource(TransientTextureResource{
+        const auto ssao_texture = render_graph.add_transient_tex_resource(TransientTextureResource{
             "ssao-texture",
             vk::Format::eR8G8B8A8Unorm,
+        });
+
+        // ================== cubemap capture ==================
+
+        const auto cubecap_vertex_shader = std::make_shared<VertexShader>(VertexShader{
+            "../shaders/obj/sphere-cube-vert.spv",
+            {{uniform_buffer}},
+            SkyboxVertex()
+        });
+
+        const auto cubecap_fragment_shader = std::make_shared<Shader>(FragmentShader{
+            "../shaders/obj/sphere-cube-frag.spv",
+            {{uniform_buffer, envmap_texture}}
+        });
+
+        render_graph.add_node({
+            "cubemap-capture",
+            cubecap_vertex_shader,
+            cubecap_fragment_shader,
+            {skybox_texture},
+            {},
+            [&](const RenderPassContext &ctx) {
+                std::cout << "cubemap capture\n";
+                ctx.draw_skybox();
+                should_compute_skybox = false;
+            },
+            [&] { return should_compute_skybox; }
         });
 
         // ================== prepass ==================
 
         const auto prepass_vertex_shader = std::make_shared<VertexShader>(VertexShader{
             "../shaders/obj/prepass-vert.spv",
-            {
-                {uniform_buffer}
-            },
+            {{uniform_buffer}},
             ModelVertex()
         });
 
         const auto prepass_fragment_shader = std::make_shared<Shader>(FragmentShader{
             "../shaders/obj/prepass-frag.spv",
-            {
-                {uniform_buffer}
-            }
+            {{uniform_buffer}}
         });
 
         render_graph.add_node({
@@ -264,9 +294,7 @@ private:
 
         const auto ssao_fragment_shader = std::make_shared<Shader>(FragmentShader{
             "../shaders/obj/ssao-frag.spv",
-            {
-                {uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos},
-            }
+            {{uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos}}
         });
 
         render_graph.add_node({
@@ -284,38 +312,34 @@ private:
 
         // ================== skybox pass ==================
 
-        // const auto skybox_vertex_shader = std::make_shared<VertexShader>(VertexShader{
-        //     "../shaders/obj/skybox-vert.spv",
-        //     {
-        //         {uniform_buffer}
-        //     }
-        // });
-        //
-        // const auto skybox_fragment_shader = std::make_shared<Shader>(FragmentShader{
-        //     "../shaders/obj/skybox-frag.spv",
-        //     {
-        //         {uniform_buffer, skybox_texture},
-        //     }
-        // });
-        //
-        // render_graph.add_node({
-        //     "skybox",
-        //     skybox_vertex_shader,
-        //     skybox_fragment_shader,
-        //     {FINAL_IMAGE_RESOURCE_HANDLE},
-        //     {},
-        //     [skybox_cube_model](const RenderPassContext &ctx) {
-        //         ctx.draw_model(skybox_cube_model);
-        //     }
-        // });
+        const auto skybox_vertex_shader = std::make_shared<VertexShader>(VertexShader{
+            "../shaders/obj/skybox-vert.spv",
+            {{uniform_buffer}},
+            SkyboxVertex()
+        });
+
+        const auto skybox_fragment_shader = std::make_shared<Shader>(FragmentShader{
+            "../shaders/obj/skybox-frag.spv",
+            {{uniform_buffer, skybox_texture},}
+        });
+
+        render_graph.add_node({
+            "skybox",
+            skybox_vertex_shader,
+            skybox_fragment_shader,
+            {FINAL_IMAGE_RESOURCE_HANDLE},
+            {},
+            [](const RenderPassContext &ctx) {
+                std::cout << "skybox\n";
+                ctx.draw_skybox();
+            }
+        });
 
         // ================== main pass ==================
 
         const auto main_vertex_shader = std::make_shared<VertexShader>(VertexShader{
             "../shaders/obj/main-vert.spv",
-            {
-                {uniform_buffer}
-            },
+            {{uniform_buffer}},
             ModelVertex()
         });
 
@@ -336,7 +360,7 @@ private:
             main_vertex_shader,
             main_fragment_shader,
             {FINAL_IMAGE_RESOURCE_HANDLE},
-            {},
+            {FINAL_IMAGE_RESOURCE_HANDLE},
             [scene_model](const RenderPassContext &ctx) {
                 std::cout << "main\n";
                 ctx.draw_model(scene_model);

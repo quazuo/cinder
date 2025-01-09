@@ -20,4 +20,8 @@ void main() {
     color = pow(color, vec3(1 / 2.2));
 
     outColor = vec4(color, 1.0);
+
+    //if (color == vec3(0)) {
+        outColor = vec4(texCoord, 1.0);
+    //}
 }

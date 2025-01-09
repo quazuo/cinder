@@ -10,21 +10,22 @@
 
 // for these bits, we're leveraging the already available flag system from vulkan-hpp.
 // for this reason, the following code needs to be in the vulkan-hpp namespace.
-namespace VULKAN_HPP_NAMESPACE {
-    enum class TextureFlagBitsZRX : uint32_t {
-        CUBEMAP = 1 << 0,
-        HDR     = 1 << 1,
-        MIPMAPS = 1 << 2,
-    };
+namespace
+VULKAN_HPP_NAMESPACE {
+enum class TextureFlagBitsZRX : uint32_t {
+    CUBEMAP = 1 << 0,
+    HDR     = 1 << 1,
+    MIPMAPS = 1 << 2,
+};
 
-    using TextureFlagsZRX = Flags<TextureFlagBitsZRX>;
+using TextureFlagsZRX = Flags<TextureFlagBitsZRX>;
 
-    template<>
-    struct FlagTraits<TextureFlagBitsZRX> {
-        static VULKAN_HPP_CONST_OR_CONSTEXPR bool isBitmask        = true;
-        static VULKAN_HPP_CONST_OR_CONSTEXPR TextureFlagsZRX allFlags =
-                TextureFlagBitsZRX::CUBEMAP | TextureFlagBitsZRX::HDR | TextureFlagBitsZRX::MIPMAPS;
-    };
+template<>
+struct FlagTraits<TextureFlagBitsZRX> {
+    static VULKAN_HPP_CONST_OR_CONSTEXPR bool isBitmask = true;
+    static VULKAN_HPP_CONST_OR_CONSTEXPR TextureFlagsZRX allFlags =
+            TextureFlagBitsZRX::CUBEMAP | TextureFlagBitsZRX::HDR | TextureFlagBitsZRX::MIPMAPS;
+};
 }
 
 namespace zrx {
@@ -233,14 +234,14 @@ static constexpr SwizzleDesc default_swizzle = {
  * might not be implemented, due to them not being needed at the moment.
  */
 class TextureBuilder {
-    vk::Format format         = vk::Format::eR8G8B8A8Srgb;
-    vk::ImageLayout layout    = vk::ImageLayout::eShaderReadOnlyOptimal;
+    vk::Format format = vk::Format::eR8G8B8A8Srgb;
+    vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal;
     vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eTransferSrc
                                 | vk::ImageUsageFlagBits::eTransferDst
                                 | vk::ImageUsageFlagBits::eSampled;
     vk::TextureFlagsZRX tex_flags{};
     bool is_separate_channels = false;
-    bool is_uninitialized     = false;
+    bool is_uninitialized = false;
 
     std::optional<SwizzleDesc> swizzle;
 
@@ -249,7 +250,7 @@ class TextureBuilder {
     std::optional<vk::Extent3D> desired_extent;
 
     std::vector<std::filesystem::path> paths;
-    void *memory_source       = nullptr;
+    void *memory_source = nullptr;
     bool is_from_swizzle_fill = false;
 
     struct LoadedTextureData {
@@ -323,7 +324,7 @@ class RenderTarget {
     shared_ptr<vk::raii::ImageView> resolve_view;
     vk::Format format{};
 
-    vk::AttachmentLoadOp load_op   = vk::AttachmentLoadOp::eClear;
+    vk::AttachmentLoadOp load_op = vk::AttachmentLoadOp::eClear;
     vk::AttachmentStoreOp store_op = vk::AttachmentStoreOp::eStore;
 
 public:
@@ -355,5 +356,7 @@ namespace utils::img {
     [[nodiscard]] bool is_depth_format(vk::Format format);
 
     [[nodiscard]] size_t get_format_size_in_bytes(vk::Format format);
+
+    [[nodiscard]] vk::ImageUsageFlagBits get_format_attachment_type(vk::Format format);
 }
 } // zrx

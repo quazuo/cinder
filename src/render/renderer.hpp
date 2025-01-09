@@ -425,7 +425,11 @@ private:
 
     [[nodiscard]] bool has_swapchain_target(RenderNodeHandle handle) const;
 
+    [[nodiscard]] bool is_first_node_targetting_final_image(RenderNodeHandle handle) const;
+
     [[nodiscard]] bool should_run_node_pass(RenderNodeHandle handle) const;
+
+    [[nodiscard]] vk::Format get_target_format(ResourceHandle handle) const;
 
 public:
     void run_render_graph();
