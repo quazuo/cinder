@@ -206,8 +206,15 @@ private:
             "skybox-texture",
             {2048, 2048, 1},
             vk::Format::eR8G8B8A8Srgb,
-            vk::TextureFlagBitsZRX::MIPMAPS | vk::TextureFlagBitsZRX::HDR | vk::TextureFlagBitsZRX::CUBEMAP
-       });
+            vk::TextureFlagBitsZRX::MIPMAPS | vk::TextureFlagBitsZRX::CUBEMAP
+        });
+
+        const auto skybox_texture_ass = render_graph.add_external_tex_resource(ExternalTextureResource{
+            "skybox-texture-ass",
+            {6, "../assets/example models/kettle/kettle-albedo.png"},
+            vk::Format::eR8G8B8A8Srgb,
+            vk::TextureFlagBitsZRX::CUBEMAP
+        });
 
         // ================== transient resources ==================
 
@@ -248,7 +255,7 @@ private:
             "cubemap-capture",
             cubecap_vertex_shader,
             cubecap_fragment_shader,
-            {skybox_texture},
+            {skybox_texture_ass},
             {},
             [&](const RenderPassContext &ctx) {
                 std::cout << "cubemap capture\n";
@@ -320,7 +327,7 @@ private:
 
         const auto skybox_fragment_shader = std::make_shared<Shader>(FragmentShader{
             "../shaders/obj/skybox-frag.spv",
-            {{uniform_buffer, skybox_texture},}
+            {{uniform_buffer, skybox_texture_ass}}
         });
 
         render_graph.add_node({

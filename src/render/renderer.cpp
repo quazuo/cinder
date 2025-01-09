@@ -1515,8 +1515,10 @@ void VulkanRenderer::create_render_graph_resources() {
                            | vk::ImageUsageFlagBits::eSampled
                            | utils::img::get_format_attachment_type(description.format));
 
-        if (description.paths.size() > 1) builder.as_separate_channels();
-        if (description.swizzle) builder.with_swizzle(*description.swizzle);
+        if (description.paths.size() > 1 && !(description.tex_flags & vk::TextureFlagBitsZRX::CUBEMAP))
+            builder.as_separate_channels();
+        if (description.swizzle)
+            builder.with_swizzle(*description.swizzle);
 
         render_graph_textures.emplace(handle, builder.create(ctx));
     }
@@ -1797,12 +1799,12 @@ std::vector<RenderInfo> VulkanRenderer::create_node_render_infos(
 
         for (auto color_target_handle: node_info.color_targets) {
             const auto &target_texture = render_graph_textures.at(color_target_handle);
-            color_targets.emplace_back(target_texture->get_image().get_view(ctx), target_texture->get_format());
+            color_targets.emplace_back(target_texture->get_image().get_layer_mip_view(ctx, 0, 0), target_texture->get_format());
         }
 
         if (node_info.depth_target) {
             const auto &target_texture = render_graph_textures.at(*node_info.depth_target);
-            depth_target = RenderTarget(target_texture->get_image().get_view(ctx), target_texture->get_format());
+            depth_target = RenderTarget(target_texture->get_image().get_layer_mip_view(ctx, 0, 0), target_texture->get_format());
         }
 
         if (depth_target) {
