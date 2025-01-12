@@ -1524,9 +1524,15 @@ void VulkanRenderer::create_render_graph_resources() {
     }
 
     for (const auto &[handle, description]: render_graph_info.render_graph->empty_tex_resources) {
+        auto extent = description.extent;
+
+        if (extent.width == 0 && extent.height == 0) {
+            extent = swap_chain->get_extent();
+        }
+
         auto builder = TextureBuilder()
                 .with_flags(description.tex_flags)
-                .as_uninitialized(description.extent)
+                .as_uninitialized({extent.width, extent.height, 1u})
                 .use_format(description.format)
                 .use_usage(vk::ImageUsageFlagBits::eTransferSrc
                            | vk::ImageUsageFlagBits::eTransferDst
@@ -1547,9 +1553,7 @@ void VulkanRenderer::create_render_graph_resources() {
                 .with_flags(description.tex_flags)
                 .as_uninitialized({extent.width, extent.height, 1u})
                 .use_format(description.format)
-                .use_usage(vk::ImageUsageFlagBits::eTransferSrc
-                           | vk::ImageUsageFlagBits::eTransferDst
-                           | vk::ImageUsageFlagBits::eSampled
+                .use_usage(vk::ImageUsageFlagBits::eTransientAttachment
                            | utils::img::get_format_attachment_type(description.format));
 
         render_graph_textures.emplace(handle, builder.create(ctx));
@@ -1706,7 +1710,7 @@ GraphicsPipelineBuilder VulkanRenderer::create_node_pipeline_builder(
 
     std::vector<vk::Format> color_formats;
     for (const auto &target_handle: node_info.color_targets) {
-        color_formats.push_back(get_target_format(target_handle));
+        color_formats.push_back(get_target_color_format(target_handle));
     }
 
     std::vector<vk::DescriptorSetLayout> descriptor_set_layouts;
@@ -1737,12 +1741,7 @@ GraphicsPipelineBuilder VulkanRenderer::create_node_pipeline_builder(
             .with_color_formats(color_formats);
 
     if (node_info.depth_target) {
-        if (*node_info.depth_target == FINAL_IMAGE_RESOURCE_HANDLE) {
-            builder.with_depth_format(swap_chain->get_depth_format());
-        } else {
-            builder.with_depth_format(
-                render_graph_info.render_graph->transient_tex_resources.at(*node_info.depth_target).format);
-        }
+        builder.with_depth_format(get_target_depth_format(*node_info.depth_target));
     } else {
         builder.with_depth_stencil({
             .depthTestEnable = vk::False,
@@ -1845,7 +1844,7 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
 
     std::vector<vk::Format> color_formats;
     for (const auto &target_handle: node_info.color_targets) {
-        color_formats.push_back(get_target_format(target_handle));
+        color_formats.push_back(get_target_color_format(target_handle));
     }
 
     auto depth_format = static_cast<vk::Format>(0);
@@ -1919,9 +1918,16 @@ bool VulkanRenderer::should_run_node_pass(const RenderNodeHandle handle) const {
     return node.should_run_predicate ? (*node.should_run_predicate)() : true;
 }
 
-vk::Format VulkanRenderer::get_target_format(const ResourceHandle handle) const {
+vk::Format VulkanRenderer::get_target_color_format(const ResourceHandle handle) const {
     if (handle == FINAL_IMAGE_RESOURCE_HANDLE) {
         return swap_chain->get_image_format();
+    }
+    return render_graph_textures.at(handle)->get_format();
+}
+
+vk::Format VulkanRenderer::get_target_depth_format(const ResourceHandle handle) const {
+    if (handle == FINAL_IMAGE_RESOURCE_HANDLE) {
+        return swap_chain->get_depth_format();
     }
     return render_graph_textures.at(handle)->get_format();
 }

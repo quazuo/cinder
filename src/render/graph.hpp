@@ -28,7 +28,7 @@ using RenderNodeHandle = uint32_t;
 static constexpr ResourceHandle FINAL_IMAGE_RESOURCE_HANDLE  = -1;
 static constexpr std::monostate EMPTY_DESCRIPTOR_SET_BINDING = {};
 
-struct UniformBuffer {
+struct UniformBufferResource {
     std::string name;
     vk::DeviceSize size;
 };
@@ -43,7 +43,7 @@ struct ExternalTextureResource {
 
 struct EmptyTextureResource {
     std::string name;
-    vk::Extent3D extent;
+    vk::Extent2D extent = {0, 0}; // {0, 0} means we're using the swapchain image's extent
     vk::Format format;
     vk::TextureFlagsZRX tex_flags = vk::TextureFlagBitsZRX::MIPMAPS;
 };
@@ -205,7 +205,7 @@ class RenderGraph {
     std::map<RenderNodeHandle, RenderNode> nodes;
     std::map<RenderNodeHandle, std::set<RenderNodeHandle> > dependency_graph;
 
-    std::map<ResourceHandle, UniformBuffer> uniform_buffers;
+    std::map<ResourceHandle, UniformBufferResource> uniform_buffers;
     std::map<ResourceHandle, ExternalTextureResource> external_tex_resources;
     std::map<ResourceHandle, EmptyTextureResource> empty_tex_resources;
     std::map<ResourceHandle, TransientTextureResource> transient_tex_resources;
@@ -278,31 +278,31 @@ public:
         return handle;
     }
 
-    [[nodiscard]] ResourceHandle add_uniform_buffer(UniformBuffer &&buffer) {
+    [[nodiscard]] ResourceHandle add_resource(UniformBufferResource &&buffer) {
         const auto handle = get_new_resource_handle();
         uniform_buffers.emplace(handle, buffer);
         return handle;
     }
 
-    [[nodiscard]] ResourceHandle add_external_tex_resource(ExternalTextureResource &&resource) {
+    [[nodiscard]] ResourceHandle add_resource(ExternalTextureResource &&resource) {
         const auto handle = get_new_resource_handle();
         external_tex_resources.emplace(handle, resource);
         return handle;
     }
 
-    [[nodiscard]] ResourceHandle add_empty_tex_resource(EmptyTextureResource &&resource) {
+    [[nodiscard]] ResourceHandle add_resource(EmptyTextureResource &&resource) {
         const auto handle = get_new_resource_handle();
         empty_tex_resources.emplace(handle, resource);
         return handle;
     }
 
-    [[nodiscard]] ResourceHandle add_transient_tex_resource(TransientTextureResource &&resource) {
+    [[nodiscard]] ResourceHandle add_resource(TransientTextureResource &&resource) {
         const auto handle = get_new_resource_handle();
         transient_tex_resources.emplace(handle, resource);
         return handle;
     }
 
-    [[nodiscard]] ResourceHandle add_model_resource(ModelResource &&resource) {
+    [[nodiscard]] ResourceHandle add_resource(ModelResource &&resource) {
         const auto handle = get_new_resource_handle();
         model_resources.emplace(handle, resource);
         return handle;

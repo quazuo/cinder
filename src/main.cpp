@@ -159,14 +159,14 @@ private:
 
         // ================== models ==================
 
-        const auto scene_model = render_graph.add_model_resource({
+        const auto scene_model = render_graph.add_resource(ModelResource{
             "scene-model",
             "../assets/example models/kettle/kettle.obj"
         });
 
         // ================== uniform buffers ==================
 
-        const auto uniform_buffer = render_graph.add_uniform_buffer({
+        const auto uniform_buffer = render_graph.add_resource(UniformBufferResource{
             "general-ubo",
             sizeof(GraphicsUBO)
         });
@@ -177,64 +177,67 @@ private:
 
         // ================== external resources ==================
 
-        const auto base_color_texture = render_graph.add_external_tex_resource(ExternalTextureResource{
+        const auto base_color_texture = render_graph.add_resource(ExternalTextureResource{
             "base-color-texture",
             {"../assets/example models/kettle/kettle-albedo.png"},
             vk::Format::eR8G8B8A8Srgb
         });
 
-        const auto normal_texture = render_graph.add_external_tex_resource(ExternalTextureResource{
+        const auto normal_texture = render_graph.add_resource(ExternalTextureResource{
             "normal-texture",
             {"../assets/example models/kettle/kettle-normal.png"},
             vk::Format::eR8G8B8A8Unorm,
         });
 
-        const auto orm_texture = render_graph.add_external_tex_resource(ExternalTextureResource{
+        const auto orm_texture = render_graph.add_resource(ExternalTextureResource{
             "orm-texture",
             {"../assets/example models/kettle/kettle-orm.png"},
             vk::Format::eR8G8B8A8Unorm,
         });
 
-        const auto envmap_texture = render_graph.add_external_tex_resource(ExternalTextureResource{
+        const auto envmap_texture = render_graph.add_resource(ExternalTextureResource{
             "envmap-texture",
             {"../assets/envmaps/vienna.hdr"},
             vk::Format::eR32G32B32A32Sfloat,
             vk::TextureFlagBitsZRX::HDR | vk::TextureFlagBitsZRX::MIPMAPS
         });
 
-        const auto skybox_texture = render_graph.add_empty_tex_resource(EmptyTextureResource{
+        const auto skybox_texture = render_graph.add_resource(EmptyTextureResource{
             "skybox-texture",
-            {2048, 2048, 1},
+            {2048, 2048},
             vk::Format::eR8G8B8A8Srgb,
             vk::TextureFlagBitsZRX::MIPMAPS | vk::TextureFlagBitsZRX::CUBEMAP
         });
 
-        const auto skybox_texture_ass = render_graph.add_external_tex_resource(ExternalTextureResource{
+        const auto skybox_texture_ass = render_graph.add_resource(ExternalTextureResource{
             "skybox-texture-ass",
             {6, "../assets/example models/kettle/kettle-albedo.png"},
             vk::Format::eR8G8B8A8Srgb,
             vk::TextureFlagBitsZRX::CUBEMAP
         });
 
-        // ================== transient resources ==================
-
-        const auto g_buffer_normal = render_graph.add_transient_tex_resource(TransientTextureResource{
+        const auto g_buffer_normal = render_graph.add_resource(EmptyTextureResource{
             "g-buffer-normal",
+            {0, 0},
             vk::Format::eR16G16B16A16Sfloat,
         });
 
-        const auto g_buffer_pos = render_graph.add_transient_tex_resource(TransientTextureResource{
+        const auto g_buffer_pos = render_graph.add_resource(EmptyTextureResource{
             "g-buffer-pos",
+            {0, 0},
             vk::Format::eR16G16B16A16Sfloat,
         });
 
-        const auto g_buffer_depth = render_graph.add_transient_tex_resource(TransientTextureResource{
+        const auto g_buffer_depth = render_graph.add_resource(EmptyTextureResource{
             "g-buffer-depth",
+            {0, 0},
             depth_format,
+            {}
         });
 
-        const auto ssao_texture = render_graph.add_transient_tex_resource(TransientTextureResource{
+        const auto ssao_texture = render_graph.add_resource(EmptyTextureResource{
             "ssao-texture",
+            {0, 0},
             vk::Format::eR8G8B8A8Unorm,
         });
 

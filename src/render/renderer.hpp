@@ -429,7 +429,9 @@ private:
 
     [[nodiscard]] bool should_run_node_pass(RenderNodeHandle handle) const;
 
-    [[nodiscard]] vk::Format get_target_format(ResourceHandle handle) const;
+    [[nodiscard]] vk::Format get_target_color_format(ResourceHandle handle) const;
+
+    [[nodiscard]] vk::Format get_target_depth_format(ResourceHandle handle) const;
 
 public:
     void run_render_graph();
