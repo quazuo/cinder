@@ -419,7 +419,7 @@ private:
     [[nodiscard]] std::vector<RenderInfo> create_node_render_infos(
         RenderNodeHandle node_handle, const std::vector<shared_ptr<DescriptorSet> > &descriptor_sets) const;
 
-    void record_graph_commands() const;
+    void record_graph_commands();
 
     void record_node_primary_commands(const RenderNodeResources &node_resources) const;
 

@@ -21,6 +21,4 @@ void main() {
     vec3 color = texture(equirectangularMap, uv).rgb;
 
     outColor = vec4(color, 1.0);
-
-    outColor = vec4(1.0);
 }

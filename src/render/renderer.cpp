@@ -1779,19 +1779,18 @@ std::vector<RenderInfo> VulkanRenderer::create_node_render_infos(
 
 void VulkanRenderer::run_render_graph() {
     if (start_frame()) {
-        for (auto &node_resources: render_graph_info.topo_sorted_nodes) {
-            if (should_run_node_pass(node_resources.handle)) {
-                record_node_secondary_commands(node_resources);
-            }
-        }
-
         record_graph_commands();
-
         end_frame();
     }
 }
 
-void VulkanRenderer::record_graph_commands() const {
+void VulkanRenderer::record_graph_commands() {
+    for (auto &node_resources: render_graph_info.topo_sorted_nodes) {
+        if (should_run_node_pass(node_resources.handle)) {
+            record_node_secondary_commands(node_resources);
+        }
+    }
+
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
 
     command_buffer.begin({});
@@ -1815,7 +1814,7 @@ void VulkanRenderer::record_node_primary_commands(const RenderNodeResources &nod
     // and thus benefits from double or triple buffering
     const size_t subresource_index = node_resources.render_infos.size() == 1 ? 0 : current_frame_idx;
     const auto &node_render_info = node_resources.render_infos[subresource_index];
-    const auto &node_command_buffer = node_resources.command_buffers[subresource_index];
+    const auto &node_command_buffer = node_resources.command_buffers[current_frame_idx];
 
     if (!node_command_buffer.was_recorded_this_frame) return;
 
@@ -1840,7 +1839,7 @@ void VulkanRenderer::record_node_primary_commands(const RenderNodeResources &nod
         target_texture->generate_mipmaps(ctx, vk::ImageLayout::eShaderReadOnlyOptimal);
     }
 
-    // todo - check
+    // todo - this should have more refined logic
     // add barrier to the target image if it will be sampled
     for (const auto color_target: node.color_targets) {
         if (color_target == FINAL_IMAGE_RESOURCE_HANDLE) continue;

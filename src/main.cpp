@@ -206,7 +206,7 @@ private:
             "skybox-texture",
             {2048, 2048},
             vk::Format::eR8G8B8A8Srgb,
-            vk::TextureFlagBitsZRX::MIPMAPS | vk::TextureFlagBitsZRX::CUBEMAP
+            vk::TextureFlagBitsZRX::CUBEMAP // | vk::TextureFlagBitsZRX::MIPMAPS
         });
 
         const auto skybox_texture_ass = render_graph.add_resource(ExternalTextureResource{
@@ -258,7 +258,7 @@ private:
             "cubemap-capture",
             cubecap_vertex_shader,
             cubecap_fragment_shader,
-            {skybox_texture_ass},
+            {skybox_texture},
             {},
             [&](const RenderPassContext &ctx) {
                 std::cout << "cubemap capture\n";
@@ -330,7 +330,7 @@ private:
 
         const auto skybox_fragment_shader = std::make_shared<Shader>(FragmentShader{
             "../shaders/obj/skybox-frag.spv",
-            {{uniform_buffer, skybox_texture_ass}}
+            {{uniform_buffer, skybox_texture}}
         });
 
         render_graph.add_node({
