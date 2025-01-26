@@ -1182,54 +1182,6 @@ void VulkanRenderer::create_command_buffers() {
     }
 }
 
-void VulkanRenderer::record_graphics_command_buffer() {
-    const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    constexpr auto rendering_flags = vk::RenderingFlagBits::eContentsSecondaryCommandBuffers;
-
-    command_buffer.begin({});
-
-    swap_chain->transition_to_attachment_layout(command_buffer);
-
-    for (const auto &node_resources: render_graph_info.topo_sorted_nodes) {
-        if (!should_run_node_pass(node_resources.handle)) {
-            continue;
-        }
-
-        // if size > 1, then this means that this pass (node) draws to the swapchain image
-        // and thus benefits from double or triple buffering
-        const auto &node_render_info = node_resources.render_infos.size() == 1
-                                       ? node_resources.render_infos[0]
-                                       : node_resources.render_infos[current_frame_idx];
-        const auto &node_command_buffer = node_resources.command_buffers.size() == 1
-                                          ? node_resources.command_buffers[0]
-                                          : node_resources.command_buffers[current_frame_idx];
-
-        command_buffer.beginRendering(node_render_info.get(swap_chain->get_extent(), 1, rendering_flags));
-        command_buffer.executeCommands(*node_command_buffer);
-        command_buffer.endRendering();
-
-        // regenerate mipmaps for each target that had them
-        for (const auto color_target: render_graph_info.render_graph->nodes.at(node_resources.handle).color_targets) {
-            if (color_target == FINAL_IMAGE_RESOURCE_HANDLE) continue;
-
-            auto &target_texture = render_graph_textures.at(color_target);
-            if (target_texture->get_mip_levels() == 1) continue;
-
-            target_texture->get_image().transition_layout(
-                vk::ImageLayout::eShaderReadOnlyOptimal,
-                vk::ImageLayout::eTransferDstOptimal,
-                command_buffer
-            );
-
-            target_texture->generate_mipmaps(ctx, vk::ImageLayout::eShaderReadOnlyOptimal);
-        }
-    }
-
-    swap_chain->transition_to_present_layout(command_buffer);
-
-    command_buffer.end();
-}
-
 // ==================== sync ====================
 
 void VulkanRenderer::create_sync_objects() {
@@ -1482,16 +1434,23 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
 
     for (uint32_t i = 0; i < n_nodes; i++) {
         const auto node_handle = topo_sorted_handles[i];
+
+        auto command_buffers = utils::cmd::create_command_buffers(
+            ctx,
+            vk::CommandBufferLevel::eSecondary,
+            MAX_FRAMES_IN_FLIGHT
+        );
+        std::vector<SecondaryCommandBuffer> command_buffer_wrappers;
+        for (auto& command_buffer : command_buffers) {
+            command_buffer_wrappers.emplace_back(make_unique<vk::raii::CommandBuffer>(std::move(command_buffer)));
+        }
+
         auto descriptor_sets = create_node_descriptor_sets(node_handle);
         auto render_infos = create_node_render_infos(node_handle, descriptor_sets);
 
         render_graph_info.topo_sorted_nodes.emplace_back(RenderNodeResources{
             .handle = node_handle,
-            .command_buffers = utils::cmd::create_command_buffers(
-                ctx,
-                vk::CommandBufferLevel::eSecondary,
-                MAX_FRAMES_IN_FLIGHT
-            ),
+            .command_buffers = std::move(command_buffer_wrappers),
             .descriptor_sets = std::move(descriptor_sets),
             .render_infos = std::move(render_infos),
         });
@@ -1798,12 +1757,14 @@ std::vector<RenderInfo> VulkanRenderer::create_node_render_infos(
 
         for (auto color_target_handle: node_info.color_targets) {
             const auto &target_texture = render_graph_textures.at(color_target_handle);
-            color_targets.emplace_back(target_texture->get_image().get_layer_mip_view(ctx, 0, 0), target_texture->get_format());
+            color_targets.emplace_back(target_texture->get_image().get_layer_mip_view(ctx, 0, 0),
+                                       target_texture->get_format());
         }
 
         if (node_info.depth_target) {
             const auto &target_texture = render_graph_textures.at(*node_info.depth_target);
-            depth_target = RenderTarget(target_texture->get_image().get_layer_mip_view(ctx, 0, 0), target_texture->get_format());
+            depth_target = RenderTarget(target_texture->get_image().get_layer_mip_view(ctx, 0, 0),
+                                        target_texture->get_format());
         }
 
         if (depth_target) {
@@ -1818,22 +1779,106 @@ std::vector<RenderInfo> VulkanRenderer::create_node_render_infos(
 
 void VulkanRenderer::run_render_graph() {
     if (start_frame()) {
-        for (const auto &node_resources: render_graph_info.topo_sorted_nodes) {
+        for (auto &node_resources: render_graph_info.topo_sorted_nodes) {
             if (should_run_node_pass(node_resources.handle)) {
-                record_render_graph_node_commands(node_resources);
+                record_node_secondary_commands(node_resources);
             }
         }
 
-        record_graphics_command_buffer();
+        record_graph_commands();
 
         end_frame();
     }
 }
 
-void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources &node_resources) {
-    const auto &[handle, command_buffers, descriptor_sets, render_infos] = node_resources;
-    const auto &command_buffer = command_buffers[current_frame_idx];
+void VulkanRenderer::record_graph_commands() const {
+    const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
+
+    command_buffer.begin({});
+
+    swap_chain->transition_to_attachment_layout(command_buffer);
+
+    for (const auto &node_resources: render_graph_info.topo_sorted_nodes) {
+        record_node_primary_commands(node_resources);
+    }
+
+    swap_chain->transition_to_present_layout(command_buffer);
+
+    command_buffer.end();
+}
+
+void VulkanRenderer::record_node_primary_commands(const RenderNodeResources &node_resources) const {
+    const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
+    const auto& node = render_graph_info.render_graph->nodes.at(node_resources.handle);
+
+    // if size > 1, then this means that this pass (node) draws to the swapchain image
+    // and thus benefits from double or triple buffering
+    const size_t subresource_index = node_resources.render_infos.size() == 1 ? 0 : current_frame_idx;
+    const auto &node_render_info = node_resources.render_infos[subresource_index];
+    const auto &node_command_buffer = node_resources.command_buffers[subresource_index];
+
+    if (!node_command_buffer.was_recorded_this_frame) return;
+
+    constexpr auto rendering_flags = vk::RenderingFlagBits::eContentsSecondaryCommandBuffers;
+    command_buffer.beginRendering(node_render_info.get(swap_chain->get_extent(), 1, rendering_flags));
+    command_buffer.executeCommands(**node_command_buffer);
+    command_buffer.endRendering();
+
+    // regenerate mipmaps for each target that had them
+    for (const auto color_target: node.color_targets) {
+        if (color_target == FINAL_IMAGE_RESOURCE_HANDLE) continue;
+
+        const auto &target_texture = render_graph_textures.at(color_target);
+        if (target_texture->get_mip_levels() == 1) continue;
+
+        target_texture->get_image().transition_layout(
+            vk::ImageLayout::eShaderReadOnlyOptimal,
+            vk::ImageLayout::eTransferDstOptimal,
+            command_buffer
+        );
+
+        target_texture->generate_mipmaps(ctx, vk::ImageLayout::eShaderReadOnlyOptimal);
+    }
+
+    // todo - check
+    // add barrier to the target image if it will be sampled
+    for (const auto color_target: node.color_targets) {
+        if (color_target == FINAL_IMAGE_RESOURCE_HANDLE) continue;
+
+        const auto &target_texture = render_graph_textures.at(color_target);
+
+        const vk::ImageMemoryBarrier2 image_memory_barrier {
+            .srcStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
+            .srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
+            .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
+            .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
+            .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
+            .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+            .image = **target_texture->get_image(),
+            .subresourceRange = {
+                .aspectMask = vk::ImageAspectFlagBits::eColor,
+                .levelCount = 1,
+                .layerCount = 1,
+            }
+        };
+
+        command_buffer.pipelineBarrier2(vk::DependencyInfo {
+            .imageMemoryBarrierCount = 1,
+            .pImageMemoryBarriers = &image_memory_barrier,
+        });
+    }
+}
+
+void VulkanRenderer::record_node_secondary_commands(RenderNodeResources &node_resources) const {
+    auto &[handle, command_buffer_wrappers, descriptor_sets, render_infos] = node_resources;
+    auto &command_buffer_wrapper = command_buffer_wrappers[current_frame_idx];
+    const auto& command_buffer = *command_buffer_wrapper;
     const auto &render_info = render_infos[has_swapchain_target(node_resources.handle) ? current_frame_idx : 0];
+
+    command_buffer_wrapper.was_recorded_this_frame = false;
+    if (!should_run_node_pass(node_resources.handle)) {
+        return;
+    }
 
     std::vector<vk::DescriptorSet> raw_descriptor_sets;
     for (const auto &descriptor_set: descriptor_sets) {
@@ -1895,6 +1940,8 @@ void VulkanRenderer::record_render_graph_node_commands(const RenderNodeResources
     node_info.body(pass_ctx);
 
     command_buffer.end();
+
+    command_buffer_wrapper.was_recorded_this_frame = true;
 }
 
 bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle handle) const {

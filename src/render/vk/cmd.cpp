@@ -18,12 +18,12 @@ namespace utils::cmd {
     void end_single_time_commands(const vk::raii::CommandBuffer &command_buffer, const vk::raii::Queue &queue) {
         command_buffer.end();
 
-        const vk::SubmitInfo submitInfo{
+        const vk::SubmitInfo submit_info{
             .commandBufferCount = 1U,
             .pCommandBuffers = &*command_buffer,
         };
 
-        queue.submit(submitInfo);
+        queue.submit(submit_info);
         queue.waitIdle();
     }
 

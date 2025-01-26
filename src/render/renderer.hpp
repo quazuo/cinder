@@ -127,7 +127,7 @@ class VulkanRenderer {
 
     struct RenderNodeResources {
         RenderNodeHandle handle;
-        vk::raii::CommandBuffers command_buffers;
+        std::vector<SecondaryCommandBuffer> command_buffers;
         std::vector<shared_ptr<DescriptorSet> > descriptor_sets;
         std::vector<RenderInfo> render_infos;
     };
@@ -386,8 +386,6 @@ private:
 
     void create_command_buffers();
 
-    void record_graphics_command_buffer();
-
     // ==================== sync ====================
 
     void create_sync_objects();
@@ -421,7 +419,11 @@ private:
     [[nodiscard]] std::vector<RenderInfo> create_node_render_infos(
         RenderNodeHandle node_handle, const std::vector<shared_ptr<DescriptorSet> > &descriptor_sets) const;
 
-    void record_render_graph_node_commands(const RenderNodeResources &node_resources);
+    void record_graph_commands() const;
+
+    void record_node_primary_commands(const RenderNodeResources &node_resources) const;
+
+    void record_node_secondary_commands(RenderNodeResources &node_resources) const;
 
     [[nodiscard]] bool has_swapchain_target(RenderNodeHandle handle) const;
 
