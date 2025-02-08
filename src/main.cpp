@@ -119,25 +119,6 @@ private:
 
         renderer.run_render_graph();
 
-        // if (renderer.start_frame()) {
-        //     if (is_gui_enabled) {
-        //         renderer.render_gui([&] {
-        //             render_gui_section(delta_time);
-        //         });
-        //     }
-        //
-        //     renderer.run_prepass();
-        //     renderer.run_ssao_pass();
-        //     renderer.draw_scene();
-        //     renderer.raytrace();
-        //
-        //     if (show_debug_quad) {
-        //         renderer.draw_debug_quad();
-        //     }
-        //
-        //     renderer.end_frame();
-        // }
-
         if (file_browser.HasSelected()) {
             const std::filesystem::path path = file_browser.GetSelected().string();
 
@@ -261,7 +242,6 @@ private:
             {skybox_texture},
             {},
             [&](const RenderPassContext &ctx) {
-                std::cout << "cubemap capture\n";
                 ctx.draw_skybox();
                 should_compute_skybox = false;
             },
@@ -288,7 +268,6 @@ private:
             {g_buffer_normal, g_buffer_pos},
             g_buffer_depth,
             [scene_model](const RenderPassContext &ctx) {
-                std::cout << "prepass\n";
                 ctx.draw_model(scene_model);
             },
             [&] { return use_ssao; }
@@ -314,7 +293,6 @@ private:
             {ssao_texture},
             {},
             [](const RenderPassContext &ctx) {
-                std::cout << "ssao\n";
                 ctx.draw_screenspace_quad();
             },
             [&] { return use_ssao; }
@@ -340,7 +318,6 @@ private:
             {FINAL_IMAGE_RESOURCE_HANDLE},
             {},
             [](const RenderPassContext &ctx) {
-                std::cout << "skybox\n";
                 ctx.draw_skybox();
             }
         });
@@ -372,7 +349,6 @@ private:
             {FINAL_IMAGE_RESOURCE_HANDLE},
             {FINAL_IMAGE_RESOURCE_HANDLE},
             [scene_model](const RenderPassContext &ctx) {
-                std::cout << "main\n";
                 ctx.draw_model(scene_model);
             }
         });

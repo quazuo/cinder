@@ -127,7 +127,6 @@ class VulkanRenderer {
 
     struct RenderNodeResources {
         RenderNodeHandle handle;
-        std::vector<SecondaryCommandBuffer> command_buffers;
         std::vector<shared_ptr<DescriptorSet> > descriptor_sets;
         std::vector<RenderInfo> render_infos;
     };
@@ -419,11 +418,15 @@ private:
     [[nodiscard]] std::vector<RenderInfo> create_node_render_infos(
         RenderNodeHandle node_handle, const std::vector<shared_ptr<DescriptorSet> > &descriptor_sets) const;
 
-    void record_graph_commands();
+    void record_graph_commands() const;
 
-    void record_node_primary_commands(const RenderNodeResources &node_resources) const;
+    void record_node_commands(const RenderNodeResources &node_resources) const;
 
-    void record_node_secondary_commands(RenderNodeResources &node_resources) const;
+    void record_node_rendering_commands(const RenderNodeResources &node_resources) const;
+
+    void record_regenerate_mipmaps_commands(const RenderNodeResources &node_resources) const;
+
+    void record_pre_sample_commands(const RenderNodeResources &node_resources) const;
 
     [[nodiscard]] bool has_swapchain_target(RenderNodeHandle handle) const;
 
