@@ -170,10 +170,11 @@ struct RenderNode {
     RenderNodeBodyFn body;
     std::optional<ShouldRunPredicate> should_run_predicate;
 
-    struct {
+    struct CustomProperties {
         bool use_msaa                  = false;
         vk::CullModeFlagBits cull_mode = vk::CullModeFlagBits::eBack;
-    } custom_config;
+        uint32_t multiview_count       = 1;
+    } custom_properties;
 
     [[nodiscard]]
     std::set<ResourceHandle> get_all_targets_set() const {

@@ -9,7 +9,6 @@
 #include <vector>
 #include <filesystem>
 #include <array>
-#include <mutex>
 #include <random>
 
 #include "camera.hpp"
@@ -131,17 +130,16 @@ vkb::Instance VulkanRenderer::create_instance() {
             const VkDebugUtilsMessageTypeFlagsEXT messageType,
             const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
             void *p_user_data) -> VkBool32 {
-                    const auto severity = vkb::to_string_message_severity(
-                        messageSeverity);
+                    const auto severity = vkb::to_string_message_severity(messageSeverity);
                     const auto type = vkb::to_string_message_type(messageType);
 
                     std::stringstream ss;
-                    ss << "[" << severity << ": " << type << "]\n" << pCallbackData->pMessage << "\n\n";
+                    ss << "[" << severity << ": " << type << "]\n" << pCallbackData->pMessage << "\n";
 
                     if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-                        std::cerr << ss.str();
+                        std::cerr << ss.str() << std::endl;
                     } else {
-                        std::cout << ss.str();
+                        std::cout << ss.str() << std::endl;
                     }
 
                     return VK_FALSE;
@@ -166,7 +164,7 @@ std::vector<const char *> VulkanRenderer::get_required_extensions() {
 
     std::vector extensions(glfw_extensions, glfw_extensions + glfw_extension_count);
 
-    if (enable_validation_layers) {
+    if (ENABLE_VALIDATION_LAYERS) {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
@@ -1674,12 +1672,12 @@ GraphicsPipelineBuilder VulkanRenderer::create_node_pipeline_builder(
             )
             .with_rasterizer({
                 .polygonMode = vk::PolygonMode::eFill,
-                .cullMode = node_info.custom_config.cull_mode,
+                .cullMode = node_info.custom_properties.cull_mode,
                 .frontFace = vk::FrontFace::eCounterClockwise,
                 .lineWidth = 1.0f,
             })
             .with_multisampling({
-                .rasterizationSamples = node_info.custom_config.use_msaa
+                .rasterizationSamples = node_info.custom_properties.use_msaa
                                         ? get_msaa_sample_count()
                                         : vk::SampleCountFlagBits::e1,
                 .minSampleShading = 1.0f,
@@ -1792,7 +1790,7 @@ void VulkanRenderer::record_graph_commands() const {
 
 void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resources) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    const auto& node = render_graph_info.render_graph->nodes.at(node_resources.handle);
+    const auto &node = render_graph_info.render_graph->nodes.at(node_resources.handle);
 
     std::cout << "recording node: " << node.name << "\n";
 
@@ -1801,7 +1799,10 @@ void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resour
     const size_t subresource_index = node_resources.render_infos.size() == 1 ? 0 : current_frame_idx;
     const auto &node_render_info = node_resources.render_infos[subresource_index];
 
-    command_buffer.beginRendering(node_render_info.get(swap_chain->get_extent(), 1));
+    command_buffer.beginRendering(node_render_info.get(
+        get_node_target_extent(node_resources),
+        node.custom_properties.multiview_count)
+    );
     record_node_rendering_commands(node_resources);
     command_buffer.endRendering();
 
@@ -1817,13 +1818,14 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &n
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
     auto &[handle, descriptor_sets, render_infos] = node_resources;
     const auto &render_info = render_infos[has_swapchain_target(node_resources.handle) ? current_frame_idx : 0];
+    const auto &node_info = render_graph_info.render_graph->nodes.at(handle);
 
     std::vector<vk::DescriptorSet> raw_descriptor_sets;
     for (const auto &descriptor_set: descriptor_sets) {
         raw_descriptor_sets.push_back(***descriptor_set);
     }
 
-    utils::cmd::set_dynamic_states(command_buffer, swap_chain->get_extent());
+    utils::cmd::set_dynamic_states(command_buffer, get_node_target_extent(node_resources));
 
     const auto &pipeline = render_info.get_pipeline();
     command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
@@ -1836,8 +1838,7 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &n
         nullptr
     );
 
-    const auto &node_info = render_graph_info.render_graph->nodes.at(handle);
-    node_info.body(RenderPassContext {
+    node_info.body(RenderPassContext{
         command_buffer,
         render_graph_models,
         *screen_space_quad_vertex_buffer,
@@ -1847,7 +1848,7 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &n
 
 void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeResources &node_resources) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    const auto& node = render_graph_info.render_graph->nodes.at(node_resources.handle);
+    const auto &node = render_graph_info.render_graph->nodes.at(node_resources.handle);
 
     for (const auto color_target: node.color_targets) {
         if (color_target == FINAL_IMAGE_RESOURCE_HANDLE) continue;
@@ -1867,14 +1868,14 @@ void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeResource
 
 void VulkanRenderer::record_pre_sample_commands(const RenderNodeResources &node_resources) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    const auto& node = render_graph_info.render_graph->nodes.at(node_resources.handle);
+    const auto &node = render_graph_info.render_graph->nodes.at(node_resources.handle);
 
     for (const auto color_target: node.color_targets) {
         if (color_target == FINAL_IMAGE_RESOURCE_HANDLE) continue;
 
         const auto &target_texture = render_graph_textures.at(color_target);
 
-        const vk::ImageMemoryBarrier2 image_memory_barrier {
+        const vk::ImageMemoryBarrier2 image_memory_barrier{
             .srcStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
             .srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
             .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
@@ -1889,7 +1890,7 @@ void VulkanRenderer::record_pre_sample_commands(const RenderNodeResources &node_
             }
         };
 
-        command_buffer.pipelineBarrier2(vk::DependencyInfo {
+        command_buffer.pipelineBarrier2(vk::DependencyInfo{
             .imageMemoryBarrierCount = 1,
             .pImageMemoryBarriers = &image_memory_barrier,
         });
@@ -1915,6 +1916,14 @@ bool VulkanRenderer::is_first_node_targetting_final_image(const RenderNodeHandle
 bool VulkanRenderer::should_run_node_pass(const RenderNodeHandle handle) const {
     const auto &node = render_graph_info.render_graph->nodes.at(handle);
     return node.should_run_predicate ? (*node.should_run_predicate)() : true;
+}
+
+vk::Extent2D VulkanRenderer::get_node_target_extent(const RenderNodeResources &node_resources) const {
+    const auto &node_info = render_graph_info.render_graph->nodes.at(node_resources.handle);
+
+    return has_swapchain_target(node_resources.handle)
+                        ? swap_chain->get_extent()
+                        : render_graph_textures.at(node_info.color_targets[0])->get_image().get_extent_2d();
 }
 
 vk::Format VulkanRenderer::get_target_color_format(const ResourceHandle handle) const {

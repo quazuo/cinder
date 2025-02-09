@@ -33,9 +33,9 @@ static const std::vector device_extensions{
 };
 
 #ifdef NDEBUG
-constexpr bool enable_validation_layers = false;
+constexpr bool ENABLE_VALIDATION_LAYERS = false;
 #else
-constexpr bool enable_validation_layers = true;
+constexpr bool ENABLE_VALIDATION_LAYERS = true;
 #endif
 
 namespace zrx {
@@ -433,6 +433,8 @@ private:
     [[nodiscard]] bool is_first_node_targetting_final_image(RenderNodeHandle handle) const;
 
     [[nodiscard]] bool should_run_node_pass(RenderNodeHandle handle) const;
+
+    [[nodiscard]] vk::Extent2D get_node_target_extent(const RenderNodeResources &node_resources) const;
 
     [[nodiscard]] vk::Format get_target_color_format(ResourceHandle handle) const;
 

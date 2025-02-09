@@ -95,8 +95,6 @@ public:
         build_render_graph();
     }
 
-    [[nodiscard]] GLFWwindow *get_window() const { return window; }
-
     void run() {
         while (!glfwWindowShouldClose(window)) {
             tick();
@@ -245,7 +243,10 @@ private:
                 ctx.draw_skybox();
                 should_compute_skybox = false;
             },
-            [&] { return should_compute_skybox; }
+            [&] { return should_compute_skybox; },
+            RenderNode::CustomProperties {
+                .multiview_count = 6
+            }
         });
 
         // ================== prepass ==================
@@ -358,7 +359,7 @@ private:
 
     void update_graphics_uniform_buffer(Buffer& buffer) const {
         const glm::mat4 model = glm::translate(model_translate)
-                                * mat4_cast(model_rotation)
+                                * glm::mat4_cast(model_rotation)
                                 * glm::scale(glm::vec3(model_scale));
         const glm::mat4 view = camera->get_view_matrix();
         const glm::mat4 proj = camera->get_projection_matrix();
@@ -366,7 +367,7 @@ private:
         glm::ivec2 window_size{};
         glfwGetWindowSize(window, &window_size.x, &window_size.y);
 
-        const auto &[z_near, z_far] = camera->get_clipping_planes();
+        const auto [z_near, z_far] = camera->get_clipping_planes();
 
         static const glm::mat4 cubemap_face_projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
 
