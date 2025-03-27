@@ -69,18 +69,18 @@ class GraphicsPipelineBuilder {
     std::filesystem::path vertex_shader_path;
     std::filesystem::path fragment_shader_path;
 
-    std::vector<vk::VertexInputBindingDescription> vertex_bindings;
-    std::vector<vk::VertexInputAttributeDescription> vertex_attributes;
+    vector<vk::VertexInputBindingDescription> vertex_bindings;
+    vector<vk::VertexInputAttributeDescription> vertex_attributes;
 
-    std::vector<vk::DescriptorSetLayout> descriptor_set_layouts;
-    std::vector<vk::PushConstantRange> push_constant_ranges;
+    vector<vk::DescriptorSetLayout> descriptor_set_layouts;
+    vector<vk::PushConstantRange> push_constant_ranges;
 
     std::optional<vk::PipelineRasterizationStateCreateInfo> rasterizer_override;
     std::optional<vk::PipelineMultisampleStateCreateInfo> multisampling_override;
     std::optional<vk::PipelineDepthStencilStateCreateInfo> depth_stencil_override;
 
     uint32_t multiview_count = 1;
-    std::vector<vk::Format> color_attachment_formats;
+    vector<vk::Format> color_attachment_formats;
     std::optional<vk::Format> depth_attachment_format;
 
 public:
@@ -96,12 +96,12 @@ public:
         return *this;
     }
 
-    GraphicsPipelineBuilder &with_vertices(std::vector<vk::VertexInputBindingDescription> bindings,
-                                           std::vector<vk::VertexInputAttributeDescription> attributes);
+    GraphicsPipelineBuilder &with_vertices(vector<vk::VertexInputBindingDescription> bindings,
+                                           vector<vk::VertexInputAttributeDescription> attributes);
 
-    GraphicsPipelineBuilder &with_descriptor_layouts(const std::vector<vk::DescriptorSetLayout> &layouts);
+    GraphicsPipelineBuilder &with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts);
 
-    GraphicsPipelineBuilder &with_push_constants(const std::vector<vk::PushConstantRange> &ranges);
+    GraphicsPipelineBuilder &with_push_constants(const vector<vk::PushConstantRange> &ranges);
 
     GraphicsPipelineBuilder &with_rasterizer(const vk::PipelineRasterizationStateCreateInfo &rasterizer);
 
@@ -114,7 +114,7 @@ public:
      */
     GraphicsPipelineBuilder &for_views(uint32_t count);
 
-    GraphicsPipelineBuilder &with_color_formats(const std::vector<vk::Format> &formats);
+    GraphicsPipelineBuilder &with_color_formats(const vector<vk::Format> &formats);
 
     GraphicsPipelineBuilder &with_depth_format(vk::Format format);
 
@@ -129,8 +129,8 @@ class RtPipelineBuilder {
     std::filesystem::path closest_hit_shader_path;
     std::filesystem::path miss_shader_path;
 
-    std::vector<vk::DescriptorSetLayout> descriptor_set_layouts;
-    std::vector<vk::PushConstantRange> push_constant_ranges;
+    vector<vk::DescriptorSetLayout> descriptor_set_layouts;
+    vector<vk::PushConstantRange> push_constant_ranges;
 
 public:
     RtPipelineBuilder &with_ray_gen_shader(const std::filesystem::path &path);
@@ -139,9 +139,9 @@ public:
 
     RtPipelineBuilder &with_miss_shader(const std::filesystem::path &path);
 
-    RtPipelineBuilder &with_descriptor_layouts(const std::vector<vk::DescriptorSetLayout> &layouts);
+    RtPipelineBuilder &with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts);
 
-    RtPipelineBuilder &with_push_constants(const std::vector<vk::PushConstantRange> &ranges);
+    RtPipelineBuilder &with_push_constants(const vector<vk::PushConstantRange> &ranges);
 
     [[nodiscard]] RtPipeline create(const RendererContext &ctx) const;
 

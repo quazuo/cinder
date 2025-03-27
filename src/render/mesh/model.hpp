@@ -19,9 +19,9 @@ class Texture;
 class Buffer;
 
 struct Mesh {
-    std::vector<ModelVertex> vertices;
-    std::vector<uint32_t> indices;
-    std::vector<glm::mat4> instances;
+    vector<ModelVertex> vertices;
+    vector<uint32_t> indices;
+    vector<glm::mat4> instances;
     uint32_t material_id;
 
     explicit Mesh(const aiMesh *assimp_mesh);
@@ -45,8 +45,8 @@ struct Material {
 };
 
 class Model {
-    std::vector<Mesh> meshes;
-    std::vector<Material> materials;
+    vector<Mesh> meshes;
+    vector<Material> materials;
 
     unique_ptr<Buffer> vertex_buffer;
     unique_ptr<Buffer> instance_data_buffer;
@@ -60,9 +60,9 @@ public:
 
     void add_instances(const aiNode *node, const glm::mat4 &base_transform);
 
-    [[nodiscard]] const std::vector<Mesh> &get_meshes() const { return meshes; }
+    [[nodiscard]] const vector<Mesh> &get_meshes() const { return meshes; }
 
-    [[nodiscard]] const std::vector<Material> &get_materials() const { return materials; }
+    [[nodiscard]] const vector<Material> &get_materials() const { return materials; }
 
     [[nodiscard]] const Buffer &get_vertex_buffer() const { return *vertex_buffer; }
 
@@ -70,13 +70,13 @@ public:
 
     [[nodiscard]] const Buffer &get_mesh_descriptions_buffer() const { return *mesh_descriptions_buffer; }
 
-    [[nodiscard]] std::vector<ModelVertex> get_vertices() const;
+    [[nodiscard]] vector<ModelVertex> get_vertices() const;
 
-    [[nodiscard]] std::vector<uint32_t> get_indices() const;
+    [[nodiscard]] vector<uint32_t> get_indices() const;
 
-    [[nodiscard]] std::vector<glm::mat4> get_instance_transforms() const;
+    [[nodiscard]] vector<glm::mat4> get_instance_transforms() const;
 
-    [[nodiscard]] std::vector<MeshDescription> get_mesh_descriptions() const;
+    [[nodiscard]] vector<MeshDescription> get_mesh_descriptions() const;
 
     [[nodiscard]] const vk::raii::AccelerationStructureKHR &get_blas() const { return **blas; }
 

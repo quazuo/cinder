@@ -7,8 +7,8 @@
 namespace zrx {
 template<typename T>
 concept VertexLike = requires {
-    { T::get_binding_descriptions() } -> std::same_as<std::vector<vk::VertexInputBindingDescription>>;
-    { T::get_attribute_descriptions() } -> std::same_as<std::vector<vk::VertexInputAttributeDescription>>;
+    { T::get_binding_descriptions() } -> std::same_as<vector<vk::VertexInputBindingDescription>>;
+    { T::get_attribute_descriptions() } -> std::same_as<vector<vk::VertexInputAttributeDescription>>;
 };
 
 struct ModelVertex {
@@ -26,22 +26,22 @@ struct ModelVertex {
                && bitangent == other.bitangent;
     }
 
-    static std::vector<vk::VertexInputBindingDescription> get_binding_descriptions();
+    static vector<vk::VertexInputBindingDescription> get_binding_descriptions();
 
-    static std::vector<vk::VertexInputAttributeDescription> get_attribute_descriptions();
+    static vector<vk::VertexInputAttributeDescription> get_attribute_descriptions();
 };
 
 struct SkyboxVertex {
     glm::vec3 pos;
 
-    static std::vector<vk::VertexInputBindingDescription> get_binding_descriptions();
+    static vector<vk::VertexInputBindingDescription> get_binding_descriptions();
 
-    static std::vector<vk::VertexInputAttributeDescription> get_attribute_descriptions();
+    static vector<vk::VertexInputAttributeDescription> get_attribute_descriptions();
 };
 
 // vertices of the skybox cube.
 // might change this to be generated in a more smart way... but it's good enough for now
-static const std::vector<SkyboxVertex> skybox_vertices = {
+static const vector<SkyboxVertex> skybox_vertices = {
     {{-1.0f, 1.0f, -1.0f}},
     {{-1.0f, -1.0f, -1.0f}},
     {{1.0f, -1.0f, -1.0f}},
@@ -89,12 +89,12 @@ struct ScreenSpaceQuadVertex {
     glm::vec2 pos;
     glm::vec2 tex_coord;
 
-    static std::vector<vk::VertexInputBindingDescription> get_binding_descriptions();
+    static vector<vk::VertexInputBindingDescription> get_binding_descriptions();
 
-    static std::vector<vk::VertexInputAttributeDescription> get_attribute_descriptions();
+    static vector<vk::VertexInputAttributeDescription> get_attribute_descriptions();
 };
 
-static const std::vector<ScreenSpaceQuadVertex> screen_space_quad_vertices = {
+static const vector<ScreenSpaceQuadVertex> screen_space_quad_vertices = {
     {{-1, -1}, {0, 1}},
     {{1, -1}, {1, 1}},
     {{1, 1}, {1, 0}},

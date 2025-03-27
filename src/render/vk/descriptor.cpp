@@ -109,7 +109,7 @@ DescriptorSet &DescriptorSet::queue_update(const uint32_t binding, const Acceler
 }
 
 void DescriptorSet::commit_updates(const RendererContext &ctx) {
-    std::vector<vk::WriteDescriptorSet> descriptor_writes;
+    vector<vk::WriteDescriptorSet> descriptor_writes;
 
     for (const auto &update: queued_updates) {
         vk::WriteDescriptorSet write{
@@ -217,10 +217,10 @@ void DescriptorSet::update_binding(const RendererContext &ctx, const uint32_t bi
     ctx.device->updateDescriptorSets(write, nullptr);
 }
 
-std::vector<DescriptorSet>
+vector<DescriptorSet>
 utils::desc::create_descriptor_sets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
                                     const shared_ptr<vk::raii::DescriptorSetLayout> &layout, const uint32_t count) {
-    const std::vector set_layouts(count, **layout);
+    const vector set_layouts(count, **layout);
 
     const vk::DescriptorSetAllocateInfo alloc_info{
         .descriptorPool = *pool,
@@ -228,9 +228,9 @@ utils::desc::create_descriptor_sets(const RendererContext &ctx, const vk::raii::
         .pSetLayouts = set_layouts.data(),
     };
 
-    std::vector<vk::raii::DescriptorSet> descriptor_sets = ctx.device->allocateDescriptorSets(alloc_info);
+    vector<vk::raii::DescriptorSet> descriptor_sets = ctx.device->allocateDescriptorSets(alloc_info);
 
-    std::vector<DescriptorSet> final_sets;
+    vector<DescriptorSet> final_sets;
 
     for (size_t i = 0; i < count; i++) {
         final_sets.emplace_back(layout, std::move(descriptor_sets[i]));

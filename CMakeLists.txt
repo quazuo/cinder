@@ -76,6 +76,7 @@ set(VK_BOOTSTRAP_SRCS
 file(GLOB HEADER_ONLY_DEPS_SRCS
         "deps/stb/*"
         "deps/vma/*"
+        "deps/SPIRV-Reflect/spirv_reflect.cpp"
 )
 
 # source files

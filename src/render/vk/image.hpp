@@ -249,12 +249,12 @@ class TextureBuilder {
 
     std::optional<vk::Extent3D> desired_extent;
 
-    std::vector<std::filesystem::path> paths;
+    vector<std::filesystem::path> paths;
     void *memory_source = nullptr;
     bool is_from_swizzle_fill = false;
 
     struct LoadedTextureData {
-        std::vector<void *> sources;
+        vector<void *> sources;
         vk::Extent3D extent;
         uint32_t layer_count;
     };
@@ -280,7 +280,7 @@ public:
      * Designates the texture's contents to be initialized with data stored in a given file.
      * This requires 6 different paths for cubemap textures.
      */
-    TextureBuilder &from_paths(const std::vector<std::filesystem::path> &sources);
+    TextureBuilder &from_paths(const vector<std::filesystem::path> &sources);
 
     /**
      * Designates the texture's contents to be initialized with data stored in memory.
@@ -309,7 +309,7 @@ private:
     [[nodiscard]] unique_ptr<Buffer> make_staging_buffer(const RendererContext &ctx,
                                                          const LoadedTextureData &data) const;
 
-    static void *merge_channels(const std::vector<void *> &channels_data, size_t texture_size, size_t component_count);
+    static void *merge_channels(const vector<void *> &channels_data, size_t texture_size, size_t component_count);
 
     void perform_swizzle(uint8_t *data, size_t size) const;
 };

@@ -634,7 +634,7 @@ TextureBuilder &TextureBuilder::with_swizzle(const SwizzleDesc &sw) {
     return *this;
 }
 
-TextureBuilder &TextureBuilder::from_paths(const std::vector<std::filesystem::path> &sources) {
+TextureBuilder &TextureBuilder::from_paths(const vector<std::filesystem::path> &sources) {
     paths = sources;
     return *this;
 }
@@ -856,7 +856,7 @@ uint32_t TextureBuilder::get_layer_count() const {
 }
 
 TextureBuilder::LoadedTextureData TextureBuilder::load_from_paths() const {
-    std::vector<void *> data_sources;
+    vector<void *> data_sources;
     int tex_width           = 0, tex_height = 0, tex_channels;
     bool is_first_non_empty = true;
 
@@ -925,7 +925,7 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_paths() const {
 }
 
 TextureBuilder::LoadedTextureData TextureBuilder::load_from_memory() const {
-    const std::vector<void *> data_sources = {memory_source};
+    const vector<void *> data_sources = {memory_source};
 
     const uint32_t tex_width  = desired_extent->width;
     const uint32_t tex_height = desired_extent->height;
@@ -969,7 +969,7 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_swizzle_fill() const
         throw std::runtime_error("texture formats with component count other than 4 are currently unsupported!");
     }
 
-    const std::vector<void *> data_sources = {malloc(texture_size)};
+    const vector<void *> data_sources = {malloc(texture_size)};
 
     for (const auto &source: data_sources) {
         perform_swizzle(static_cast<uint8_t *>(source), layer_size);
@@ -1018,7 +1018,7 @@ TextureBuilder::make_staging_buffer(const RendererContext &ctx, const LoadedText
     return staging_buffer;
 }
 
-void *TextureBuilder::merge_channels(const std::vector<void *> &channels_data, const size_t texture_size,
+void *TextureBuilder::merge_channels(const vector<void *> &channels_data, const size_t texture_size,
                                      const size_t component_count) {
     auto *merged = static_cast<uint8_t *>(malloc(texture_size));
     if (!merged) {

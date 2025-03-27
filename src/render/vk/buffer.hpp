@@ -72,7 +72,7 @@ public:
 };
 
 struct BufferSlice {
-    std::reference_wrapper<const Buffer> buffer;
+    reference_wrapper<const Buffer> buffer;
     vk::DeviceSize size;
     vk::DeviceSize offset;
 
@@ -89,7 +89,7 @@ struct BufferSlice {
 namespace utils::buf {
     template<typename ElemType>
     [[nodiscard]] unique_ptr<Buffer>
-    create_local_buffer(const RendererContext &ctx, const std::vector<ElemType> &contents,
+    create_local_buffer(const RendererContext &ctx, const vector<ElemType> &contents,
                         const vk::BufferUsageFlags usage) {
         const vk::DeviceSize buffer_size = sizeof(contents[0]) * contents.size();
 

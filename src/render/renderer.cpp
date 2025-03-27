@@ -158,11 +158,11 @@ vkb::Instance VulkanRenderer::create_instance() {
     return instance_result.value();
 }
 
-std::vector<const char *> VulkanRenderer::get_required_extensions() {
+vector<const char *> VulkanRenderer::get_required_extensions() {
     uint32_t glfw_extension_count = 0;
     const char **glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
 
-    std::vector extensions(glfw_extensions, glfw_extensions + glfw_extension_count);
+    vector extensions(glfw_extensions, glfw_extensions + glfw_extension_count);
 
     if (ENABLE_VALIDATION_LAYERS) {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
@@ -447,11 +447,11 @@ void VulkanRenderer::create_skybox_texture() {
             .create(ctx);
 }
 
-static std::vector<glm::vec4> make_ssao_noise() {
+static vector<glm::vec4> make_ssao_noise() {
     std::uniform_real_distribution<float> random_floats(0.0, 1.0); // random floats between [0.0, 1.0]
     std::default_random_engine generator;
 
-    std::vector<glm::vec4> ssao_noise;
+    vector<glm::vec4> ssao_noise;
     for (unsigned int i = 0; i < 16; i++) {
         glm::vec4 noise(
             random_floats(generator) * 2.0 - 1.0,
@@ -563,7 +563,7 @@ void VulkanRenderer::recreate_swap_chain() {
 // ==================== descriptors ====================
 
 void VulkanRenderer::create_descriptor_pool() {
-    const std::vector<vk::DescriptorPoolSize> pool_sizes = {
+    const vector<vk::DescriptorPoolSize> pool_sizes = {
         {
             .type = vk::DescriptorType::eUniformBuffer,
             .descriptorCount = 100u,
@@ -743,23 +743,23 @@ void VulkanRenderer::create_meshes_descriptor_set() {
 // ==================== render infos ====================
 
 RenderInfo::RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline,
-                       std::vector<RenderTarget> colors)
+                       vector<RenderTarget> colors)
     : cached_pipeline_builder(std::move(builder)), pipeline(std::move(pipeline)), color_targets(std::move(colors)) {
     make_attachment_infos();
 }
 
 RenderInfo::RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline,
-                       std::vector<RenderTarget> colors, RenderTarget depth)
+                       vector<RenderTarget> colors, RenderTarget depth)
     : cached_pipeline_builder(std::move(builder)), pipeline(std::move(pipeline)),
       color_targets(std::move(colors)), depth_target(std::move(depth)) {
     make_attachment_infos();
 }
 
-RenderInfo::RenderInfo(std::vector<RenderTarget> colors) : color_targets(std::move(colors)) {
+RenderInfo::RenderInfo(vector<RenderTarget> colors) : color_targets(std::move(colors)) {
     make_attachment_infos();
 }
 
-RenderInfo::RenderInfo(std::vector<RenderTarget> colors, RenderTarget depth)
+RenderInfo::RenderInfo(vector<RenderTarget> colors, RenderTarget depth)
     : color_targets(std::move(colors)), depth_target(std::move(depth)) {
     make_attachment_infos();
 }
@@ -838,7 +838,7 @@ void VulkanRenderer::create_scene_render_infos() {
     auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
     for (auto &target: swap_chain->get_render_targets(ctx)) {
-        std::vector<RenderTarget> color_targets;
+        vector<RenderTarget> color_targets;
         color_targets.emplace_back(std::move(target.color_target));
 
         target.depth_target.override_attachment_config(vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare);
@@ -882,7 +882,7 @@ void VulkanRenderer::create_skybox_render_infos() {
     auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
     for (auto &target: swap_chain->get_render_targets(ctx)) {
-        std::vector<RenderTarget> color_targets;
+        vector<RenderTarget> color_targets;
         color_targets.emplace_back(std::move(target.color_target));
 
         skybox_render_infos.emplace_back(
@@ -900,7 +900,7 @@ void VulkanRenderer::create_gui_render_infos() {
     for (auto &target: swap_chain->get_render_targets(ctx)) {
         target.color_target.override_attachment_config(vk::AttachmentLoadOp::eLoad);
 
-        std::vector<RenderTarget> color_targets;
+        vector<RenderTarget> color_targets;
         color_targets.emplace_back(std::move(target.color_target));
 
         gui_render_infos.emplace_back(std::move(color_targets));
@@ -908,13 +908,13 @@ void VulkanRenderer::create_gui_render_infos() {
 }
 
 void VulkanRenderer::create_prepass_render_info() {
-    std::vector<RenderTarget> color_targets;
+    vector<RenderTarget> color_targets;
     color_targets.emplace_back(ctx, *g_buffer_textures.normal);
     color_targets.emplace_back(ctx, *g_buffer_textures.pos);
 
     RenderTarget depth_target{ctx, *g_buffer_textures.depth};
 
-    std::vector<vk::Format> color_formats;
+    vector<vk::Format> color_formats;
     for (const auto &target: color_targets) color_formats.emplace_back(target.get_format());
 
     auto builder = GraphicsPipelineBuilder()
@@ -963,7 +963,7 @@ void VulkanRenderer::create_ssao_render_info() {
 
     auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
-    std::vector<RenderTarget> targets;
+    vector<RenderTarget> targets;
     targets.emplace_back(std::move(target));
 
     ssao_render_info = make_unique<RenderInfo>(
@@ -1001,7 +1001,7 @@ void VulkanRenderer::create_cubemap_capture_render_info() {
 
     auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
-    std::vector<RenderTarget> targets;
+    vector<RenderTarget> targets;
     targets.emplace_back(std::move(target));
 
     cubemap_capture_render_info = make_unique<RenderInfo>(
@@ -1041,7 +1041,7 @@ void VulkanRenderer::create_debug_quad_render_infos() {
     auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
 
     for (auto &target: swap_chain->get_render_targets(ctx)) {
-        std::vector<RenderTarget> color_targets;
+        vector<RenderTarget> color_targets;
         color_targets.emplace_back(std::move(target.color_target));
 
         debug_quad_render_infos.emplace_back(
@@ -1099,7 +1099,7 @@ void VulkanRenderer::create_screen_space_quad_vertex_buffer() {
 
 template<typename ElemType>
 unique_ptr<Buffer>
-VulkanRenderer::create_local_buffer(const std::vector<ElemType> &contents, const vk::BufferUsageFlags usage) {
+VulkanRenderer::create_local_buffer(const vector<ElemType> &contents, const vk::BufferUsageFlags usage) {
     const vk::DeviceSize buffer_size = sizeof(contents[0]) * contents.size();
 
     Buffer staging_buffer{
@@ -1208,7 +1208,7 @@ void VulkanRenderer::create_sync_objects() {
 
 void VulkanRenderer::create_tlas() {
     const uint32_t instance_count = 1; // todo
-    std::vector<vk::AccelerationStructureInstanceKHR> instances;
+    vector<vk::AccelerationStructureInstanceKHR> instances;
 
     decltype(vk::TransformMatrixKHR::matrix) matrix;
     matrix[0] = {{1.0f, 0.0f, 0.0f, 0.0f}};
@@ -1341,7 +1341,7 @@ void VulkanRenderer::create_rt_pipeline() {
 // ==================== gui ====================
 
 void VulkanRenderer::init_imgui() {
-    const std::vector<vk::DescriptorPoolSize> pool_sizes = {
+    const vector<vk::DescriptorPoolSize> pool_sizes = {
         {vk::DescriptorType::eSampler, 1000},
         {vk::DescriptorType::eCombinedImageSampler, 1000},
         {vk::DescriptorType::eSampledImage, 1000},
@@ -1510,7 +1510,159 @@ void VulkanRenderer::create_render_graph_resources() {
     }
 }
 
-std::vector<shared_ptr<DescriptorSet> >
+vector<shared_ptr<DescriptorSet>>
+VulkanRenderer::create_graph_descriptor_sets(const ResourceHandle pipeline_handle) const {
+    const auto &pipeline_info = render_graph_info.render_graph->pipelines.at(pipeline_handle);
+    const auto &set_descs = pipeline_info.descriptor_set_descs;
+    vector<shared_ptr<DescriptorSet> > descriptor_sets;
+
+    for (size_t i = 0; i < set_descs.size(); i++) {
+        const auto &set_desc = set_descs[i];
+        DescriptorLayoutBuilder builder;
+
+        for (size_t j = 0; j < set_desc.size(); j++) {
+            if (std::holds_alternative<std::monostate>(set_desc[j])) continue;
+
+            bool is_ubo_descriptor = false;
+            bool is_tex_descriptor = false;
+            vk::DescriptorType type{};
+            vk::ShaderStageFlags stages{};
+            uint32_t descriptor_count = 1;
+
+            if (std::holds_alternative<ResourceHandle>(set_desc[j])) {
+                const auto res_handle = std::get<ResourceHandle>(set_desc[j]);
+                is_ubo_descriptor = render_graph_ubos.contains(res_handle);
+                is_tex_descriptor = render_graph_textures.contains(res_handle);
+            } else if (std::holds_alternative<ResourceHandleArray>(set_desc[j])) {
+                const auto &res_handles = std::get<ResourceHandleArray>(set_desc[j]);
+                is_ubo_descriptor = std::ranges::any_of(res_handles, [&](auto res_handle) {
+                    return render_graph_ubos.contains(res_handle);
+                });
+                is_tex_descriptor = std::ranges::any_of(res_handles, [&](auto res_handle) {
+                    return render_graph_textures.contains(res_handle);
+                });
+                descriptor_count = res_handles.size();
+            }
+
+            if (is_ubo_descriptor && is_tex_descriptor) {
+                throw std::runtime_error("ambiguous resource handle type");
+            }
+            if (is_ubo_descriptor) {
+                type = vk::DescriptorType::eUniformBuffer;
+            } else if (is_tex_descriptor) {
+                type = vk::DescriptorType::eCombinedImageSampler;
+            } else {
+                throw std::runtime_error("unknown resource handle");
+            }
+
+            if (
+                vert_set_descs.size() >= i + 1
+                && vert_set_descs[i].size() >= j + 1
+                && !std::holds_alternative<std::monostate>(vert_set_descs[i][j])
+            ) {
+                stages |= vk::ShaderStageFlagBits::eVertex;
+            }
+
+            if (
+                frag_set_descs.size() >= i + 1
+                && frag_set_descs[i].size() >= j + 1
+                && !std::holds_alternative<std::monostate>(frag_set_descs[i][j])
+            ) {
+                stages |= vk::ShaderStageFlagBits::eFragment;
+            }
+
+            builder.add_binding(type, stages, descriptor_count);
+        }
+
+        auto layout = std::make_shared<vk::raii::DescriptorSetLayout>(builder.create(ctx));
+        auto descriptor_set = std::make_shared<DescriptorSet>(
+            utils::desc::create_descriptor_set(ctx, *descriptor_pool, layout));
+        descriptor_sets.emplace_back(descriptor_set);
+    }
+
+    for (size_t i = 0; i < set_descs.size(); i++) {
+        const auto &set_desc = set_descs[i];
+        const auto &descriptor_set = descriptor_sets[i];
+
+        for (uint32_t binding = 0; binding < set_desc.size(); binding++) {
+            if (std::holds_alternative<ResourceHandle>(set_desc[binding])) {
+                const auto res_handle = std::get<ResourceHandle>(set_desc[binding]);
+                queue_set_update_with_handle(*descriptor_set, res_handle, binding);
+            } else if (std::holds_alternative<ResourceHandleArray>(set_desc[binding])) {
+                const auto &res_handles = std::get<ResourceHandleArray>(set_desc[binding]);
+                for (uint32_t array_element = 0; array_element < res_handles.size(); array_element++) {
+                    queue_set_update_with_handle(*descriptor_set, res_handles[array_element], binding, array_element);
+                }
+            }
+        }
+
+        descriptor_set->commit_updates(ctx);
+    }
+
+    return descriptor_sets;
+}
+
+GraphicsPipelineBuilder
+VulkanRenderer::create_graph_pipeline_builder(const ResourceHandle pipeline_handle,
+                                              const vector<shared_ptr<DescriptorSet>> &descriptor_sets) const {
+    const auto &pipeline_info = render_graph_info.render_graph->pipelines.at(pipeline_handle);
+
+    vector<vk::Format> color_formats;
+    for (const auto &format_variant: pipeline_info.color_formats) {
+        const vk::Format format = std::holds_alternative<vk::Format>(format_variant)
+                                    ? std::get<vk::Format>(format_variant)
+                                    : swap_chain->get_image_format();
+        color_formats.push_back(format);
+    }
+
+    vector<vk::DescriptorSetLayout> descriptor_set_layouts;
+    for (const auto &set: descriptor_sets) {
+        descriptor_set_layouts.emplace_back(*set->get_layout());
+    }
+
+    auto builder = GraphicsPipelineBuilder()
+            .with_vertex_shader(pipeline_info.vertex_path)
+            .with_fragment_shader(pipeline_info.fragment_path)
+            .with_vertices(
+                pipeline_info.binding_descriptions,
+                pipeline_info.attribute_descriptions
+            )
+            .with_rasterizer({
+                .polygonMode = vk::PolygonMode::eFill,
+                .cullMode = pipeline_info.custom_properties.cull_mode,
+                .frontFace = vk::FrontFace::eCounterClockwise,
+                .lineWidth = 1.0f,
+            })
+            .with_multisampling({
+                .rasterizationSamples = pipeline_info.custom_properties.use_msaa
+                                        ? get_msaa_sample_count()
+                                        : vk::SampleCountFlagBits::e1,
+                .minSampleShading = 1.0f,
+            })
+            .with_descriptor_layouts(descriptor_set_layouts)
+            .with_color_formats(color_formats);
+
+    if (pipeline_info.depth_format) {
+        const vk::Format format = std::holds_alternative<vk::Format>(*pipeline_info.depth_format)
+                                    ? std::get<vk::Format>(*pipeline_info.depth_format)
+                                    : swap_chain->get_depth_format();
+        builder.with_depth_format(format);
+    } else {
+        builder.with_depth_stencil({
+            .depthTestEnable = vk::False,
+            .depthWriteEnable = vk::False,
+        });
+    }
+
+    if (pipeline_info.custom_properties.multiview_count > 1) {
+        builder.for_views(pipeline_info.custom_properties.multiview_count);
+    }
+
+    return builder;
+}
+
+/*
+vector<shared_ptr<DescriptorSet> >
 VulkanRenderer::create_node_descriptor_sets(const RenderNodeHandle node_handle) const {
     const auto &node_info = render_graph_info.render_graph->nodes.at(node_handle);
     const auto &vert_set_descs = node_info.vertex_shader->descriptor_set_descs;
@@ -1542,7 +1694,7 @@ VulkanRenderer::create_node_descriptor_sets(const RenderNodeHandle node_handle) 
         }
     }
 
-    std::vector<shared_ptr<DescriptorSet> > descriptor_sets;
+    vector<shared_ptr<DescriptorSet> > descriptor_sets;
     for (size_t i = 0; i < merged_set_descs.size(); i++) {
         const auto &set_desc = merged_set_descs[i];
         DescriptorLayoutBuilder builder;
@@ -1628,6 +1780,7 @@ VulkanRenderer::create_node_descriptor_sets(const RenderNodeHandle node_handle) 
 
     return descriptor_sets;
 }
+*/
 
 void VulkanRenderer::queue_set_update_with_handle(DescriptorSet &descriptor_set, const ResourceHandle res_handle,
                                                   const uint32_t binding, const uint32_t array_element) const {
@@ -1647,18 +1800,19 @@ void VulkanRenderer::queue_set_update_with_handle(DescriptorSet &descriptor_set,
     }
 }
 
+/*
 GraphicsPipelineBuilder VulkanRenderer::create_node_pipeline_builder(
     const RenderNodeHandle node_handle,
-    const std::vector<shared_ptr<DescriptorSet> > &descriptor_sets
+    const vector<shared_ptr<DescriptorSet> > &descriptor_sets
 ) const {
     const auto &node_info = render_graph_info.render_graph->nodes.at(node_handle);
 
-    std::vector<vk::Format> color_formats;
+    vector<vk::Format> color_formats;
     for (const auto &target_handle: node_info.color_targets) {
         color_formats.push_back(get_target_color_format(target_handle));
     }
 
-    std::vector<vk::DescriptorSetLayout> descriptor_set_layouts;
+    vector<vk::DescriptorSetLayout> descriptor_set_layouts;
     for (const auto &set: descriptor_sets) {
         descriptor_set_layouts.emplace_back(*set->get_layout());
     }
@@ -1694,23 +1848,28 @@ GraphicsPipelineBuilder VulkanRenderer::create_node_pipeline_builder(
         });
     }
 
+    if (node_info.custom_properties.multiview_count > 1) {
+        builder.for_views(node_info.custom_properties.multiview_count);
+    }
+
     return builder;
 }
+*/
 
-std::vector<RenderInfo> VulkanRenderer::create_node_render_infos(
+vector<RenderInfo> VulkanRenderer::create_node_render_infos(
     const RenderNodeHandle node_handle,
-    const std::vector<shared_ptr<DescriptorSet> > &descriptor_sets
+    const vector<shared_ptr<DescriptorSet> > &descriptor_sets
 ) const {
     const auto &node_info = render_graph_info.render_graph->nodes.at(node_handle);
     auto pipeline_builder = create_node_pipeline_builder(node_handle, descriptor_sets);
     const auto pipeline = make_shared<GraphicsPipeline>(pipeline_builder.create(ctx));
-    std::vector<RenderInfo> render_infos;
+    vector<RenderInfo> render_infos;
 
     if (has_swapchain_target(node_handle)) {
         bool is_first_with_final_target = is_first_node_targetting_final_image(node_handle);
 
         for (auto &swap_chain_targets: swap_chain->get_render_targets(ctx)) {
-            std::vector<RenderTarget> color_targets;
+            vector<RenderTarget> color_targets;
 
             if (!is_first_with_final_target) {
                 // has to be overridden, otherwise this render pass will clear the swapchain image
@@ -1738,12 +1897,12 @@ std::vector<RenderInfo> VulkanRenderer::create_node_render_infos(
             }
         }
     } else {
-        std::vector<RenderTarget> color_targets;
+        vector<RenderTarget> color_targets;
         std::optional<RenderTarget> depth_target;
 
         for (auto color_target_handle: node_info.color_targets) {
             const auto &target_texture = render_graph_textures.at(color_target_handle);
-            color_targets.emplace_back(target_texture->get_image().get_layer_mip_view(ctx, 0, 0),
+            color_targets.emplace_back(target_texture->get_image().get_mip_view(ctx, 0),
                                        target_texture->get_format());
         }
 
@@ -1811,7 +1970,7 @@ void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resour
 
     // todo - this should have more refined logic
     // add barrier to the target image if it will be sampled
-    record_pre_sample_commands(node_resources);
+    // record_pre_sample_commands(node_resources);
 }
 
 void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &node_resources) const {
@@ -1820,7 +1979,7 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &n
     const auto &render_info = render_infos[has_swapchain_target(node_resources.handle) ? current_frame_idx : 0];
     const auto &node_info = render_graph_info.render_graph->nodes.at(handle);
 
-    std::vector<vk::DescriptorSet> raw_descriptor_sets;
+    vector<vk::DescriptorSet> raw_descriptor_sets;
     for (const auto &descriptor_set: descriptor_sets) {
         raw_descriptor_sets.push_back(***descriptor_set);
     }
@@ -1838,12 +1997,14 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &n
         nullptr
     );
 
-    node_info.body(RenderPassContext{
+    RenderPassContext ctx{
         command_buffer,
         render_graph_models,
+        render_graph_pipelines,
         *screen_space_quad_vertex_buffer,
         *skybox_vertex_buffer
-    });
+    };
+    node_info.body(ctx);
 }
 
 void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeResources &node_resources) const {
@@ -1963,7 +2124,7 @@ void VulkanRenderer::do_frame_begin_actions() {
 void VulkanRenderer::render_gui(const std::function<void()> &render_commands) {
     const auto &command_buffer = *frame_resources[current_frame_idx].gui_cmd_buffer.buffer;
 
-    const std::vector color_attachment_formats{swap_chain->get_image_format()};
+    const vector color_attachment_formats{swap_chain->get_image_format()};
 
     const vk::StructureChain<
         vk::CommandBufferInheritanceInfo,
@@ -1994,11 +2155,11 @@ void VulkanRenderer::render_gui(const std::function<void()> &render_commands) {
 bool VulkanRenderer::start_frame() {
     const auto &sync = frame_resources[current_frame_idx].sync;
 
-    const std::vector wait_semaphores = {
+    const vector wait_semaphores = {
         **sync.render_finished_timeline.semaphore,
     };
 
-    const std::vector wait_semaphore_values = {
+    const vector wait_semaphore_values = {
         sync.render_finished_timeline.timeline,
     };
 
@@ -2030,11 +2191,11 @@ bool VulkanRenderer::start_frame() {
 void VulkanRenderer::end_frame() {
     auto &sync = frame_resources[current_frame_idx].sync;
 
-    const std::vector wait_semaphores = {
+    const vector wait_semaphores = {
         **sync.image_available_semaphore
     };
 
-    const std::vector<TimelineSemValueType> wait_semaphore_values = {
+    const vector<TimelineSemValueType> wait_semaphore_values = {
         0
     };
 
@@ -2049,7 +2210,7 @@ void VulkanRenderer::end_frame() {
     };
 
     sync.render_finished_timeline.timeline++;
-    const std::vector<TimelineSemValueType> signal_semaphore_values{
+    const vector<TimelineSemValueType> signal_semaphore_values{
         sync.render_finished_timeline.timeline,
         0
     };

@@ -3,14 +3,16 @@
 
 #define GLFW_EXPOSE_NATIVE_WIN32
 #define NOMINMAX 1
+#include <GLFW/glfw3native.h>
+
 #include <iostream>
 #include <random>
-#include <GLFW/glfw3native.h>
 
 #include "render/camera.hpp"
 #include "render/graph.hpp"
 #include "render/renderer.hpp"
 #include "render/gui/gui.hpp"
+#include "render/vk/shader.hpp"
 #include "utils/input-manager.hpp"
 #include "utils/file-type.hpp"
 
@@ -58,7 +60,7 @@ class Engine {
 
     float last_time = 0.0f;
 
-    bool is_gui_enabled = false;
+    bool is_gui_enabled  = false;
     bool show_debug_quad = false;
 
     ImGui::FileBrowser file_browser;
@@ -75,12 +77,12 @@ class Engine {
     glm::quat model_rotation{1, 0, 0, 0};
 
     glm::quat light_direction = glm::normalize(glm::vec3(1, 1.5, -2));
-    glm::vec3 light_color = glm::normalize(glm::vec3(23.47, 21.31, 20.79));
-    float light_intensity = 20.0f;
+    glm::vec3 light_color     = glm::normalize(glm::vec3(23.47, 21.31, 20.79));
+    float light_intensity     = 20.0f;
 
     float debug_number = 0;
 
-    bool use_ssao = false;
+    bool use_ssao              = false;
     bool should_compute_skybox = true;
 
 public:
@@ -108,8 +110,8 @@ private:
         glfwPollEvents();
 
         const auto current_time = static_cast<float>(glfwGetTime());
-        const float delta_time = current_time - last_time;
-        last_time = current_time;
+        const float delta_time  = current_time - last_time;
+        last_time               = current_time;
 
         input_manager->tick(delta_time);
         renderer.tick(delta_time);
@@ -150,7 +152,7 @@ private:
             sizeof(GraphicsUBO)
         });
 
-        render_graph.add_frame_begin_action([this, uniform_buffer](const FrameBeginActionContext& fba_ctx) {
+        render_graph.add_frame_begin_action([this, uniform_buffer](const FrameBeginActionContext &fba_ctx) {
             update_graphics_uniform_buffer(*fba_ctx.ubos.get().at(uniform_buffer));
         });
 
@@ -181,30 +183,25 @@ private:
             vk::TextureFlagBitsZRX::HDR | vk::TextureFlagBitsZRX::MIPMAPS
         });
 
+        constexpr auto skybox_tex_format = vk::Format::eR8G8B8A8Srgb;
         const auto skybox_texture = render_graph.add_resource(EmptyTextureResource{
             "skybox-texture",
             {2048, 2048},
-            vk::Format::eR8G8B8A8Srgb,
+            skybox_tex_format,
             vk::TextureFlagBitsZRX::CUBEMAP // | vk::TextureFlagBitsZRX::MIPMAPS
         });
 
-        const auto skybox_texture_ass = render_graph.add_resource(ExternalTextureResource{
-            "skybox-texture-ass",
-            {6, "../assets/example models/kettle/kettle-albedo.png"},
-            vk::Format::eR8G8B8A8Srgb,
-            vk::TextureFlagBitsZRX::CUBEMAP
-        });
-
+        constexpr auto g_buffer_color_format = vk::Format::eR16G16B16A16Sfloat;
         const auto g_buffer_normal = render_graph.add_resource(EmptyTextureResource{
             "g-buffer-normal",
             {0, 0},
-            vk::Format::eR16G16B16A16Sfloat,
+            g_buffer_color_format,
         });
 
         const auto g_buffer_pos = render_graph.add_resource(EmptyTextureResource{
             "g-buffer-pos",
             {0, 0},
-            vk::Format::eR16G16B16A16Sfloat,
+            g_buffer_color_format,
         });
 
         const auto g_buffer_depth = render_graph.add_resource(EmptyTextureResource{
@@ -214,124 +211,55 @@ private:
             {}
         });
 
+        constexpr auto ssao_tex_format = vk::Format::eR8G8B8A8Unorm;
         const auto ssao_texture = render_graph.add_resource(EmptyTextureResource{
             "ssao-texture",
             {0, 0},
-            vk::Format::eR8G8B8A8Unorm,
+            ssao_tex_format,
         });
 
-        // ================== cubemap capture ==================
+        // ================== shaders ==================
 
-        const auto cubecap_vertex_shader = std::make_shared<VertexShader>(VertexShader{
+        const auto cubecap_shaders = render_graph.add_pipeline({
             "../shaders/obj/sphere-cube-vert.spv",
-            {{uniform_buffer}},
-            SkyboxVertex()
-        });
-
-        const auto cubecap_fragment_shader = std::make_shared<Shader>(FragmentShader{
             "../shaders/obj/sphere-cube-frag.spv",
-            {{uniform_buffer, envmap_texture}}
-        });
-
-        render_graph.add_node({
-            "cubemap-capture",
-            cubecap_vertex_shader,
-            cubecap_fragment_shader,
-            {skybox_texture},
+            {{uniform_buffer}},
+            SkyboxVertex(),
+            {skybox_tex_format},
             {},
-            [&](const RenderPassContext &ctx) {
-                ctx.draw_skybox();
-                should_compute_skybox = false;
-            },
-            [&] { return should_compute_skybox; },
-            RenderNode::CustomProperties {
+            ShaderPack::CustomProperties {
                 .multiview_count = 6
             }
         });
 
-        // ================== prepass ==================
-
-        const auto prepass_vertex_shader = std::make_shared<VertexShader>(VertexShader{
+        const auto prepass_shaders = render_graph.add_pipeline({
             "../shaders/obj/prepass-vert.spv",
-            {{uniform_buffer}},
-            ModelVertex()
-        });
-
-        const auto prepass_fragment_shader = std::make_shared<Shader>(FragmentShader{
             "../shaders/obj/prepass-frag.spv",
-            {{uniform_buffer}}
+            {{uniform_buffer}},
+            ModelVertex(),
+            {g_buffer_color_format, g_buffer_color_format},
+            depth_format
         });
 
-        render_graph.add_node({
-            "prepass",
-            prepass_vertex_shader,
-            prepass_fragment_shader,
-            {g_buffer_normal, g_buffer_pos},
-            g_buffer_depth,
-            [scene_model](const RenderPassContext &ctx) {
-                ctx.draw_model(scene_model);
-            },
-            [&] { return use_ssao; }
-        });
-
-        // ================== ssao pass ==================
-
-        const auto ssao_vertex_shader = std::make_shared<VertexShader>(VertexShader{
+        const auto ssao_shaders = render_graph.add_pipeline({
             "../shaders/obj/ssao-vert.spv",
-            {},
-            ScreenSpaceQuadVertex()
-        });
-
-        const auto ssao_fragment_shader = std::make_shared<Shader>(FragmentShader{
             "../shaders/obj/ssao-frag.spv",
-            {{uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos}}
+            {{uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos}},
+            ScreenSpaceQuadVertex(),
+            {ssao_tex_format}
         });
 
-        render_graph.add_node({
-            "ssao",
-            ssao_vertex_shader,
-            ssao_fragment_shader,
-            {ssao_texture},
-            {},
-            [](const RenderPassContext &ctx) {
-                ctx.draw_screenspace_quad();
-            },
-            [&] { return use_ssao; }
-        });
-
-        // ================== skybox pass ==================
-
-        const auto skybox_vertex_shader = std::make_shared<VertexShader>(VertexShader{
+        const auto skybox_shaders = render_graph.add_pipeline({
             "../shaders/obj/skybox-vert.spv",
-            {{uniform_buffer}},
-            SkyboxVertex()
-        });
-
-        const auto skybox_fragment_shader = std::make_shared<Shader>(FragmentShader{
             "../shaders/obj/skybox-frag.spv",
-            {{uniform_buffer, skybox_texture}}
+            {{uniform_buffer, skybox_texture}},
+            SkyboxVertex(),
+            {FinalImageFormatPlaceholder()},
+            FinalImageFormatPlaceholder()
         });
 
-        render_graph.add_node({
-            "skybox",
-            skybox_vertex_shader,
-            skybox_fragment_shader,
-            {FINAL_IMAGE_RESOURCE_HANDLE},
-            {},
-            [](const RenderPassContext &ctx) {
-                ctx.draw_skybox();
-            }
-        });
-
-        // ================== main pass ==================
-
-        const auto main_vertex_shader = std::make_shared<VertexShader>(VertexShader{
+        const auto main_shaders = render_graph.add_pipeline({
             "../shaders/obj/main-vert.spv",
-            {{uniform_buffer}},
-            ModelVertex()
-        });
-
-        const auto main_fragment_shader = std::make_shared<Shader>(FragmentShader{
             "../shaders/obj/main-frag.spv",
             {
                 {uniform_buffer, ssao_texture},
@@ -340,24 +268,67 @@ private:
                     ResourceHandleArray{normal_texture},
                     ResourceHandleArray{orm_texture}
                 }
+            },
+            ModelVertex(),
+            {FinalImageFormatPlaceholder()},
+            FinalImageFormatPlaceholder()
+        });
+
+        // ================== nodes ==================
+
+        const auto cubecap_node = render_graph.add_node({
+            .name = "cubemap-capture",
+            .color_targets = {skybox_texture},
+            .body = [&](IRenderPassContext &ctx) {
+                ctx.bind_pipeline(cubecap_shaders);
+                ctx.draw_skybox();
+                should_compute_skybox = false;
+            },
+            .should_run_predicate = [&] { return should_compute_skybox; },
+            RenderNode::CustomProperties {
+                .multiview_count = 6
             }
         });
 
-        render_graph.add_node({
-            "main",
-            main_vertex_shader,
-            main_fragment_shader,
-            {FINAL_IMAGE_RESOURCE_HANDLE},
-            {FINAL_IMAGE_RESOURCE_HANDLE},
-            [scene_model](const RenderPassContext &ctx) {
+        const auto prepass_node = render_graph.add_node({
+            .name = "prepass",
+            .color_targets = {g_buffer_normal, g_buffer_pos},
+            .depth_target = g_buffer_depth,
+            .body = [scene_model](IRenderPassContext &ctx) {
+                ctx.bind_pipeline(prepass_shaders);
                 ctx.draw_model(scene_model);
-            }
+            },
+            .should_run_predicate = [&] { return use_ssao; }
+        });
+
+        const auto ssao_node = render_graph.add_node({
+            .name = "ssao",
+            .color_targets = {ssao_texture},
+            .body = [](IRenderPassContext &ctx) {
+                ctx.bind_pipeline(ssao_shaders);
+                ctx.draw_screenspace_quad();
+            },
+            .should_run_predicate = [&] { return use_ssao; }
+        });
+
+        const auto main_node = render_graph.add_node({
+            .name = "main",
+            .color_targets = {FINAL_IMAGE_RESOURCE_HANDLE},
+            .depth_target = FINAL_IMAGE_RESOURCE_HANDLE,
+            .body = [scene_model](IRenderPassContext &ctx) {
+                ctx.bind_pipeline(main_shaders);
+                ctx.draw_model(scene_model);
+
+                ctx.bind_pipeline(skybox_shaders);
+                ctx.draw_skybox();
+            },
+            .explicit_dependencies = {cubecap_node, prepass_node, ssao_node}
         });
 
         renderer.register_render_graph(render_graph);
     }
 
-    void update_graphics_uniform_buffer(Buffer& buffer) const {
+    void update_graphics_uniform_buffer(Buffer &buffer) const {
         const glm::mat4 model = glm::translate(model_translate)
                                 * glm::mat4_cast(model_rotation)
                                 * glm::scale(glm::vec3(model_scale));
@@ -424,7 +395,7 @@ private:
     void bind_mouse_drag_actions() {
         input_manager->bind_mouse_drag_callback(GLFW_MOUSE_BUTTON_RIGHT, [&](const double dx, const double dy) {
             static constexpr float speed = 0.002;
-            const float camera_distance = glm::length(camera->get_pos());
+            const float camera_distance  = glm::length(camera->get_pos());
 
             const auto view_vectors = camera->get_view_vectors();
 
@@ -439,7 +410,7 @@ private:
         static float fps = 1 / delta_time;
 
         constexpr float smoothing = 0.95f;
-        fps = fps * smoothing + (1 / delta_time) * (1.0f - smoothing);
+        fps                       = fps * smoothing + (1 / delta_time) * (1.0f - smoothing);
 
         constexpr auto section_flags = ImGuiTreeNodeFlags_DefaultOpen;
 
@@ -507,7 +478,7 @@ private:
     }
 
     void render_tex_load_button(const std::string &label, const FileType file_type,
-                             const std::vector<std::string> &type_filters) {
+                                const vector<std::string> &type_filters) {
         if (ImGui::Button(label.c_str(), ImVec2(180, 0))) {
             current_type_being_chosen = file_type;
             file_browser.SetTypeFilters(type_filters);
@@ -554,9 +525,10 @@ private:
 
             ImGui::Separator();
 
-            const bool can_submit = std::ranges::all_of(file_load_schemes[load_scheme_idx].requirements, [&](const auto &t) {
-                return is_file_type_optional(t) || chosen_paths.contains(t);
-            });
+            const bool can_submit = std::ranges::all_of(file_load_schemes[load_scheme_idx].requirements,
+                                                        [&](const auto &t) {
+                                                            return is_file_type_optional(t) || chosen_paths.contains(t);
+                                                        });
 
             if (!can_submit) {
                 ImGui::BeginDisabled();
@@ -606,12 +578,12 @@ private:
                 renderer.load_rma_map(chosen_paths.at(FileType::RMA_PNG));
             } else if (reqs.contains(FileType::ROUGHNESS_PNG)) {
                 const auto roughness_path = chosen_paths.at(FileType::ROUGHNESS_PNG);
-                const auto ao_path = chosen_paths.contains(FileType::AO_PNG)
-                                    ? chosen_paths.at(FileType::AO_PNG)
-                                    : "";
+                const auto ao_path        = chosen_paths.contains(FileType::AO_PNG)
+                                                ? chosen_paths.at(FileType::AO_PNG)
+                                                : "";
                 const auto metallic_path = chosen_paths.contains(FileType::METALLIC_PNG)
-                                          ? chosen_paths.at(FileType::METALLIC_PNG)
-                                          : "";
+                                               ? chosen_paths.at(FileType::METALLIC_PNG)
+                                               : "";
 
                 renderer.load_orm_map(ao_path, roughness_path, metallic_path);
             }
@@ -650,7 +622,7 @@ static void show_error_box(const std::string &message) {
 void generate_ssao_kernel_samples() {
     std::uniform_real_distribution<float> random_floats(0.0, 1.0);
     std::default_random_engine generator;
-    std::vector<glm::vec3> ssao_kernel;
+    vector<glm::vec3> ssao_kernel;
     for (int i = 0; i < 64; ++i) {
         glm::vec3 sample(
             random_floats(generator) * 2.0 - 1.0,
@@ -661,7 +633,7 @@ void generate_ssao_kernel_samples() {
         sample *= random_floats(generator);
 
         float scale = (float) i / 64.0;
-        scale = glm::mix(0.1f, 1.0f, scale * scale);
+        scale       = glm::mix(0.1f, 1.0f, scale * scale);
         sample *= scale;
 
         ssao_kernel.push_back(sample);

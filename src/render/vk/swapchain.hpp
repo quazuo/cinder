@@ -11,8 +11,8 @@ namespace zrx {
  */
 struct SwapChainSupportDetails {
     vk::SurfaceCapabilitiesKHR capabilities;
-    std::vector<vk::SurfaceFormatKHR> formats;
-    std::vector<vk::PresentModeKHR> present_modes;
+    vector<vk::SurfaceFormatKHR> formats;
+    vector<vk::PresentModeKHR> present_modes;
 
     SwapChainSupportDetails(const vk::raii::PhysicalDevice &physical_device, const vk::raii::SurfaceKHR &surface);
 };
@@ -30,7 +30,7 @@ struct SwapChainRenderTargets {
 */
 class SwapChain {
     unique_ptr<vk::raii::SwapchainKHR> swap_chain;
-    std::vector<vk::Image> images;
+    vector<vk::Image> images;
     vk::Format image_format{};
     vk::Format depth_format{};
     vk::Extent2D extent{};
@@ -38,7 +38,7 @@ class SwapChain {
     unique_ptr<Image> color_image;
     unique_ptr<Image> depth_image;
 
-    std::vector<shared_ptr<vk::raii::ImageView>> cached_views;
+    vector<shared_ptr<vk::raii::ImageView>> cached_views;
 
     uint32_t current_image_index = 0;
 
@@ -71,7 +71,7 @@ public:
      * Wraps swapchain image views in `RenderTarget` objects and returns them.
      * When called the first time, these views are created and cached for later.
      */
-    [[nodiscard]] std::vector<SwapChainRenderTargets> get_render_targets(const RendererContext &ctx);
+    [[nodiscard]] vector<SwapChainRenderTargets> get_render_targets(const RendererContext &ctx);
 
     /**
      * Requests a new image from the swap chain and signals a given semaphore when the image is available.
@@ -102,13 +102,13 @@ private:
     [[nodiscard]] static vk::Format find_depth_format(const RendererContext &ctx);
 
     [[nodiscard]] static vk::Format
-    find_supported_format(const RendererContext &ctx, const std::vector<vk::Format> &candidates,
+    find_supported_format(const RendererContext &ctx, const vector<vk::Format> &candidates,
                         vk::ImageTiling tiling, vk::FormatFeatureFlags features);
 
     [[nodiscard]] static vk::Extent2D choose_extent(const vk::SurfaceCapabilitiesKHR &capabilities, GLFWwindow *window);
 
-    static vk::SurfaceFormatKHR choose_surface_format(const std::vector<vk::SurfaceFormatKHR> &available_formats);
+    static vk::SurfaceFormatKHR choose_surface_format(const vector<vk::SurfaceFormatKHR> &available_formats);
 
-    static vk::PresentModeKHR choose_present_mode(const std::vector<vk::PresentModeKHR> &available_present_modes);
+    static vk::PresentModeKHR choose_present_mode(const vector<vk::PresentModeKHR> &available_present_modes);
 };
 } // zrx

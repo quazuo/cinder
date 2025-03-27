@@ -156,7 +156,7 @@ vk::Extent2D SwapChain::choose_extent(const vk::SurfaceCapabilitiesKHR &capabili
     };
 }
 
-vk::SurfaceFormatKHR SwapChain::choose_surface_format(const std::vector<vk::SurfaceFormatKHR> &available_formats) {
+vk::SurfaceFormatKHR SwapChain::choose_surface_format(const vector<vk::SurfaceFormatKHR> &available_formats) {
     if (available_formats.empty()) {
         throw std::runtime_error("unexpected empty list of available formats");
     }
@@ -173,7 +173,7 @@ vk::SurfaceFormatKHR SwapChain::choose_surface_format(const std::vector<vk::Surf
     return available_formats[0];
 }
 
-vk::PresentModeKHR SwapChain::choose_present_mode(const std::vector<vk::PresentModeKHR> &available_present_modes) {
+vk::PresentModeKHR SwapChain::choose_present_mode(const vector<vk::PresentModeKHR> &available_present_modes) {
     for (const auto &available_present_mode: available_present_modes) {
         if (available_present_mode == vk::PresentModeKHR::eMailbox) {
             return available_present_mode;
@@ -237,8 +237,8 @@ void SwapChain::create_depth_resources(const RendererContext &ctx) {
     );
 }
 
-std::vector<SwapChainRenderTargets> SwapChain::get_render_targets(const RendererContext &ctx) {
-    std::vector<SwapChainRenderTargets> targets;
+vector<SwapChainRenderTargets> SwapChain::get_render_targets(const RendererContext &ctx) {
+    vector<SwapChainRenderTargets> targets;
 
     if (cached_views.empty()) {
         for (const auto &image: images) {
@@ -287,7 +287,7 @@ vk::Format SwapChain::find_depth_format(const RendererContext &ctx) {
     );
 }
 
-vk::Format SwapChain::find_supported_format(const RendererContext &ctx, const std::vector<vk::Format> &candidates,
+vk::Format SwapChain::find_supported_format(const RendererContext &ctx, const vector<vk::Format> &candidates,
                                           const vk::ImageTiling tiling, const vk::FormatFeatureFlags features) {
     for (const vk::Format format: candidates) {
         const vk::FormatProperties props = ctx.physical_device->getFormatProperties(format);

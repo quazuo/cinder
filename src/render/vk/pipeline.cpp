@@ -15,7 +15,7 @@ static vk::raii::ShaderModule create_shader_module(const RendererContext &ctx, c
     }
 
     const size_t file_size = file.tellg();
-    std::vector<char> buffer(file_size);
+    vector<char> buffer(file_size);
     file.seekg(0);
     file.read(buffer.data(), static_cast<std::streamsize>(file_size));
 
@@ -38,21 +38,21 @@ GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_fragment_shader(const std
 }
 
 GraphicsPipelineBuilder &
-GraphicsPipelineBuilder::with_vertices(std::vector<vk::VertexInputBindingDescription> bindings,
-                                       std::vector<vk::VertexInputAttributeDescription> attributes) {
+GraphicsPipelineBuilder::with_vertices(vector<vk::VertexInputBindingDescription> bindings,
+                                       vector<vk::VertexInputAttributeDescription> attributes) {
     vertex_bindings   = std::move(bindings);
     vertex_attributes = std::move(attributes);
     return *this;
 }
 
 GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_descriptor_layouts(
-    const std::vector<vk::DescriptorSetLayout> &layouts) {
+    const vector<vk::DescriptorSetLayout> &layouts) {
     descriptor_set_layouts = layouts;
     return *this;
 }
 
 GraphicsPipelineBuilder &
-GraphicsPipelineBuilder::with_push_constants(const std::vector<vk::PushConstantRange> &ranges) {
+GraphicsPipelineBuilder::with_push_constants(const vector<vk::PushConstantRange> &ranges) {
     push_constant_ranges = ranges;
     return *this;
 }
@@ -80,7 +80,7 @@ GraphicsPipelineBuilder &GraphicsPipelineBuilder::for_views(const uint32_t count
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_color_formats(const std::vector<vk::Format> &formats) {
+GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_color_formats(const vector<vk::Format> &formats) {
     color_attachment_formats = formats;
     return *this;
 }
@@ -108,7 +108,7 @@ GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) con
         .pName = "main",
     };
 
-    const std::vector shader_stages{
+    const vector shader_stages{
         vert_shader_stage_info,
         frag_shader_stage_info
     };
@@ -157,7 +157,7 @@ GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) con
 
     result.rasterization_samples = multisampling.rasterizationSamples;
 
-    const std::vector<vk::PipelineColorBlendAttachmentState> color_blend_attachments(
+    const vector<vk::PipelineColorBlendAttachmentState> color_blend_attachments(
         color_attachment_formats.size(),
         {
             .blendEnable = vk::False,
@@ -254,12 +254,12 @@ RtPipelineBuilder &RtPipelineBuilder::with_miss_shader(const std::filesystem::pa
     return *this;
 }
 
-RtPipelineBuilder &RtPipelineBuilder::with_descriptor_layouts(const std::vector<vk::DescriptorSetLayout> &layouts) {
+RtPipelineBuilder &RtPipelineBuilder::with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts) {
     descriptor_set_layouts = layouts;
     return *this;
 }
 
-RtPipelineBuilder &RtPipelineBuilder::with_push_constants(const std::vector<vk::PushConstantRange> &ranges) {
+RtPipelineBuilder &RtPipelineBuilder::with_push_constants(const vector<vk::PushConstantRange> &ranges) {
     push_constant_ranges = ranges;
     return *this;
 }
@@ -330,7 +330,7 @@ RtPipelineBuilder::build_pipeline(const RendererContext &ctx) const {
         .intersectionShader = vk::ShaderUnusedKHR,
     };
 
-    std::vector shader_groups(eShaderGroupCount, shader_group_template);
+    vector shader_groups(eShaderGroupCount, shader_group_template);
 
     shader_groups[eRaygen].type          = vk::RayTracingShaderGroupTypeKHR::eGeneral;
     shader_groups[eRaygen].generalShader = eRaygen;
@@ -405,7 +405,7 @@ RtPipelineBuilder::build_sbt(const RendererContext &ctx, const vk::raii::Pipelin
     };
 
     const uint32_t data_size = handle_count * handle_size;
-    std::vector handles      = pipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>(0, handle_count, data_size);
+    vector handles      = pipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>(0, handle_count, data_size);
 
     const VkDeviceSize sbt_size = rgen_region.size + miss_region.size + hit_region.size;
     auto sbt_buffer             = make_unique<Buffer>(

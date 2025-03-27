@@ -49,13 +49,13 @@ struct is_valid_for_resource : std::disjunction<
 template<typename T>
     requires is_valid_for_resource<T>::value
 struct ResourcePack final {
-    using ResourceSlot = std::optional<std::reference_wrapper<const T> >;
+    using ResourceSlot = std::optional<reference_wrapper<const T> >;
 
     vk::ShaderStageFlags scope;
     vk::DescriptorType type;
     vk::DescriptorBindingFlags flags;
     uint32_t descriptor_count;
-    std::vector<ResourceSlot> resources;
+    vector<ResourceSlot> resources;
 
     ResourcePack(const uint32_t descriptor_count, const vk::ShaderStageFlags scope,
                  const vk::DescriptorType type          = DefaultDescriptorType<T>::type,
@@ -86,7 +86,7 @@ using NthTypeOf = std::tuple_element_t<N, std::tuple<Ts...> >;
 template<typename... Ts>
     requires std::conjunction_v<is_valid_for_resource<Ts>...>
 class FixedDescriptorSet {
-    std::reference_wrapper<const RendererContext> ctx;
+    reference_wrapper<const RendererContext> ctx;
     std::tuple<ResourcePack<Ts>...> packs;
     shared_ptr<vk::raii::DescriptorSetLayout> layout;
     unique_ptr<vk::raii::DescriptorSet> set;
@@ -103,7 +103,7 @@ class FixedDescriptorSet {
         WriteInfo info;
     };
 
-    std::vector<DescriptorUpdate> queued_updates;
+    vector<DescriptorUpdate> queued_updates;
 
 public:
     explicit FixedDescriptorSet(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
@@ -149,7 +149,7 @@ public:
     }
 
     void commit_updates() {
-        std::vector<vk::WriteDescriptorSet> descriptor_writes;
+        vector<vk::WriteDescriptorSet> descriptor_writes;
 
         for (const auto &update: queued_updates) {
             vk::WriteDescriptorSet write{
@@ -253,7 +253,7 @@ public:
 private:
     void create_layout() {
         auto bindings = std::apply([](auto &&... elems) {
-            return std::vector<vk::DescriptorSetLayoutBinding>{
+            return vector<vk::DescriptorSetLayoutBinding>{
                 make_binding(std::forward<decltype(elems)>(elems))...
             };
         }, packs);
@@ -263,7 +263,7 @@ private:
         }
 
         auto binding_flags = std::apply([](auto &&... elems) {
-            return std::vector<vk::DescriptorBindingFlags>{
+            return vector<vk::DescriptorBindingFlags>{
                 extract_flags(std::forward<decltype(elems)>(elems))...
             };
         }, packs);
@@ -307,7 +307,7 @@ private:
             .pSetLayouts = &**layout,
         };
 
-        std::vector<vk::raii::DescriptorSet> descriptor_sets = ctx.get().device->allocateDescriptorSets(alloc_info);
+        vector<vk::raii::DescriptorSet> descriptor_sets = ctx.get().device->allocateDescriptorSets(alloc_info);
 
         set = make_unique<vk::raii::DescriptorSet>(std::move(descriptor_sets[0]));
     }
@@ -337,7 +337,7 @@ private:
 
 template<typename... Ts>
 class FixedDescriptorSets {
-    std::vector<FixedDescriptorSet<Ts...> > sets;
+    vector<FixedDescriptorSet<Ts...> > sets;
 
 public:
     FixedDescriptorSets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool) {
@@ -356,7 +356,7 @@ public:
  * use binding 0, second will use binding 1, and so on.
  */
 class DescriptorLayoutBuilder {
-    std::vector<vk::DescriptorSetLayoutBinding> bindings;
+    vector<vk::DescriptorSetLayoutBinding> bindings;
 
 public:
     DescriptorLayoutBuilder &add_binding(vk::DescriptorType type, vk::ShaderStageFlags stages,
@@ -386,7 +386,7 @@ class DescriptorSet {
             vk::WriteDescriptorSetAccelerationStructureKHR> info;
     };
 
-    std::vector<DescriptorUpdate> queued_updates;
+    vector<DescriptorUpdate> queued_updates;
 
 public:
     explicit DescriptorSet(decltype(layout) l, vk::raii::DescriptorSet &&s)
@@ -454,10 +454,10 @@ public:
 
 namespace utils::desc {
     template<typename... Ts>
-    [[nodiscard]] std::vector<FixedDescriptorSet<Ts...> >
+    [[nodiscard]] vector<FixedDescriptorSet<Ts...> >
     create_fixed_descriptor_sets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
                                  const shared_ptr<vk::raii::DescriptorSetLayout> &layout, const uint32_t count) {
-        const std::vector set_layouts(count, **layout);
+        const vector set_layouts(count, **layout);
 
         const vk::DescriptorSetAllocateInfo alloc_info{
             .descriptorPool = *pool,
@@ -465,9 +465,9 @@ namespace utils::desc {
             .pSetLayouts = set_layouts.data(),
         };
 
-        std::vector<vk::raii::DescriptorSet> descriptor_sets = ctx.device->allocateDescriptorSets(alloc_info);
+        vector<vk::raii::DescriptorSet> descriptor_sets = ctx.device->allocateDescriptorSets(alloc_info);
 
-        std::vector<FixedDescriptorSet<Ts...> > final_sets;
+        vector<FixedDescriptorSet<Ts...> > final_sets;
 
         for (size_t i = 0; i < count; i++) {
             final_sets.emplace_back(layout, std::move(descriptor_sets[i]));
@@ -477,13 +477,13 @@ namespace utils::desc {
     }
 
     template<typename... Ts>
-    [[nodiscard]] std::vector<FixedDescriptorSet<Ts...> >
+    [[nodiscard]] vector<FixedDescriptorSet<Ts...> >
     create_fixed_descriptor_set(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
                                 const shared_ptr<vk::raii::DescriptorSetLayout> &layout) {
         return create_fixed_descriptor_sets<Ts>(ctx, pool, layout, 1);
     }
 
-    [[nodiscard]] std::vector<DescriptorSet>
+    [[nodiscard]] vector<DescriptorSet>
     create_descriptor_sets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
                            const shared_ptr<vk::raii::DescriptorSetLayout> &layout, uint32_t count);
 

@@ -1,7 +1,7 @@
 #include "vertex.hpp"
 
 namespace zrx {
-std::vector<vk::VertexInputBindingDescription> ModelVertex::get_binding_descriptions() {
+vector<vk::VertexInputBindingDescription> ModelVertex::get_binding_descriptions() {
     return {
         {
             .binding = 0u,
@@ -16,7 +16,7 @@ std::vector<vk::VertexInputBindingDescription> ModelVertex::get_binding_descript
     };
 }
 
-std::vector<vk::VertexInputAttributeDescription> ModelVertex::get_attribute_descriptions() {
+vector<vk::VertexInputAttributeDescription> ModelVertex::get_attribute_descriptions() {
     return {
         {
             .location = 0U,
@@ -75,7 +75,7 @@ std::vector<vk::VertexInputAttributeDescription> ModelVertex::get_attribute_desc
     };
 }
 
-std::vector<vk::VertexInputBindingDescription> SkyboxVertex::get_binding_descriptions() {
+vector<vk::VertexInputBindingDescription> SkyboxVertex::get_binding_descriptions() {
     return {
         {
             .binding = static_cast<uint32_t>(0U),
@@ -85,7 +85,7 @@ std::vector<vk::VertexInputBindingDescription> SkyboxVertex::get_binding_descrip
     };
 }
 
-std::vector<vk::VertexInputAttributeDescription> SkyboxVertex::get_attribute_descriptions() {
+vector<vk::VertexInputAttributeDescription> SkyboxVertex::get_attribute_descriptions() {
     return {
         {
             .location = 0U,
@@ -96,7 +96,7 @@ std::vector<vk::VertexInputAttributeDescription> SkyboxVertex::get_attribute_des
     };
 }
 
-std::vector<vk::VertexInputBindingDescription> ScreenSpaceQuadVertex::get_binding_descriptions() {
+vector<vk::VertexInputBindingDescription> ScreenSpaceQuadVertex::get_binding_descriptions() {
     return {
         {
             .binding = static_cast<uint32_t>(0U),
@@ -106,7 +106,7 @@ std::vector<vk::VertexInputBindingDescription> ScreenSpaceQuadVertex::get_bindin
     };
 }
 
-std::vector<vk::VertexInputAttributeDescription> ScreenSpaceQuadVertex::get_attribute_descriptions() {
+vector<vk::VertexInputAttributeDescription> ScreenSpaceQuadVertex::get_attribute_descriptions() {
     return {
         {
             .location = 0U,

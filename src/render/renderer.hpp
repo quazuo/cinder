@@ -20,7 +20,7 @@
 
 struct GLFWwindow;
 
-static const std::vector device_extensions{
+static const vector device_extensions{
     VK_KHR_SWAPCHAIN_EXTENSION_NAME,
     VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
     VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
@@ -66,24 +66,24 @@ class RenderInfo {
     GraphicsPipelineBuilder cached_pipeline_builder;
     shared_ptr<GraphicsPipeline> pipeline;
 
-    std::vector<RenderTarget> color_targets;
+    vector<RenderTarget> color_targets;
     std::optional<RenderTarget> depth_target;
 
-    std::vector<vk::RenderingAttachmentInfo> color_attachments;
+    vector<vk::RenderingAttachmentInfo> color_attachments;
     std::optional<vk::RenderingAttachmentInfo> depth_attachment;
 
-    std::vector<vk::Format> cached_color_attachment_formats;
+    vector<vk::Format> cached_color_attachment_formats;
 
 public:
     RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline,
-               std::vector<RenderTarget> colors);
+               vector<RenderTarget> colors);
 
     RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline,
-               std::vector<RenderTarget> colors, RenderTarget depth);
+               vector<RenderTarget> colors, RenderTarget depth);
 
-    RenderInfo(std::vector<RenderTarget> colors);
+    RenderInfo(vector<RenderTarget> colors);
 
-    RenderInfo(std::vector<RenderTarget> colors, RenderTarget depth);
+    RenderInfo(vector<RenderTarget> colors, RenderTarget depth);
 
     [[nodiscard]] vk::RenderingInfo get(vk::Extent2D extent, uint32_t views = 1, vk::RenderingFlags flags = {}) const;
 
@@ -127,18 +127,19 @@ class VulkanRenderer {
 
     struct RenderNodeResources {
         RenderNodeHandle handle;
-        std::vector<shared_ptr<DescriptorSet> > descriptor_sets;
-        std::vector<RenderInfo> render_infos;
+        vector<shared_ptr<DescriptorSet> > descriptor_sets;
+        vector<RenderInfo> render_infos;
     };
 
     struct {
         unique_ptr<RenderGraph> render_graph;
-        std::vector<RenderNodeResources> topo_sorted_nodes;
+        vector<RenderNodeResources> topo_sorted_nodes;
     } render_graph_info;
 
     std::map<ResourceHandle, unique_ptr<Buffer> > render_graph_ubos;
     std::map<ResourceHandle, unique_ptr<Texture> > render_graph_textures;
     std::map<ResourceHandle, unique_ptr<Model> > render_graph_models;
+    std::map<ResourceHandle, unique_ptr<GraphicsPipeline> > render_graph_pipelines;
 
     // model
 
@@ -170,13 +171,13 @@ class VulkanRenderer {
 
     // render pass infos & misc pipelines
 
-    std::vector<RenderInfo> scene_render_infos;
-    std::vector<RenderInfo> skybox_render_infos;
-    std::vector<RenderInfo> gui_render_infos;
+    vector<RenderInfo> scene_render_infos;
+    vector<RenderInfo> skybox_render_infos;
+    vector<RenderInfo> gui_render_infos;
     unique_ptr<RenderInfo> prepass_render_info;
     unique_ptr<RenderInfo> ssao_render_info;
     unique_ptr<RenderInfo> cubemap_capture_render_info;
-    std::vector<RenderInfo> debug_quad_render_infos;
+    vector<RenderInfo> debug_quad_render_infos;
 
     unique_ptr<RtPipeline> rt_pipeline;
 
@@ -238,7 +239,7 @@ class VulkanRenderer {
 
     // miscellaneous state variables
 
-    std::vector<FrameBeginCallback> repeated_frame_begin_actions;
+    vector<FrameBeginCallback> repeated_frame_begin_actions;
     std::queue<FrameBeginCallback> queued_frame_begin_actions;
 
     uint32_t current_frame_idx = 0;
@@ -304,7 +305,7 @@ private:
 
     vkb::Instance create_instance();
 
-    static std::vector<const char *> get_required_extensions();
+    static vector<const char *> get_required_extensions();
 
     void create_surface();
 
@@ -375,7 +376,7 @@ private:
     void create_screen_space_quad_vertex_buffer();
 
     template<typename ElemType>
-    unique_ptr<Buffer> create_local_buffer(const std::vector<ElemType> &contents, vk::BufferUsageFlags usage);
+    unique_ptr<Buffer> create_local_buffer(const vector<ElemType> &contents, vk::BufferUsageFlags usage);
 
     void create_uniform_buffers();
 
@@ -407,16 +408,21 @@ public:
 private:
     void create_render_graph_resources();
 
-    [[nodiscard]] std::vector<shared_ptr<DescriptorSet> > create_node_descriptor_sets(RenderNodeHandle node_handle) const;
+    // [[nodiscard]] vector<shared_ptr<DescriptorSet> > create_node_descriptor_sets(RenderNodeHandle node_handle) const;
+
+    [[nodiscard]] vector<shared_ptr<DescriptorSet> > create_graph_descriptor_sets(ResourceHandle pipeline_handle) const;
+
+    [[nodiscard]] GraphicsPipelineBuilder create_graph_pipeline_builder(
+        ResourceHandle pipeline_handle, const vector<shared_ptr<DescriptorSet> > &descriptor_sets) const;
 
     void queue_set_update_with_handle(DescriptorSet &descriptor_set, ResourceHandle res_handle,
                                       uint32_t binding, uint32_t array_element = 0) const;
 
-    [[nodiscard]] GraphicsPipelineBuilder create_node_pipeline_builder(
-        RenderNodeHandle node_handle, const std::vector<shared_ptr<DescriptorSet> > &descriptor_sets) const;
+    // [[nodiscard]] GraphicsPipelineBuilder create_node_pipeline_builder(
+    //     RenderNodeHandle node_handle, const vector<shared_ptr<DescriptorSet> > &descriptor_sets) const;
 
-    [[nodiscard]] std::vector<RenderInfo> create_node_render_infos(
-        RenderNodeHandle node_handle, const std::vector<shared_ptr<DescriptorSet> > &descriptor_sets) const;
+    [[nodiscard]] vector<RenderInfo> create_node_render_infos(
+        RenderNodeHandle node_handle, const vector<shared_ptr<DescriptorSet> > &descriptor_sets) const;
 
     void record_graph_commands() const;
 

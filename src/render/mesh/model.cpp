@@ -234,8 +234,8 @@ void Model::add_instances(const aiNode *node, const glm::mat4 &base_transform) {
     }
 }
 
-std::vector<ModelVertex> Model::get_vertices() const {
-    std::vector<ModelVertex> vertices;
+vector<ModelVertex> Model::get_vertices() const {
+    vector<ModelVertex> vertices;
 
     size_t total_size = 0;
     for (const auto &mesh: meshes) {
@@ -251,8 +251,8 @@ std::vector<ModelVertex> Model::get_vertices() const {
     return vertices;
 }
 
-std::vector<uint32_t> Model::get_indices() const {
-    std::vector<uint32_t> indices;
+vector<uint32_t> Model::get_indices() const {
+    vector<uint32_t> indices;
 
     size_t total_size = 0;
     for (const auto &mesh: meshes) {
@@ -268,8 +268,8 @@ std::vector<uint32_t> Model::get_indices() const {
     return indices;
 }
 
-std::vector<glm::mat4> Model::get_instance_transforms() const {
-    std::vector<glm::mat4> result;
+vector<glm::mat4> Model::get_instance_transforms() const {
+    vector<glm::mat4> result;
 
     size_t total_size = 0;
     for (const auto &mesh: meshes) {
@@ -285,8 +285,8 @@ std::vector<glm::mat4> Model::get_instance_transforms() const {
     return result;
 }
 
-std::vector<MeshDescription> Model::get_mesh_descriptions() const {
-    std::vector<MeshDescription> result;
+vector<MeshDescription> Model::get_mesh_descriptions() const {
+    vector<MeshDescription> result;
 
     uint32_t index_offset  = 0;
     uint32_t vertex_offset = 0;
