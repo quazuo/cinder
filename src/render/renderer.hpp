@@ -63,9 +63,6 @@ struct ScenePushConstants {
 };
 
 class RenderInfo {
-    GraphicsPipelineBuilder cached_pipeline_builder;
-    shared_ptr<GraphicsPipeline> pipeline;
-
     vector<RenderTarget> color_targets;
     std::optional<RenderTarget> depth_target;
 
@@ -75,39 +72,17 @@ class RenderInfo {
     vector<vk::Format> cached_color_attachment_formats;
 
 public:
-    RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline,
-               vector<RenderTarget> colors);
-
-    RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline,
-               vector<RenderTarget> colors, RenderTarget depth);
-
     RenderInfo(vector<RenderTarget> colors);
 
     RenderInfo(vector<RenderTarget> colors, RenderTarget depth);
 
     [[nodiscard]] vk::RenderingInfo get(vk::Extent2D extent, uint32_t views = 1, vk::RenderingFlags flags = {}) const;
 
-    [[nodiscard]] const GraphicsPipeline &get_pipeline() const { return *pipeline; }
-
-    [[nodiscard]] vk::CommandBufferInheritanceRenderingInfo get_inheritance_rendering_info() const;
-
-    void reload_shaders(const RendererContext &ctx) const;
-
 private:
     void make_attachment_infos();
 };
 
 class VulkanRenderer {
-    using CubemapCaptureDescriptorSet = FixedDescriptorSet<Buffer, Texture>;
-    using DebugQuadDescriptorSet = FixedDescriptorSet<Texture>;
-    using MaterialsDescriptorSet = FixedDescriptorSet<Texture, Texture, Texture, Texture>;
-    using SceneDescriptorSet = FixedDescriptorSet<Buffer, Texture>;
-    using SkyboxDescriptorSet = FixedDescriptorSet<Buffer, Texture>;
-    using PrepassDescriptorSet = FixedDescriptorSet<Buffer>;
-    using RtDescriptorSet = FixedDescriptorSet<Buffer, AccelerationStructure, Texture>;
-    using SsaoDescriptorSet = FixedDescriptorSet<Buffer, Texture, Texture, Texture, Texture>;
-    using MeshesDescriptorSet = FixedDescriptorSet<Buffer, Buffer, Buffer>;
-
     GLFWwindow *window = nullptr;
 
     vk::raii::Context vk_ctx;
@@ -123,11 +98,10 @@ class VulkanRenderer {
 
     unique_ptr<vk::raii::DescriptorPool> descriptor_pool;
 
-    // render graph
+    // render graph stuff
 
     struct RenderNodeResources {
         RenderNodeHandle handle;
-        vector<shared_ptr<DescriptorSet> > descriptor_sets;
         vector<RenderInfo> render_infos;
     };
 
@@ -141,52 +115,10 @@ class VulkanRenderer {
     std::map<ResourceHandle, unique_ptr<Model> > render_graph_models;
     std::map<ResourceHandle, unique_ptr<GraphicsPipeline> > render_graph_pipelines;
 
-    // model
-
-    unique_ptr<Model> model;
-    Material separate_material;
-
-    // textures
-
-    unique_ptr<Texture> ssao_texture;
-    unique_ptr<Texture> ssao_noise_texture;
-
-    struct {
-        unique_ptr<Texture> depth;
-        unique_ptr<Texture> normal;
-        unique_ptr<Texture> pos;
-    } g_buffer_textures;
-
-    unique_ptr<Texture> skybox_texture;
-    unique_ptr<Texture> envmap_texture;
-
-    unique_ptr<Texture> rt_target_texture;
-
-    // descriptors
-
-    unique_ptr<MaterialsDescriptorSet> materials_descriptor_set;
-    unique_ptr<MeshesDescriptorSet> meshes_descriptor_set;
-    unique_ptr<CubemapCaptureDescriptorSet> cubemap_capture_descriptor_set;
-    unique_ptr<DebugQuadDescriptorSet> debug_quad_descriptor_set;
-
-    // render pass infos & misc pipelines
-
-    vector<RenderInfo> scene_render_infos;
-    vector<RenderInfo> skybox_render_infos;
-    vector<RenderInfo> gui_render_infos;
-    unique_ptr<RenderInfo> prepass_render_info;
-    unique_ptr<RenderInfo> ssao_render_info;
-    unique_ptr<RenderInfo> cubemap_capture_render_info;
-    vector<RenderInfo> debug_quad_render_infos;
-
-    unique_ptr<RtPipeline> rt_pipeline;
-
     // buffers and other resources
 
     unique_ptr<Buffer> skybox_vertex_buffer;
     unique_ptr<Buffer> screen_space_quad_vertex_buffer;
-
-    unique_ptr<AccelerationStructure> tlas;
 
     using TimelineSemValueType = std::uint64_t;
 
@@ -202,24 +134,7 @@ class VulkanRenderer {
             Timeline render_finished_timeline;
         } sync;
 
-        // primary command buffer
         unique_ptr<vk::raii::CommandBuffer> graphics_cmd_buffer;
-
-        SecondaryCommandBuffer scene_cmd_buffer;
-        SecondaryCommandBuffer rt_cmd_buffer;
-        SecondaryCommandBuffer prepass_cmd_buffer;
-        SecondaryCommandBuffer ssao_cmd_buffer;
-        SecondaryCommandBuffer gui_cmd_buffer;
-        SecondaryCommandBuffer debug_cmd_buffer;
-
-        unique_ptr<Buffer> graphics_uniform_buffer;
-        void *graphics_ubo_mapped{};
-
-        unique_ptr<SceneDescriptorSet> scene_descriptor_set;
-        unique_ptr<SkyboxDescriptorSet> skybox_descriptor_set;
-        unique_ptr<PrepassDescriptorSet> prepass_descriptor_set;
-        unique_ptr<SsaoDescriptorSet> ssao_descriptor_set;
-        unique_ptr<RtDescriptorSet> rt_descriptor_set;
     };
 
     static constexpr size_t MAX_FRAMES_IN_FLIGHT = 3;
@@ -229,13 +144,6 @@ class VulkanRenderer {
 
     unique_ptr<vk::raii::DescriptorPool> imgui_descriptor_pool;
     unique_ptr<GuiRenderer> gui_renderer;
-
-    // miscellaneous constants
-
-    static constexpr auto prepass_color_format = vk::Format::eR16G16B16A16Sfloat;
-    static constexpr auto hdr_envmap_format = vk::Format::eR32G32B32A32Sfloat;
-
-    static constexpr uint32_t MATERIAL_TEX_ARRAY_SIZE = 32;
 
     // miscellaneous state variables
 
@@ -247,9 +155,6 @@ class VulkanRenderer {
     bool framebuffer_resized = false;
 
     vk::SampleCountFlagBits msaa_sample_count = vk::SampleCountFlagBits::e1;
-
-    bool cull_back_faces = false;
-    bool wireframe_mode = false;
     bool use_msaa = false;
 
 public:
@@ -279,25 +184,6 @@ public:
 
     void register_render_graph(const RenderGraph &graph);
 
-    void load_model_with_materials(const std::filesystem::path &path);
-
-    void load_model(const std::filesystem::path &path);
-
-    void load_base_color_texture(const std::filesystem::path &path);
-
-    void load_normal_map(const std::filesystem::path &path);
-
-    void load_orm_map(const std::filesystem::path &path);
-
-    void load_orm_map(const std::filesystem::path &ao_path, const std::filesystem::path &roughness_path,
-                      const std::filesystem::path &metallic_path);
-
-    void load_rma_map(const std::filesystem::path &path);
-
-    void load_environment_map(const std::filesystem::path &path);
-
-    void reload_shaders() const;
-
 private:
     static void framebuffer_resize_callback(GLFWwindow *window, int width, int height);
 
@@ -313,16 +199,6 @@ private:
 
     void create_logical_device(const vkb::PhysicalDevice &vkb_physical_device);
 
-    // ==================== assets ====================
-
-    void create_skybox_texture();
-
-    void create_prepass_textures();
-
-    void create_ssao_textures();
-
-    void create_rt_target_texture();
-
     // ==================== swap chain ====================
 
     void recreate_swap_chain();
@@ -330,40 +206,6 @@ private:
     // ==================== descriptors ====================
 
     void create_descriptor_pool();
-
-    void create_scene_descriptor_sets();
-
-    void create_materials_descriptor_set();
-
-    void create_skybox_descriptor_sets();
-
-    void create_prepass_descriptor_sets();
-
-    void create_ssao_descriptor_sets();
-
-    void create_cubemap_capture_descriptor_set();
-
-    void create_debug_quad_descriptor_set();
-
-    void create_rt_descriptor_sets();
-
-    void create_meshes_descriptor_set();
-
-    // ==================== render infos ====================
-
-    void create_scene_render_infos();
-
-    void create_skybox_render_infos();
-
-    void create_gui_render_infos();
-
-    void create_prepass_render_info();
-
-    void create_ssao_render_info();
-
-    void create_cubemap_capture_render_info();
-
-    void create_debug_quad_render_infos();
 
     // ==================== multisampling ====================
 
@@ -378,8 +220,6 @@ private:
     template<typename ElemType>
     unique_ptr<Buffer> create_local_buffer(const vector<ElemType> &contents, vk::BufferUsageFlags usage);
 
-    void create_uniform_buffers();
-
     // ==================== commands ====================
 
     void create_command_pool();
@@ -389,12 +229,6 @@ private:
     // ==================== sync ====================
 
     void create_sync_objects();
-
-    // ==================== ray tracing ====================
-
-    void create_tlas();
-
-    void create_rt_pipeline();
 
     // ==================== gui ====================
 
@@ -408,8 +242,6 @@ public:
 private:
     void create_render_graph_resources();
 
-    // [[nodiscard]] vector<shared_ptr<DescriptorSet> > create_node_descriptor_sets(RenderNodeHandle node_handle) const;
-
     [[nodiscard]] vector<shared_ptr<DescriptorSet> > create_graph_descriptor_sets(ResourceHandle pipeline_handle) const;
 
     [[nodiscard]] GraphicsPipelineBuilder create_graph_pipeline_builder(
@@ -418,11 +250,7 @@ private:
     void queue_set_update_with_handle(DescriptorSet &descriptor_set, ResourceHandle res_handle,
                                       uint32_t binding, uint32_t array_element = 0) const;
 
-    // [[nodiscard]] GraphicsPipelineBuilder create_node_pipeline_builder(
-    //     RenderNodeHandle node_handle, const vector<shared_ptr<DescriptorSet> > &descriptor_sets) const;
-
-    [[nodiscard]] vector<RenderInfo> create_node_render_infos(
-        RenderNodeHandle node_handle, const vector<shared_ptr<DescriptorSet> > &descriptor_sets) const;
+    [[nodiscard]] vector<RenderInfo> create_node_render_infos(RenderNodeHandle node_handle) const;
 
     void record_graph_commands() const;
 
@@ -446,33 +274,15 @@ private:
 
     [[nodiscard]] vk::Format get_target_depth_format(ResourceHandle handle) const;
 
+    // ==================== render loop ====================
+
 public:
     void run_render_graph();
-
-    // ==================== render loop ====================
 
     void do_frame_begin_actions();
 
     bool start_frame();
 
     void end_frame();
-
-    void render_gui(const std::function<void()> &render_commands);
-
-    void run_prepass();
-
-    void run_ssao_pass();
-
-    void raytrace();
-
-    void draw_scene();
-
-    void draw_debug_quad();
-
-private:
-    void draw_model(const vk::raii::CommandBuffer &command_buffer, bool do_push_constants,
-                    const GraphicsPipeline &pipeline) const;
-
-    void capture_cubemap() const;
 };
 } // zrx

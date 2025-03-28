@@ -264,267 +264,6 @@ void VulkanRenderer::create_logical_device(const vkb::PhysicalDevice &vkb_physic
     };
 }
 
-// ==================== models ====================
-
-void VulkanRenderer::load_model_with_materials(const std::filesystem::path &path) {
-    wait_idle();
-
-    model.reset();
-    model = make_unique<Model>(ctx, path, true);
-
-    const auto &materials = model->get_materials();
-
-    for (uint32_t i = 0; i < materials.size(); i++) {
-        const auto &material = materials[i];
-
-        if (material.base_color) {
-            materials_descriptor_set->queue_update<0>(*material.base_color, i);
-        }
-
-        if (material.normal) {
-            materials_descriptor_set->queue_update<1>(*material.normal, i);
-        }
-
-        if (material.orm) {
-            materials_descriptor_set->queue_update<2>(*material.orm, i);
-        }
-    }
-
-    materials_descriptor_set->commit_updates();
-}
-
-void VulkanRenderer::load_model(const std::filesystem::path &path) {
-    wait_idle();
-
-    model.reset();
-    model = make_unique<Model>(ctx, path, false);
-}
-
-// ==================== assets ====================
-
-void VulkanRenderer::load_base_color_texture(const std::filesystem::path &path) {
-    wait_idle();
-
-    separate_material.base_color.reset();
-    separate_material.base_color = TextureBuilder()
-            .from_paths({path})
-            .with_flags(vk::TextureFlagBitsZRX::MIPMAPS)
-            .create(ctx);
-
-    materials_descriptor_set->update_binding<0>(*separate_material.base_color);
-}
-
-void VulkanRenderer::load_normal_map(const std::filesystem::path &path) {
-    wait_idle();
-
-    separate_material.normal.reset();
-    separate_material.normal = TextureBuilder()
-            .use_format(vk::Format::eR8G8B8A8Unorm)
-            .from_paths({path})
-            .create(ctx);
-
-    materials_descriptor_set->update_binding<1>(*separate_material.normal);
-}
-
-void VulkanRenderer::load_orm_map(const std::filesystem::path &path) {
-    wait_idle();
-
-    separate_material.orm.reset();
-    separate_material.orm = TextureBuilder()
-            .use_format(vk::Format::eR8G8B8A8Unorm)
-            .from_paths({path})
-            .create(ctx);
-
-    materials_descriptor_set->update_binding<2>(*separate_material.orm);
-}
-
-void VulkanRenderer::load_orm_map(const std::filesystem::path &ao_path, const std::filesystem::path &roughness_path,
-                                  const std::filesystem::path &metallic_path) {
-    wait_idle();
-
-    separate_material.orm.reset();
-    separate_material.orm = TextureBuilder()
-            .use_format(vk::Format::eR8G8B8A8Unorm)
-            .as_separate_channels()
-            .from_paths({ao_path, roughness_path, metallic_path})
-            .with_swizzle({
-                ao_path.empty() ? SwizzleComponent::MAX : SwizzleComponent::R,
-                SwizzleComponent::G,
-                metallic_path.empty() ? SwizzleComponent::ZERO : SwizzleComponent::B,
-                SwizzleComponent::A
-            })
-            .with_flags(vk::TextureFlagBitsZRX::MIPMAPS)
-            .create(ctx);
-
-    materials_descriptor_set->update_binding<2>(*separate_material.orm);
-}
-
-void VulkanRenderer::load_rma_map(const std::filesystem::path &path) {
-    wait_idle();
-
-    separate_material.orm.reset();
-    separate_material.orm = TextureBuilder()
-            .with_swizzle({
-                SwizzleComponent::B, SwizzleComponent::R, SwizzleComponent::G, SwizzleComponent::A
-            })
-            .use_format(vk::Format::eR8G8B8A8Unorm)
-            .from_paths({path})
-            .create(ctx);
-
-    materials_descriptor_set->update_binding<2>(*separate_material.orm);
-}
-
-void VulkanRenderer::load_environment_map(const std::filesystem::path &path) {
-    wait_idle();
-
-    envmap_texture = TextureBuilder()
-            .with_flags(vk::TextureFlagBitsZRX::MIPMAPS | vk::TextureFlagBitsZRX::HDR)
-            .use_format(hdr_envmap_format)
-            .from_paths({path})
-            .with_sampler_address_mode(vk::SamplerAddressMode::eClampToEdge)
-            .create(ctx);
-
-    cubemap_capture_descriptor_set->update_binding<1>(*envmap_texture);
-
-    capture_cubemap();
-}
-
-void VulkanRenderer::create_prepass_textures() {
-    const auto &[width, height] = swap_chain->get_extent();
-
-    const vk::Extent3D extent{
-        .width = width,
-        .height = height,
-        .depth = 1
-    };
-
-    g_buffer_textures.pos = TextureBuilder()
-            .as_uninitialized(extent)
-            .use_format(prepass_color_format)
-            .use_usage(vk::ImageUsageFlagBits::eTransferSrc
-                       | vk::ImageUsageFlagBits::eTransferDst
-                       | vk::ImageUsageFlagBits::eSampled
-                       | vk::ImageUsageFlagBits::eColorAttachment)
-            .create(ctx);
-
-    g_buffer_textures.normal = TextureBuilder()
-            .as_uninitialized(extent)
-            .use_format(prepass_color_format)
-            .use_usage(vk::ImageUsageFlagBits::eTransferSrc
-                       | vk::ImageUsageFlagBits::eTransferDst
-                       | vk::ImageUsageFlagBits::eSampled
-                       | vk::ImageUsageFlagBits::eColorAttachment)
-            .create(ctx);
-
-    g_buffer_textures.depth = TextureBuilder()
-            .as_uninitialized(extent)
-            .use_format(swap_chain->get_depth_format())
-            .use_usage(vk::ImageUsageFlagBits::eTransferSrc
-                       | vk::ImageUsageFlagBits::eTransferDst
-                       | vk::ImageUsageFlagBits::eSampled
-                       | vk::ImageUsageFlagBits::eDepthStencilAttachment)
-            .create(ctx);
-
-    for (auto &res: frame_resources) {
-        if (res.ssao_descriptor_set) {
-            res.ssao_descriptor_set->queue_update<1>(*g_buffer_textures.depth)
-                    .queue_update<2>(*g_buffer_textures.normal)
-                    .queue_update<3>(*g_buffer_textures.pos)
-                    .commit_updates();
-        }
-    }
-}
-
-void VulkanRenderer::create_skybox_texture() {
-    skybox_texture = TextureBuilder()
-            .with_flags(vk::TextureFlagBitsZRX::MIPMAPS | vk::TextureFlagBitsZRX::HDR | vk::TextureFlagBitsZRX::CUBEMAP)
-            .as_uninitialized({2048, 2048, 1})
-            .use_format(hdr_envmap_format)
-            .use_usage(vk::ImageUsageFlagBits::eTransferSrc
-                       | vk::ImageUsageFlagBits::eTransferDst
-                       | vk::ImageUsageFlagBits::eSampled
-                       | vk::ImageUsageFlagBits::eColorAttachment)
-            .create(ctx);
-}
-
-static vector<glm::vec4> make_ssao_noise() {
-    std::uniform_real_distribution<float> random_floats(0.0, 1.0); // random floats between [0.0, 1.0]
-    std::default_random_engine generator;
-
-    vector<glm::vec4> ssao_noise;
-    for (unsigned int i = 0; i < 16; i++) {
-        glm::vec4 noise(
-            random_floats(generator) * 2.0 - 1.0,
-            random_floats(generator) * 2.0 - 1.0,
-            0.0f,
-            0.0f
-        );
-        ssao_noise.push_back(noise);
-    }
-
-    return ssao_noise;
-}
-
-void VulkanRenderer::create_ssao_textures() {
-    const auto attachment_usage_flags = vk::ImageUsageFlagBits::eTransferSrc
-                                        | vk::ImageUsageFlagBits::eTransferDst
-                                        | vk::ImageUsageFlagBits::eSampled
-                                        | vk::ImageUsageFlagBits::eColorAttachment;
-
-    const auto &[width, height] = swap_chain->get_extent();
-
-    const vk::Extent3D extent{
-        .width = width,
-        .height = height,
-        .depth = 1
-    };
-
-    ssao_texture = TextureBuilder()
-            .as_uninitialized(extent)
-            .use_format(vk::Format::eR8G8B8A8Unorm)
-            .use_usage(attachment_usage_flags)
-            .create(ctx);
-
-    auto noise = make_ssao_noise();
-
-    ssao_noise_texture = TextureBuilder()
-            .from_memory(noise.data(), {4, 4, 1})
-            .use_format(vk::Format::eR32G32B32A32Sfloat)
-            .use_usage(attachment_usage_flags)
-            .with_sampler_address_mode(vk::SamplerAddressMode::eRepeat)
-            .create(ctx);
-
-    for (auto &res: frame_resources) {
-        if (res.scene_descriptor_set) {
-            res.scene_descriptor_set->update_binding<1>(*ssao_texture);
-        }
-
-        if (res.ssao_descriptor_set) {
-            res.ssao_descriptor_set->update_binding<4>(*ssao_noise_texture);
-        }
-    }
-}
-
-void VulkanRenderer::create_rt_target_texture() {
-    const auto &[width, height] = swap_chain->get_extent();
-
-    const vk::Extent3D extent{
-        .width = width,
-        .height = height,
-        .depth = 1
-    };
-
-    rt_target_texture = TextureBuilder()
-            .as_uninitialized(extent)
-            .use_format(vk::Format::eR32G32B32A32Sfloat)
-            .use_usage(vk::ImageUsageFlagBits::eStorage
-                       | vk::ImageUsageFlagBits::eSampled
-                       | vk::ImageUsageFlagBits::eTransferSrc
-                       | vk::ImageUsageFlagBits::eTransferDst)
-            .use_layout(vk::ImageLayout::eGeneral)
-            .create(ctx);
-}
-
 // ==================== swapchain ====================
 
 void VulkanRenderer::recreate_swap_chain() {
@@ -546,18 +285,6 @@ void VulkanRenderer::recreate_swap_chain() {
         window,
         get_msaa_sample_count()
     );
-
-    // todo - this shouldn't recreate pipelines
-    create_scene_render_infos();
-    create_skybox_render_infos();
-    create_gui_render_infos();
-    create_debug_quad_render_infos();
-
-    create_prepass_textures();
-    create_prepass_render_info();
-
-    create_ssao_textures();
-    create_ssao_render_info();
 }
 
 // ==================== descriptors ====================
@@ -597,163 +324,7 @@ void VulkanRenderer::create_descriptor_pool() {
     descriptor_pool = make_unique<vk::raii::DescriptorPool>(*ctx.device, pool_info);
 }
 
-void VulkanRenderer::create_scene_descriptor_sets() {
-    for (auto &res: frame_resources) {
-        res.scene_descriptor_set = make_unique<SceneDescriptorSet>(
-            ctx,
-            *descriptor_pool,
-            ResourcePack{
-                *res.graphics_uniform_buffer,
-                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-            },
-            ResourcePack{*ssao_texture, vk::ShaderStageFlagBits::eFragment}
-        );
-    }
-}
-
-void VulkanRenderer::create_materials_descriptor_set() {
-    constexpr auto scope = vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eClosestHitKHR;
-    constexpr auto type = vk::DescriptorType::eCombinedImageSampler;
-    constexpr auto descriptor_count = MATERIAL_TEX_ARRAY_SIZE;
-
-    materials_descriptor_set = make_unique<MaterialsDescriptorSet>(
-        ctx,
-        *descriptor_pool,
-        ResourcePack<Texture>{descriptor_count, scope, type}, // base colors
-        ResourcePack<Texture>{descriptor_count, scope, type}, // normals
-        ResourcePack<Texture>{descriptor_count, scope, type}, // orms
-        ResourcePack{
-            // skybox
-            *skybox_texture,
-            vk::ShaderStageFlagBits::eFragment | vk::ShaderStageFlagBits::eMissKHR,
-            type
-        }
-    );
-}
-
-void VulkanRenderer::create_skybox_descriptor_sets() {
-    for (auto &res: frame_resources) {
-        res.skybox_descriptor_set = make_unique<SkyboxDescriptorSet>(
-            ctx,
-            *descriptor_pool,
-            ResourcePack{
-                *res.graphics_uniform_buffer,
-                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-            },
-            ResourcePack{*skybox_texture, vk::ShaderStageFlagBits::eFragment}
-        );
-    }
-}
-
-void VulkanRenderer::create_prepass_descriptor_sets() {
-    for (auto &res: frame_resources) {
-        res.prepass_descriptor_set = make_unique<PrepassDescriptorSet>(
-            ctx,
-            *descriptor_pool,
-            ResourcePack{
-                *res.graphics_uniform_buffer,
-                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-            }
-        );
-    }
-}
-
-void VulkanRenderer::create_ssao_descriptor_sets() {
-    for (auto &res: frame_resources) {
-        res.ssao_descriptor_set = make_unique<SsaoDescriptorSet>(
-            ctx,
-            *descriptor_pool,
-            ResourcePack{
-                *res.graphics_uniform_buffer,
-                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-            },
-            ResourcePack{*g_buffer_textures.depth, vk::ShaderStageFlagBits::eFragment},
-            ResourcePack{*g_buffer_textures.normal, vk::ShaderStageFlagBits::eFragment},
-            ResourcePack{*g_buffer_textures.pos, vk::ShaderStageFlagBits::eFragment},
-            ResourcePack{*ssao_noise_texture, vk::ShaderStageFlagBits::eFragment}
-        );
-    }
-}
-
-void VulkanRenderer::create_cubemap_capture_descriptor_set() {
-    cubemap_capture_descriptor_set = make_unique<CubemapCaptureDescriptorSet>(
-        ctx,
-        *descriptor_pool,
-        ResourcePack{
-            *frame_resources[0].graphics_uniform_buffer,
-            vk::ShaderStageFlagBits::eVertex,
-        },
-        envmap_texture
-        ? ResourcePack{*envmap_texture, vk::ShaderStageFlagBits::eFragment}
-        : ResourcePack<Texture>{1, vk::ShaderStageFlagBits::eFragment}
-    );
-}
-
-void VulkanRenderer::create_debug_quad_descriptor_set() {
-    debug_quad_descriptor_set = make_unique<DebugQuadDescriptorSet>(
-        ctx,
-        *descriptor_pool,
-        ResourcePack{*rt_target_texture, vk::ShaderStageFlagBits::eFragment}
-    );
-}
-
-void VulkanRenderer::create_rt_descriptor_sets() {
-    for (auto &res: frame_resources) {
-        res.rt_descriptor_set = make_unique<RtDescriptorSet>(
-            ctx,
-            *descriptor_pool,
-            ResourcePack{
-                *res.graphics_uniform_buffer,
-                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eRaygenKHR,
-            },
-            ResourcePack{
-                *tlas, vk::ShaderStageFlagBits::eRaygenKHR
-            },
-            ResourcePack{
-                *rt_target_texture,
-                vk::ShaderStageFlagBits::eRaygenKHR,
-                vk::DescriptorType::eStorageImage
-            }
-        );
-    }
-}
-
-void VulkanRenderer::create_meshes_descriptor_set() {
-    meshes_descriptor_set = make_unique<MeshesDescriptorSet>(
-        ctx,
-        *descriptor_pool,
-        ResourcePack{
-            model->get_mesh_descriptions_buffer(),
-            vk::ShaderStageFlagBits::eClosestHitKHR,
-            vk::DescriptorType::eStorageBuffer
-        },
-        ResourcePack{
-            model->get_vertex_buffer(),
-            vk::ShaderStageFlagBits::eClosestHitKHR,
-            vk::DescriptorType::eStorageBuffer
-        },
-        ResourcePack{
-            model->get_index_buffer(),
-            vk::ShaderStageFlagBits::eClosestHitKHR,
-            vk::DescriptorType::eStorageBuffer
-        }
-    );
-}
-
 // ==================== render infos ====================
-
-RenderInfo::RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline,
-                       vector<RenderTarget> colors)
-    : cached_pipeline_builder(std::move(builder)), pipeline(std::move(pipeline)), color_targets(std::move(colors)) {
-    make_attachment_infos();
-}
-
-RenderInfo::RenderInfo(GraphicsPipelineBuilder builder, shared_ptr<GraphicsPipeline> pipeline,
-                       vector<RenderTarget> colors, RenderTarget depth)
-    : cached_pipeline_builder(std::move(builder)), pipeline(std::move(pipeline)),
-      color_targets(std::move(colors)), depth_target(std::move(depth)) {
-    make_attachment_infos();
-}
 
 RenderInfo::RenderInfo(vector<RenderTarget> colors) : color_targets(std::move(colors)) {
     make_attachment_infos();
@@ -780,19 +351,6 @@ vk::RenderingInfo RenderInfo::get(const vk::Extent2D extent, const uint32_t view
     };
 }
 
-vk::CommandBufferInheritanceRenderingInfo RenderInfo::get_inheritance_rendering_info() const {
-    return vk::CommandBufferInheritanceRenderingInfo{
-        .colorAttachmentCount = static_cast<uint32_t>(cached_color_attachment_formats.size()),
-        .pColorAttachmentFormats = cached_color_attachment_formats.data(),
-        .depthAttachmentFormat = depth_target ? depth_target->get_format() : static_cast<vk::Format>(0),
-        .rasterizationSamples = pipeline->get_sample_count(),
-    };
-}
-
-void RenderInfo::reload_shaders(const RendererContext &ctx) const {
-    *pipeline = cached_pipeline_builder.create(ctx);
-}
-
 void RenderInfo::make_attachment_infos() {
     for (const auto &target: color_targets) {
         color_attachments.emplace_back(target.get_attachment_info());
@@ -802,268 +360,6 @@ void RenderInfo::make_attachment_infos() {
     if (depth_target) {
         depth_attachment = depth_target->get_attachment_info();
     }
-}
-
-void VulkanRenderer::create_scene_render_infos() {
-    scene_render_infos.clear();
-
-    auto builder = GraphicsPipelineBuilder()
-            .with_vertex_shader("../shaders/obj/main-vert.spv")
-            .with_fragment_shader("../shaders/obj/main-frag.spv")
-            .with_vertices<ModelVertex>()
-            .with_rasterizer({
-                .polygonMode = wireframe_mode ? vk::PolygonMode::eLine : vk::PolygonMode::eFill,
-                .cullMode = cull_back_faces ? vk::CullModeFlagBits::eBack : vk::CullModeFlagBits::eNone,
-                .frontFace = vk::FrontFace::eCounterClockwise,
-                .lineWidth = 1.0f,
-            })
-            .with_multisampling({
-                .rasterizationSamples = get_msaa_sample_count(),
-                .minSampleShading = 1.0f,
-            })
-            .with_descriptor_layouts({
-                *frame_resources[0].scene_descriptor_set->get_layout(),
-                *materials_descriptor_set->get_layout(),
-            })
-            .with_push_constants({
-                vk::PushConstantRange{
-                    .stageFlags = vk::ShaderStageFlagBits::eFragment,
-                    .offset = 0,
-                    .size = sizeof(ScenePushConstants),
-                }
-            })
-            .with_color_formats({swap_chain->get_image_format()})
-            .with_depth_format(swap_chain->get_depth_format());
-
-    auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
-
-    for (auto &target: swap_chain->get_render_targets(ctx)) {
-        vector<RenderTarget> color_targets;
-        color_targets.emplace_back(std::move(target.color_target));
-
-        target.depth_target.override_attachment_config(vk::AttachmentLoadOp::eClear, vk::AttachmentStoreOp::eDontCare);
-
-        scene_render_infos.emplace_back(
-            builder,
-            pipeline,
-            std::move(color_targets),
-            std::move(target.depth_target)
-        );
-    }
-}
-
-void VulkanRenderer::create_skybox_render_infos() {
-    skybox_render_infos.clear();
-
-    auto builder = GraphicsPipelineBuilder()
-            .with_vertex_shader("../shaders/obj/skybox-vert.spv")
-            .with_fragment_shader("../shaders/obj/skybox-frag.spv")
-            .with_vertices<SkyboxVertex>()
-            .with_rasterizer({
-                .polygonMode = vk::PolygonMode::eFill,
-                .cullMode = vk::CullModeFlagBits::eNone,
-                .frontFace = vk::FrontFace::eCounterClockwise,
-                .lineWidth = 1.0f,
-            })
-            .with_multisampling({
-                .rasterizationSamples = get_msaa_sample_count(),
-                .minSampleShading = 1.0f,
-            })
-            .with_depth_stencil({
-                .depthTestEnable = vk::False,
-                .depthWriteEnable = vk::False,
-            })
-            .with_descriptor_layouts({
-                *frame_resources[0].skybox_descriptor_set->get_layout(),
-            })
-            .with_color_formats({swap_chain->get_image_format()})
-            .with_depth_format(swap_chain->get_depth_format());
-
-    auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
-
-    for (auto &target: swap_chain->get_render_targets(ctx)) {
-        vector<RenderTarget> color_targets;
-        color_targets.emplace_back(std::move(target.color_target));
-
-        skybox_render_infos.emplace_back(
-            builder,
-            pipeline,
-            std::move(color_targets),
-            std::move(target.depth_target)
-        );
-    }
-}
-
-void VulkanRenderer::create_gui_render_infos() {
-    gui_render_infos.clear();
-
-    for (auto &target: swap_chain->get_render_targets(ctx)) {
-        target.color_target.override_attachment_config(vk::AttachmentLoadOp::eLoad);
-
-        vector<RenderTarget> color_targets;
-        color_targets.emplace_back(std::move(target.color_target));
-
-        gui_render_infos.emplace_back(std::move(color_targets));
-    }
-}
-
-void VulkanRenderer::create_prepass_render_info() {
-    vector<RenderTarget> color_targets;
-    color_targets.emplace_back(ctx, *g_buffer_textures.normal);
-    color_targets.emplace_back(ctx, *g_buffer_textures.pos);
-
-    RenderTarget depth_target{ctx, *g_buffer_textures.depth};
-
-    vector<vk::Format> color_formats;
-    for (const auto &target: color_targets) color_formats.emplace_back(target.get_format());
-
-    auto builder = GraphicsPipelineBuilder()
-            .with_vertex_shader("../shaders/obj/prepass-vert.spv")
-            .with_fragment_shader("../shaders/obj/prepass-frag.spv")
-            .with_vertices<ModelVertex>()
-            .with_rasterizer({
-                .polygonMode = vk::PolygonMode::eFill,
-                .cullMode = vk::CullModeFlagBits::eNone,
-                .frontFace = vk::FrontFace::eCounterClockwise,
-                .lineWidth = 1.0f,
-            })
-            .with_descriptor_layouts({
-                *frame_resources[0].prepass_descriptor_set->get_layout(),
-            })
-            .with_color_formats(color_formats)
-            .with_depth_format(depth_target.get_format());
-
-    auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
-
-    prepass_render_info = make_unique<RenderInfo>(
-        builder,
-        pipeline,
-        std::move(color_targets),
-        std::move(depth_target)
-    );
-}
-
-void VulkanRenderer::create_ssao_render_info() {
-    RenderTarget target{ctx, *ssao_texture};
-
-    auto builder = GraphicsPipelineBuilder()
-            .with_vertex_shader("../shaders/obj/ssao-vert.spv")
-            .with_fragment_shader("../shaders/obj/ssao-frag.spv")
-            .with_vertices<ScreenSpaceQuadVertex>()
-            .with_rasterizer({
-                .polygonMode = vk::PolygonMode::eFill,
-                .cullMode = vk::CullModeFlagBits::eNone,
-                .frontFace = vk::FrontFace::eCounterClockwise,
-                .lineWidth = 1.0f,
-            })
-            .with_descriptor_layouts({
-                *frame_resources[0].ssao_descriptor_set->get_layout(),
-            })
-            .with_color_formats({target.get_format()});
-
-    auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
-
-    vector<RenderTarget> targets;
-    targets.emplace_back(std::move(target));
-
-    ssao_render_info = make_unique<RenderInfo>(
-        builder,
-        pipeline,
-        std::move(targets)
-    );
-}
-
-void VulkanRenderer::create_cubemap_capture_render_info() {
-    RenderTarget target{
-        skybox_texture->get_image().get_mip_view(ctx, 0),
-        skybox_texture->get_format()
-    };
-
-    auto builder = GraphicsPipelineBuilder()
-            .with_vertex_shader("../shaders/obj/sphere-cube-vert.spv")
-            .with_fragment_shader("../shaders/obj/sphere-cube-frag.spv")
-            .with_vertices<SkyboxVertex>()
-            .with_rasterizer({
-                .polygonMode = vk::PolygonMode::eFill,
-                .cullMode = vk::CullModeFlagBits::eNone,
-                .frontFace = vk::FrontFace::eCounterClockwise,
-                .lineWidth = 1.0f,
-            })
-            .with_depth_stencil({
-                .depthTestEnable = vk::False,
-                .depthWriteEnable = vk::False,
-            })
-            .with_descriptor_layouts({
-                *cubemap_capture_descriptor_set->get_layout(),
-            })
-            .for_views(6)
-            .with_color_formats({target.get_format()});
-
-    auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
-
-    vector<RenderTarget> targets;
-    targets.emplace_back(std::move(target));
-
-    cubemap_capture_render_info = make_unique<RenderInfo>(
-        builder,
-        pipeline,
-        std::move(targets)
-    );
-}
-
-void VulkanRenderer::create_debug_quad_render_infos() {
-    debug_quad_render_infos.clear();
-
-    auto builder = GraphicsPipelineBuilder()
-            .with_vertex_shader("../shaders/obj/ss-quad-vert.spv")
-            .with_fragment_shader("../shaders/obj/ss-quad-frag.spv")
-            .with_vertices<ScreenSpaceQuadVertex>()
-            .with_rasterizer({
-                .polygonMode = vk::PolygonMode::eFill,
-                .cullMode = vk::CullModeFlagBits::eNone,
-                .frontFace = vk::FrontFace::eCounterClockwise,
-                .lineWidth = 1.0f,
-            })
-            .with_multisampling({
-                .rasterizationSamples = get_msaa_sample_count(),
-                .minSampleShading = 1.0f,
-            })
-            .with_depth_stencil({
-                .depthTestEnable = vk::False,
-                .depthWriteEnable = vk::False,
-            })
-            .with_descriptor_layouts({
-                *debug_quad_descriptor_set->get_layout(),
-            })
-            .with_color_formats({swap_chain->get_image_format()})
-            .with_depth_format(swap_chain->get_depth_format());
-
-    auto pipeline = make_shared<GraphicsPipeline>(builder.create(ctx));
-
-    for (auto &target: swap_chain->get_render_targets(ctx)) {
-        vector<RenderTarget> color_targets;
-        color_targets.emplace_back(std::move(target.color_target));
-
-        debug_quad_render_infos.emplace_back(
-            builder,
-            pipeline,
-            std::move(color_targets),
-            std::move(target.depth_target)
-        );
-    }
-}
-
-// ==================== pipelines ====================
-
-void VulkanRenderer::reload_shaders() const {
-    wait_idle();
-
-    scene_render_infos[0].reload_shaders(ctx);
-    skybox_render_infos[0].reload_shaders(ctx);
-    prepass_render_info->reload_shaders(ctx);
-    ssao_render_info->reload_shaders(ctx);
-    cubemap_capture_render_info->reload_shaders(ctx);
-    debug_quad_render_infos[0].reload_shaders(ctx);
 }
 
 // ==================== multisampling ====================
@@ -1125,13 +421,6 @@ VulkanRenderer::create_local_buffer(const vector<ElemType> &contents, const vk::
     return result_buffer;
 }
 
-void VulkanRenderer::create_uniform_buffers() {
-    for (auto &res: frame_resources) {
-        res.graphics_uniform_buffer = utils::buf::create_uniform_buffer(ctx, sizeof(GraphicsUBO));
-        res.graphics_ubo_mapped = res.graphics_uniform_buffer->map();
-    }
-}
-
 // ==================== commands ====================
 
 void VulkanRenderer::create_command_pool() {
@@ -1149,34 +438,9 @@ void VulkanRenderer::create_command_buffers() {
     auto graphics_command_buffers =
             utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::ePrimary, n_buffers);
 
-    auto scene_command_buffers =
-            utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
-    auto rt_command_buffers =
-            utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
-    auto gui_command_buffers =
-            utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
-    auto prepass_command_buffers =
-            utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
-    auto debug_command_buffers =
-            utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
-    auto ssao_command_buffers =
-            utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::eSecondary, n_buffers);
-
     for (size_t i = 0; i < graphics_command_buffers.size(); i++) {
         frame_resources[i].graphics_cmd_buffer =
                 make_unique<vk::raii::CommandBuffer>(std::move(graphics_command_buffers[i]));
-        frame_resources[i].rt_cmd_buffer =
-                {make_unique<vk::raii::CommandBuffer>(std::move(rt_command_buffers[i]))};
-        frame_resources[i].scene_cmd_buffer =
-                {make_unique<vk::raii::CommandBuffer>(std::move(scene_command_buffers[i]))};
-        frame_resources[i].gui_cmd_buffer =
-                {make_unique<vk::raii::CommandBuffer>(std::move(gui_command_buffers[i]))};
-        frame_resources[i].prepass_cmd_buffer =
-                {make_unique<vk::raii::CommandBuffer>(std::move(prepass_command_buffers[i]))};
-        frame_resources[i].debug_cmd_buffer =
-                {make_unique<vk::raii::CommandBuffer>(std::move(debug_command_buffers[i]))};
-        frame_resources[i].ssao_cmd_buffer =
-                {make_unique<vk::raii::CommandBuffer>(std::move(ssao_command_buffers[i]))};
     }
 }
 
@@ -1202,140 +466,6 @@ void VulkanRenderer::create_sync_objects() {
             },
         };
     }
-}
-
-// ==================== ray tracing ====================
-
-void VulkanRenderer::create_tlas() {
-    const uint32_t instance_count = 1; // todo
-    vector<vk::AccelerationStructureInstanceKHR> instances;
-
-    decltype(vk::TransformMatrixKHR::matrix) matrix;
-    matrix[0] = {{1.0f, 0.0f, 0.0f, 0.0f}};
-    matrix[1] = {{0.0f, 1.0f, 0.0f, 0.0f}};
-    matrix[2] = {{0.0f, 0.0f, 1.0f, 0.0f}};
-    const vk::TransformMatrixKHR transform_matrix{matrix};
-
-    const vk::AccelerationStructureDeviceAddressInfoKHR blas_address_info{.accelerationStructure = *model->get_blas()};
-    const vk::DeviceAddress blas_reference = ctx.device->getAccelerationStructureAddressKHR(blas_address_info);
-    constexpr auto flags = vk::GeometryInstanceFlagBitsKHR::eTriangleCullDisable; // todo
-
-    instances.emplace_back(vk::AccelerationStructureInstanceKHR{
-        .transform = transform_matrix,
-        .instanceCustomIndex = 0, // todo
-        .mask = 0xFFu,
-        .instanceShaderBindingTableRecordOffset = 0,
-        .flags = static_cast<VkGeometryInstanceFlagsKHR>(flags),
-        .accelerationStructureReference = blas_reference,
-    });
-
-    const size_t instances_buffer_size = instances.size() * sizeof(vk::AccelerationStructureInstanceKHR);
-
-    Buffer instances_buffer{
-        **ctx.allocator,
-        instances_buffer_size,
-        vk::BufferUsageFlagBits::eShaderDeviceAddress
-        | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR
-        | vk::BufferUsageFlagBits::eTransferSrc
-        | vk::BufferUsageFlagBits::eTransferDst,
-        vk::MemoryPropertyFlagBits::eHostCoherent
-        | vk::MemoryPropertyFlagBits::eHostVisible
-    };
-
-    void *instances_buffer_mapped = instances_buffer.map();
-    memcpy(instances_buffer_mapped, instances.data(), instances_buffer_size);
-    instances_buffer.unmap();
-
-    const vk::AccelerationStructureGeometryInstancesDataKHR geometry_instances_data{
-        .data = ctx.device->getBufferAddress({.buffer = *instances_buffer}),
-    };
-
-    const vk::AccelerationStructureGeometryKHR geometry{
-        .geometryType = vk::GeometryTypeKHR::eInstances,
-        .geometry = geometry_instances_data,
-    };
-
-    vk::AccelerationStructureBuildGeometryInfoKHR build_info{
-        .type = vk::AccelerationStructureTypeKHR::eTopLevel,
-        .flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace,
-        .mode = vk::BuildAccelerationStructureModeKHR::eBuild,
-        .geometryCount = 1u,
-        .pGeometries = &geometry,
-    };
-
-    const vk::AccelerationStructureBuildSizesInfoKHR size_info = ctx.device->getAccelerationStructureBuildSizesKHR(
-        vk::AccelerationStructureBuildTypeKHR::eDevice,
-        build_info,
-        instance_count
-    );
-
-    const vk::DeviceSize tlas_size = size_info.accelerationStructureSize;
-
-    auto tlas_buffer = make_unique<Buffer>(
-        **ctx.allocator,
-        tlas_size,
-        vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR,
-        vk::MemoryPropertyFlagBits::eDeviceLocal
-    );
-
-    const vk::AccelerationStructureCreateInfoKHR create_info{
-        .buffer = **tlas_buffer,
-        .size = tlas_size,
-        .type = vk::AccelerationStructureTypeKHR::eTopLevel,
-    };
-
-    tlas = make_unique<AccelerationStructure>(
-        make_unique<vk::raii::AccelerationStructureKHR>(*ctx.device, create_info),
-        std::move(tlas_buffer)
-    );
-
-    const Buffer scratch_buffer{
-        **ctx.allocator,
-        size_info.buildScratchSize,
-        vk::BufferUsageFlagBits::eStorageBuffer | vk::BufferUsageFlagBits::eShaderDeviceAddress,
-        vk::MemoryPropertyFlagBits::eDeviceLocal
-    };
-
-    build_info.srcAccelerationStructure = nullptr;
-    build_info.dstAccelerationStructure = ***tlas;
-    build_info.scratchData = ctx.device->getBufferAddress({.buffer = *scratch_buffer});
-
-    static constexpr vk::AccelerationStructureBuildRangeInfoKHR range_info{
-        .primitiveCount = instance_count,
-        .primitiveOffset = 0,
-        .firstVertex = 0,
-        .transformOffset = 0,
-    };
-
-    static constexpr vk::MemoryBarrier2 memory_barrier{
-        .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
-        .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
-        .dstStageMask = vk::PipelineStageFlagBits2::eAccelerationStructureBuildKHR,
-        .dstAccessMask = vk::AccessFlagBits2::eAccelerationStructureWriteKHR
-    };
-
-    utils::cmd::do_single_time_commands(ctx, [&](const vk::raii::CommandBuffer &command_buffer) {
-        command_buffer.pipelineBarrier2({
-            .memoryBarrierCount = 1u,
-            .pMemoryBarriers = &memory_barrier,
-        });
-
-        command_buffer.buildAccelerationStructuresKHR(build_info, &range_info);
-    });
-}
-
-void VulkanRenderer::create_rt_pipeline() {
-    const auto builder = RtPipelineBuilder()
-            .with_ray_gen_shader("../shaders/obj/raytrace-rgen.spv")
-            .with_miss_shader("../shaders/obj/raytrace-rmiss.spv")
-            .with_closest_hit_shader("../shaders/obj/raytrace-rchit.spv")
-            .with_descriptor_layouts({
-                *frame_resources[0].rt_descriptor_set->get_layout(),
-                *materials_descriptor_set->get_layout(),
-                *meshes_descriptor_set->get_layout(),
-            });
-
-    rt_pipeline = make_unique<RtPipeline>(builder.create(ctx));
 }
 
 // ==================== gui ====================
@@ -1386,21 +516,6 @@ void VulkanRenderer::render_gui_section() {
     constexpr auto section_flags = ImGuiTreeNodeFlags_DefaultOpen;
 
     if (ImGui::CollapsingHeader("Renderer ", section_flags)) {
-        // todo - convert these 2 to dynamic states
-        if (ImGui::Checkbox("Cull backfaces", &cull_back_faces)) {
-            queued_frame_begin_actions.emplace([&](const FrameBeginActionContext &fba_ctx) {
-                wait_idle();
-                scene_render_infos[0].reload_shaders(ctx);
-            });
-        }
-
-        if (ImGui::Checkbox("Wireframe mode", &wireframe_mode)) {
-            queued_frame_begin_actions.emplace([&](const FrameBeginActionContext &fba_ctx) {
-                wait_idle();
-                scene_render_infos[0].reload_shaders(ctx);
-            });
-        }
-
         static bool use_msaa_dummy = use_msaa;
         if (ImGui::Checkbox("MSAA", &use_msaa_dummy)) {
             queued_frame_begin_actions.emplace([this](const FrameBeginActionContext &fba_ctx) {
@@ -1408,10 +523,6 @@ void VulkanRenderer::render_gui_section() {
 
                 wait_idle();
                 recreate_swap_chain();
-
-                create_scene_render_infos();
-                create_skybox_render_infos();
-                create_debug_quad_render_infos();
 
                 gui_renderer.reset();
                 init_imgui();
@@ -1432,12 +543,10 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
 
     for (uint32_t i = 0; i < n_nodes; i++) {
         const auto node_handle = topo_sorted_handles[i];
-        auto descriptor_sets = create_node_descriptor_sets(node_handle);
-        auto render_infos = create_node_render_infos(node_handle, descriptor_sets);
+        auto render_infos = create_node_render_infos(node_handle);
 
         render_graph_info.topo_sorted_nodes.emplace_back(RenderNodeResources{
             .handle = node_handle,
-            .descriptor_sets = std::move(descriptor_sets),
             .render_infos = std::move(render_infos),
         });
     }
@@ -1502,11 +611,6 @@ void VulkanRenderer::create_render_graph_resources() {
                            | utils::img::get_format_attachment_type(description.format));
 
         render_graph_textures.emplace(handle, builder.create(ctx));
-    }
-
-    for (const auto &[handle, description]: render_graph_info.render_graph->model_resources) {
-        model = make_unique<Model>(ctx, description.path, false);
-        render_graph_models.emplace(handle, std::move(model));
     }
 }
 
@@ -1856,13 +960,8 @@ GraphicsPipelineBuilder VulkanRenderer::create_node_pipeline_builder(
 }
 */
 
-vector<RenderInfo> VulkanRenderer::create_node_render_infos(
-    const RenderNodeHandle node_handle,
-    const vector<shared_ptr<DescriptorSet> > &descriptor_sets
-) const {
+vector<RenderInfo> VulkanRenderer::create_node_render_infos(const RenderNodeHandle node_handle) const {
     const auto &node_info = render_graph_info.render_graph->nodes.at(node_handle);
-    auto pipeline_builder = create_node_pipeline_builder(node_handle, descriptor_sets);
-    const auto pipeline = make_shared<GraphicsPipeline>(pipeline_builder.create(ctx));
     vector<RenderInfo> render_infos;
 
     if (has_swapchain_target(node_handle)) {
@@ -1887,13 +986,9 @@ vector<RenderInfo> VulkanRenderer::create_node_render_infos(
             }
 
             if (node_info.depth_target) {
-                render_infos.emplace_back(
-                    pipeline_builder,
-                    pipeline,
-                    std::move(color_targets),
-                    std::move(swap_chain_targets.depth_target));
+                render_infos.emplace_back(std::move(color_targets), std::move(swap_chain_targets.depth_target));
             } else {
-                render_infos.emplace_back(pipeline_builder, pipeline, std::move(color_targets));
+                render_infos.emplace_back(std::move(color_targets));
             }
         }
     } else {
@@ -1913,9 +1008,9 @@ vector<RenderInfo> VulkanRenderer::create_node_render_infos(
         }
 
         if (depth_target) {
-            render_infos.emplace_back(pipeline_builder, pipeline, std::move(color_targets), std::move(*depth_target));
+            render_infos.emplace_back(std::move(color_targets), std::move(*depth_target));
         } else {
-            render_infos.emplace_back(pipeline_builder, pipeline, std::move(color_targets));
+            render_infos.emplace_back(std::move(color_targets));
         }
     }
 
@@ -1975,27 +1070,10 @@ void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resour
 
 void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &node_resources) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    auto &[handle, descriptor_sets, render_infos] = node_resources;
-    const auto &render_info = render_infos[has_swapchain_target(node_resources.handle) ? current_frame_idx : 0];
+    auto &[handle, render_infos] = node_resources;
     const auto &node_info = render_graph_info.render_graph->nodes.at(handle);
 
-    vector<vk::DescriptorSet> raw_descriptor_sets;
-    for (const auto &descriptor_set: descriptor_sets) {
-        raw_descriptor_sets.push_back(***descriptor_set);
-    }
-
     utils::cmd::set_dynamic_states(command_buffer, get_node_target_extent(node_resources));
-
-    const auto &pipeline = render_info.get_pipeline();
-    command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
-
-    command_buffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics,
-        *pipeline.get_layout(),
-        0,
-        raw_descriptor_sets,
-        nullptr
-    );
 
     RenderPassContext ctx{
         command_buffer,
@@ -2121,37 +1199,6 @@ void VulkanRenderer::do_frame_begin_actions() {
     }
 }
 
-void VulkanRenderer::render_gui(const std::function<void()> &render_commands) {
-    const auto &command_buffer = *frame_resources[current_frame_idx].gui_cmd_buffer.buffer;
-
-    const vector color_attachment_formats{swap_chain->get_image_format()};
-
-    const vk::StructureChain<
-        vk::CommandBufferInheritanceInfo,
-        vk::CommandBufferInheritanceRenderingInfo
-    > inheritance_info{
-        {},
-        {
-            .colorAttachmentCount = static_cast<uint32_t>(color_attachment_formats.size()),
-            .pColorAttachmentFormats = color_attachment_formats.data(),
-            .rasterizationSamples = get_msaa_sample_count(),
-        }
-    };
-
-    command_buffer.begin(vk::CommandBufferBeginInfo{
-        .flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue,
-        .pInheritanceInfo = &inheritance_info.get<vk::CommandBufferInheritanceInfo>(),
-    });
-
-    gui_renderer->begin_rendering();
-    render_commands();
-    gui_renderer->end_rendering(command_buffer);
-
-    command_buffer.end();
-
-    frame_resources[current_frame_idx].gui_cmd_buffer.was_recorded_this_frame = true;
-}
-
 bool VulkanRenderer::start_frame() {
     const auto &sync = frame_resources[current_frame_idx].sync;
 
@@ -2270,288 +1317,5 @@ void VulkanRenderer::end_frame() {
     }
 
     current_frame_idx = (current_frame_idx + 1) % MAX_FRAMES_IN_FLIGHT;
-}
-
-void VulkanRenderer::run_prepass() {
-    if (!model) {
-        return;
-    }
-
-    const auto &command_buffer = *frame_resources[current_frame_idx].prepass_cmd_buffer.buffer;
-
-    const vk::StructureChain inheritance_info{
-        vk::CommandBufferInheritanceInfo{},
-        prepass_render_info->get_inheritance_rendering_info()
-    };
-
-    command_buffer.begin(vk::CommandBufferBeginInfo{
-        .flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue,
-        .pInheritanceInfo = &inheritance_info.get<vk::CommandBufferInheritanceInfo>(),
-    });
-
-    utils::cmd::set_dynamic_states(command_buffer, swap_chain->get_extent());
-
-    auto &pipeline = prepass_render_info->get_pipeline();
-    command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
-
-    command_buffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics,
-        *pipeline.get_layout(),
-        0,
-        ***frame_resources[current_frame_idx].prepass_descriptor_set,
-        nullptr
-    );
-
-    draw_model(command_buffer, false, pipeline);
-
-    command_buffer.end();
-
-    frame_resources[current_frame_idx].prepass_cmd_buffer.was_recorded_this_frame = true;
-}
-
-void VulkanRenderer::run_ssao_pass() {
-    if (!model) {
-        return;
-    }
-
-    const auto &command_buffer = *frame_resources[current_frame_idx].ssao_cmd_buffer.buffer;
-
-    const vk::StructureChain inheritance_info{
-        vk::CommandBufferInheritanceInfo{},
-        ssao_render_info->get_inheritance_rendering_info()
-    };
-
-    command_buffer.begin(vk::CommandBufferBeginInfo{
-        .flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue,
-        .pInheritanceInfo = &inheritance_info.get<vk::CommandBufferInheritanceInfo>(),
-    });
-
-    utils::cmd::set_dynamic_states(command_buffer, swap_chain->get_extent());
-
-    auto &pipeline = ssao_render_info->get_pipeline();
-    command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
-
-    command_buffer.bindVertexBuffers(0, **screen_space_quad_vertex_buffer, {0});
-
-    command_buffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics,
-        *pipeline.get_layout(),
-        0,
-        ***frame_resources[current_frame_idx].ssao_descriptor_set,
-        nullptr
-    );
-
-    command_buffer.draw(screen_space_quad_vertices.size(), 1, 0, 0);
-
-    command_buffer.end();
-
-    frame_resources[current_frame_idx].ssao_cmd_buffer.was_recorded_this_frame = true;
-}
-
-void VulkanRenderer::raytrace() {
-    const auto &command_buffer = *frame_resources[current_frame_idx].rt_cmd_buffer.buffer;
-
-    static constexpr vk::CommandBufferInheritanceInfo inheritance_info{};
-
-    command_buffer.begin(vk::CommandBufferBeginInfo{
-        .pInheritanceInfo = &inheritance_info,
-    });
-
-    command_buffer.bindPipeline(vk::PipelineBindPoint::eRayTracingKHR, ***rt_pipeline);
-
-    command_buffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eRayTracingKHR,
-        *rt_pipeline->get_layout(),
-        0,
-        {
-            ***frame_resources[current_frame_idx].rt_descriptor_set,
-            ***materials_descriptor_set,
-            ***meshes_descriptor_set,
-        },
-        nullptr
-    );
-
-    const auto &sbt = rt_pipeline->get_sbt();
-    const auto &extent = rt_target_texture->get_image().get_extent();
-
-    command_buffer.traceRaysKHR(
-        sbt.rgen_region,
-        sbt.miss_region,
-        sbt.hit_region,
-        sbt.call_region,
-        extent.width,
-        extent.height,
-        extent.depth
-    );
-
-    command_buffer.end();
-
-    frame_resources[current_frame_idx].rt_cmd_buffer.was_recorded_this_frame = true;
-}
-
-void VulkanRenderer::draw_scene() {
-    if (!model) {
-        return;
-    }
-
-    const auto &command_buffer = *frame_resources[current_frame_idx].scene_cmd_buffer.buffer;
-
-    const vk::StructureChain inheritance_info{
-        vk::CommandBufferInheritanceInfo{},
-        scene_render_infos[0].get_inheritance_rendering_info()
-    };
-
-    command_buffer.begin(vk::CommandBufferBeginInfo{
-        .flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue,
-        .pInheritanceInfo = &inheritance_info.get<vk::CommandBufferInheritanceInfo>(),
-    });
-
-    utils::cmd::set_dynamic_states(command_buffer, swap_chain->get_extent());
-
-    // skybox
-
-    const auto &skybox_pipeline = skybox_render_infos[swap_chain->get_current_image_index()].get_pipeline();
-    command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **skybox_pipeline);
-
-    command_buffer.bindVertexBuffers(0, **skybox_vertex_buffer, {0});
-
-    command_buffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics,
-        *skybox_pipeline.get_layout(),
-        0,
-        ***frame_resources[current_frame_idx].skybox_descriptor_set,
-        nullptr
-    );
-
-    command_buffer.draw(static_cast<uint32_t>(skybox_vertices.size()), 1, 0, 0);
-
-    // scene
-
-    const auto &scene_pipeline = scene_render_infos[swap_chain->get_current_image_index()].get_pipeline();
-    command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **scene_pipeline);
-
-    command_buffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics,
-        *scene_pipeline.get_layout(),
-        0,
-        {
-            ***frame_resources[current_frame_idx].scene_descriptor_set,
-            ***materials_descriptor_set,
-        },
-        nullptr
-    );
-
-    draw_model(command_buffer, true, scene_pipeline);
-
-    command_buffer.end();
-
-    frame_resources[current_frame_idx].scene_cmd_buffer.was_recorded_this_frame = true;
-}
-
-void VulkanRenderer::draw_debug_quad() {
-    const auto &command_buffer = *frame_resources[current_frame_idx].debug_cmd_buffer.buffer;
-
-    const vk::StructureChain inheritance_info{
-        vk::CommandBufferInheritanceInfo{},
-        debug_quad_render_infos[0].get_inheritance_rendering_info()
-    };
-
-    command_buffer.begin(vk::CommandBufferBeginInfo{
-        .flags = vk::CommandBufferUsageFlagBits::eRenderPassContinue,
-        .pInheritanceInfo = &inheritance_info.get<vk::CommandBufferInheritanceInfo>(),
-    });
-
-    utils::cmd::set_dynamic_states(command_buffer, swap_chain->get_extent());
-
-    auto &pipeline = debug_quad_render_infos[swap_chain->get_current_image_index()].get_pipeline();
-    command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
-
-    command_buffer.bindVertexBuffers(0, **screen_space_quad_vertex_buffer, {0});
-
-    command_buffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics,
-        *pipeline.get_layout(),
-        0,
-        ***debug_quad_descriptor_set,
-        nullptr
-    );
-
-    command_buffer.draw(screen_space_quad_vertices.size(), 1, 0, 0);
-
-    command_buffer.end();
-
-    frame_resources[current_frame_idx].debug_cmd_buffer.was_recorded_this_frame = true;
-}
-
-void VulkanRenderer::draw_model(const vk::raii::CommandBuffer &command_buffer, const bool do_push_constants,
-                                const GraphicsPipeline &pipeline) const {
-    uint32_t index_offset = 0;
-    int32_t vertex_offset = 0;
-    uint32_t instance_offset = 0;
-
-    model->bind_buffers(command_buffer);
-
-    for (const auto &mesh: model->get_meshes()) {
-        // todo - make this a bit nicer (without the ugly bool)
-        if (do_push_constants) {
-            command_buffer.pushConstants<ScenePushConstants>(
-                *pipeline.get_layout(),
-                vk::ShaderStageFlagBits::eFragment,
-                0,
-                ScenePushConstants{
-                    .material_id = mesh.material_id
-                }
-            );
-        }
-
-        command_buffer.drawIndexed(
-            static_cast<uint32_t>(mesh.indices.size()),
-            static_cast<uint32_t>(mesh.instances.size()),
-            index_offset,
-            vertex_offset,
-            instance_offset
-        );
-
-        index_offset += static_cast<uint32_t>(mesh.indices.size());
-        vertex_offset += static_cast<int32_t>(mesh.vertices.size());
-        instance_offset += static_cast<uint32_t>(mesh.instances.size());
-    }
-}
-
-void VulkanRenderer::capture_cubemap() const {
-    const vk::Extent2D extent = skybox_texture->get_image().get_extent_2d();
-
-    const auto command_buffer = utils::cmd::begin_single_time_commands(ctx);
-
-    utils::cmd::set_dynamic_states(command_buffer, extent);
-
-    command_buffer.beginRendering(cubemap_capture_render_info->get(extent, 6));
-
-    command_buffer.bindVertexBuffers(0, **skybox_vertex_buffer, {0});
-
-    const auto &pipeline = cubemap_capture_render_info->get_pipeline();
-    command_buffer.bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
-
-    command_buffer.bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics,
-        *pipeline.get_layout(),
-        0,
-        ***cubemap_capture_descriptor_set,
-        nullptr
-    );
-
-    command_buffer.draw(skybox_vertices.size(), 1, 0, 0);
-
-    command_buffer.endRendering();
-
-    skybox_texture->get_image().transition_layout(
-        vk::ImageLayout::eShaderReadOnlyOptimal,
-        vk::ImageLayout::eTransferDstOptimal,
-        command_buffer
-    );
-
-    utils::cmd::end_single_time_commands(command_buffer, *ctx.graphics_queue);
-
-    skybox_texture->generate_mipmaps(ctx, vk::ImageLayout::eShaderReadOnlyOptimal);
 }
 } // zrx
