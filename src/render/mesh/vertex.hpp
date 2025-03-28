@@ -3,6 +3,7 @@
 #include <concepts>
 
 #include "src/render/libs.hpp"
+#include "src/render/globals.hpp"
 
 namespace zrx {
 template<typename T>

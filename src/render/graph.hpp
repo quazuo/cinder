@@ -14,10 +14,9 @@
 #include "vk/buffer.hpp"
 
 namespace zrx {
+class ResourceManager;
 class GraphicsPipeline;
-}
 
-namespace zrx {
 namespace detail {
     template<typename T>
     [[nodiscard]] bool empty_intersection(const std::set<T> &s1, const std::set<T> &s2) {
@@ -65,11 +64,12 @@ struct ModelResource {
 };
 
 // basically same purpose as std::monostate but with a specific name
-struct FinalImageFormatPlaceholder{};
+struct FinalImageFormatPlaceholder {
+};
 
 struct ShaderPack {
     using DescriptorSetDescription = vector<std::variant<std::monostate, ResourceHandle, ResourceHandleArray> >;
-    using AttachmentFormat = std::variant<vk::Format, FinalImageFormatPlaceholder>;
+    using AttachmentFormat         = std::variant<vk::Format, FinalImageFormatPlaceholder>;
 
     std::filesystem::path vertex_path;
     std::filesystem::path fragment_path;
@@ -92,7 +92,7 @@ struct ShaderPack {
         vector<DescriptorSetDescription> &&descriptor_set_descs_,
         [[maybe_unused]] VertexType &&vertex_example, // it's not possible to explicitly specialize the ctor :(
         vector<AttachmentFormat> colors, const std::optional<AttachmentFormat> depth_format = {},
-        CustomProperties &&custom_properties
+        CustomProperties &&custom_properties                                                = {}
     )
         : vertex_path(vertex_path_), fragment_path(fragment_path_),
           descriptor_set_descs(descriptor_set_descs_),
@@ -118,53 +118,46 @@ public:
 
     virtual void draw_model(ResourceHandle model_handle) = 0;
 
-    virtual void draw_screenspace_quad() = 0;
-
-    virtual void draw_skybox() = 0;
+    virtual void draw(ResourceHandle vertices_handle, uint32_t vertex_count, uint32_t instance_count,
+                      uint32_t first_vertex, uint32_t first_instance) = 0;
 };
 
-class RenderPassContext : public IRenderPassContext {
+class RenderPassContext final : public IRenderPassContext {
     reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
-    reference_wrapper<const std::map<ResourceHandle, unique_ptr<Model> >> models;
-    reference_wrapper<const std::map<ResourceHandle, unique_ptr<GraphicsPipeline> >> pipelines;
-    reference_wrapper<const Buffer> ss_quad_vertex_buffer;
-    reference_wrapper<const Buffer> skybox_vertex_buffer;
+    reference_wrapper<ResourceManager> resource_manager;
+
+public:
+    explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, ResourceManager &rm)
+        : command_buffer(cmd_buf), resource_manager(rm) {
+    }
 
     ~RenderPassContext() override = default;
 
-public:
-    explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf,
-                               const std::map<ResourceHandle, unique_ptr<Model> > &models,
-                               const std::map<ResourceHandle, unique_ptr<GraphicsPipeline> > &pipelines,
-                               const Buffer &ss_quad_vb, const Buffer &skybox_vb)
-        : command_buffer(cmd_buf), models(models), pipelines(pipelines),
-          ss_quad_vertex_buffer(ss_quad_vb), skybox_vertex_buffer(skybox_vb) {
-    }
-
-    void bind_pipeline(ResourceHandle pipeline_handle) override { std::cout << "todo"; }
+    void bind_pipeline(ResourceHandle pipeline_handle) override;
 
     void draw_model(ResourceHandle model_handle) override;
 
-    void draw_screenspace_quad() override;
-
-    void draw_skybox() override;
+    void draw(ResourceHandle vertices_handle, uint32_t vertex_count, uint32_t instance_count,
+              uint32_t first_vertex, uint32_t first_instance) override;
 };
 
-class ShaderGatherRenderPassContext : public IRenderPassContext {
-    reference_wrapper<const std::map<ResourceHandle, unique_ptr<GraphicsPipeline> >> pipelines;
-    vector<GraphicsPipeline *> used_pipelines;
+class ShaderGatherRenderPassContext final : public IRenderPassContext {
+    vector<ResourceHandle> used_pipelines;
 
 public:
-    explicit ShaderGatherRenderPassContext(const std::map<ResourceHandle, unique_ptr<GraphicsPipeline> > &pipelines)
-        : pipelines(pipelines) {
-    }
-
     ~ShaderGatherRenderPassContext() override = default;
 
-    [[nodiscard]] const vector<GraphicsPipeline *> &get() const { return used_pipelines; }
+    [[nodiscard]] const vector<ResourceHandle> &get() const { return used_pipelines; }
 
     void bind_pipeline(const ResourceHandle pipeline_handle) override {
-        used_pipelines.push_back(&*pipelines.get().at(pipeline_handle));
+        used_pipelines.push_back(pipeline_handle);
+    }
+
+    void draw_model(ResourceHandle model_handle) override {
+    }
+
+    void draw(ResourceHandle vertices_handle, uint32_t vertex_count, uint32_t instance_count,
+              uint32_t first_vertex, uint32_t first_instance) override {
     }
 };
 
@@ -184,12 +177,13 @@ struct RenderNode {
     } custom_properties;
 
     [[nodiscard]] std::set<ResourceHandle> get_all_targets_set() const;
+
+    [[nodiscard]] std::set<ResourceHandle>
+    get_all_shader_resources_set(const std::map<ResourceHandle, ShaderPack> &shaders) const;
 };
 
 struct FrameBeginActionContext {
-    reference_wrapper<const std::map<ResourceHandle, unique_ptr<Buffer> >> ubos;
-    reference_wrapper<const std::map<ResourceHandle, unique_ptr<Texture> >> textures;
-    reference_wrapper<const std::map<ResourceHandle, unique_ptr<Model> >> models;
+    reference_wrapper<ResourceManager> resource_manager;
 };
 
 using FrameBeginCallback = std::function<void(const FrameBeginActionContext &)>;

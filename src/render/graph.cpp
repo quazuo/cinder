@@ -1,5 +1,8 @@
 #include "graph.hpp"
 
+#include "resource-manager.hpp"
+#include "vk/pipeline.hpp"
+
 namespace zrx {
 [[nodiscard]] std::set<ResourceHandle> ShaderPack::get_bound_resources_set() const {
     std::set<ResourceHandle> result;
@@ -18,12 +21,19 @@ namespace zrx {
     return result;
 }
 
-void RenderPassContext::draw_model(const ResourceHandle model_handle) const {
+void RenderPassContext::bind_pipeline(const ResourceHandle pipeline_handle) {
+    const auto &pipeline = pipelines.get().at(pipeline_handle);
+    command_buffer.get().bindPipeline(vk::PipelineBindPoint::eGraphics, ***pipeline);
+
+    throw std::runtime_error("todo: bind descriptors!");
+}
+
+void RenderPassContext::draw_model(const ResourceHandle model_handle) {
     uint32_t index_offset    = 0;
     int32_t vertex_offset    = 0;
     uint32_t instance_offset = 0;
 
-    const Model &model = *models.get().at(model_handle);
+    const Model &model = resource_manager.get().get_model(model_handle);
     model.bind_buffers(command_buffer);
 
     for (const auto &mesh: model.get_meshes()) {
@@ -41,14 +51,12 @@ void RenderPassContext::draw_model(const ResourceHandle model_handle) const {
     }
 }
 
-void RenderPassContext::draw_screenspace_quad() const {
-    command_buffer.get().bindVertexBuffers(0, *ss_quad_vertex_buffer.get(), {0});
-    command_buffer.get().draw(screen_space_quad_vertices.size(), 1, 0, 0);
-}
-
-void RenderPassContext::draw_skybox() const {
-    command_buffer.get().bindVertexBuffers(0, *skybox_vertex_buffer.get(), {0});
-    command_buffer.get().draw(skybox_vertices.size(), 1, 0, 0);
+void RenderPassContext::draw(const ResourceHandle vertices_handle,
+                             const uint32_t vertex_count, const uint32_t instance_count,
+                             const uint32_t first_vertex, const uint32_t first_instance) {
+    const Buffer &vertex_buffer = resource_manager.get().get_buffer(vertices_handle);
+    command_buffer.get().bindVertexBuffers(0, *vertex_buffer, {0});
+    command_buffer.get().draw(vertex_count, instance_count, first_vertex, first_instance);
 }
 
 std::set<ResourceHandle> RenderNode::get_all_targets_set() const {
@@ -57,14 +65,19 @@ std::set<ResourceHandle> RenderNode::get_all_targets_set() const {
     return result;
 }
 
-// std::set<ResourceHandle> RenderNode::get_all_shader_resources_set() const {
-//     const auto frag_resources = fragment_shader->get_bound_resources_set();
-//     const auto vert_resources = vertex_shader->get_bound_resources_set();
-//
-//     std::set result(frag_resources.begin(), frag_resources.end());
-//     result.insert(vert_resources.begin(), vert_resources.end());
-//     return result;
-// }
+std::set<ResourceHandle>
+RenderNode::get_all_shader_resources_set(const std::map<ResourceHandle, ShaderPack> &shaders) const {
+    ShaderGatherRenderPassContext ctx{};
+    body(ctx);
+    std::set<ResourceHandle> result;
+
+    for (const ResourceHandle shader_handle: ctx.get()) {
+        const auto bound_resources = shaders.at(shader_handle).get_bound_resources_set();
+        result.insert(bound_resources.begin(), bound_resources.end());
+    }
+
+    return result;
+}
 
 vector<RenderNodeHandle> RenderGraph::get_topo_sorted() const {
     vector<RenderNodeHandle> result;
@@ -95,7 +108,7 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
     nodes.emplace(handle, node);
 
     const auto targets_set      = node.get_all_targets_set();
-    const auto shader_resources = node.get_all_shader_resources_set();
+    const auto shader_resources = node.get_all_shader_resources_set(pipelines);
 
     if (!detail::empty_intersection(targets_set, shader_resources)) {
         throw std::invalid_argument("invalid render node: cannot use a target as a shader resource!");
@@ -106,7 +119,7 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
     // for each existing node A...
     for (const auto &[other_handle, other_node]: nodes) {
         const auto other_targets_set      = other_node.get_all_targets_set();
-        const auto other_shader_resources = other_node.get_all_shader_resources_set();
+        const auto other_shader_resources = other_node.get_all_shader_resources_set(pipelines);
 
         // ...if any of the new node's targets is sampled in A,
         // then the new node is A's dependency.

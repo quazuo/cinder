@@ -11,6 +11,7 @@
 #include "render/camera.hpp"
 #include "render/graph.hpp"
 #include "render/renderer.hpp"
+#include "render/resource-manager.hpp"
 #include "render/gui/gui.hpp"
 #include "render/vk/shader.hpp"
 #include "utils/input-manager.hpp"
@@ -123,7 +124,7 @@ private:
             const std::filesystem::path path = file_browser.GetSelected().string();
 
             if (*current_type_being_chosen == FileType::ENVMAP_HDR) {
-                renderer.load_environment_map(path);
+                // renderer.load_environment_map(path);
             } else {
                 chosen_paths[*current_type_being_chosen] = path;
             }
@@ -138,11 +139,15 @@ private:
 
         constexpr auto depth_format = vk::Format::eD32Sfloat;
 
-        // ================== models ==================
+        // ================== models and vertex buffers ==================
 
         const auto scene_model = render_graph.add_resource(ModelResource{
             "scene-model",
             "../assets/example models/kettle/kettle.obj"
+        });
+
+        const auto skybox_vert_buf = render_graph.add_resource(VertexBufferResource{
+            // todo
         });
 
         // ================== uniform buffers ==================
@@ -153,7 +158,7 @@ private:
         });
 
         render_graph.add_frame_begin_action([this, uniform_buffer](const FrameBeginActionContext &fba_ctx) {
-            update_graphics_uniform_buffer(*fba_ctx.ubos.get().at(uniform_buffer));
+            update_graphics_uniform_buffer(fba_ctx.resource_manager.get().get_buffer(uniform_buffer));
         });
 
         // ================== external resources ==================
@@ -279,13 +284,13 @@ private:
         const auto cubecap_node = render_graph.add_node({
             .name = "cubemap-capture",
             .color_targets = {skybox_texture},
-            .body = [&](IRenderPassContext &ctx) {
+            .body = [=](IRenderPassContext &ctx) {
                 ctx.bind_pipeline(cubecap_shaders);
                 ctx.draw_skybox();
                 should_compute_skybox = false;
             },
             .should_run_predicate = [&] { return should_compute_skybox; },
-            RenderNode::CustomProperties {
+            .custom_properties = RenderNode::CustomProperties {
                 .multiview_count = 6
             }
         });
@@ -294,7 +299,7 @@ private:
             .name = "prepass",
             .color_targets = {g_buffer_normal, g_buffer_pos},
             .depth_target = g_buffer_depth,
-            .body = [scene_model](IRenderPassContext &ctx) {
+            .body = [=](IRenderPassContext &ctx) {
                 ctx.bind_pipeline(prepass_shaders);
                 ctx.draw_model(scene_model);
             },
@@ -304,7 +309,7 @@ private:
         const auto ssao_node = render_graph.add_node({
             .name = "ssao",
             .color_targets = {ssao_texture},
-            .body = [](IRenderPassContext &ctx) {
+            .body = [=](IRenderPassContext &ctx) {
                 ctx.bind_pipeline(ssao_shaders);
                 ctx.draw_screenspace_quad();
             },
@@ -315,7 +320,7 @@ private:
             .name = "main",
             .color_targets = {FINAL_IMAGE_RESOURCE_HANDLE},
             .depth_target = FINAL_IMAGE_RESOURCE_HANDLE,
-            .body = [scene_model](IRenderPassContext &ctx) {
+            .body = [=](IRenderPassContext &ctx) {
                 ctx.bind_pipeline(main_shaders);
                 ctx.draw_model(scene_model);
 
@@ -421,7 +426,7 @@ private:
             ImGui::Separator();
 
             if (ImGui::Button("Reload shaders")) {
-                renderer.reload_shaders();
+                // renderer.reload_shaders();
             }
             ImGui::Separator();
 
@@ -525,10 +530,12 @@ private:
 
             ImGui::Separator();
 
-            const bool can_submit = std::ranges::all_of(file_load_schemes[load_scheme_idx].requirements,
-                                                        [&](const auto &t) {
-                                                            return is_file_type_optional(t) || chosen_paths.contains(t);
-                                                        });
+            const bool can_submit = std::ranges::all_of(
+                file_load_schemes[load_scheme_idx].requirements,
+                [&](const auto &t) {
+                    return is_file_type_optional(t) || chosen_paths.contains(t);
+                }
+            );
 
             if (!can_submit) {
                 ImGui::BeginDisabled();
@@ -561,32 +568,32 @@ private:
         const auto &reqs = file_load_schemes[load_scheme_idx].requirements;
 
         try {
-            if (reqs.contains(FileType::BASE_COLOR_PNG)) {
-                renderer.load_model(chosen_paths.at(FileType::MODEL));
-                renderer.load_base_color_texture(chosen_paths.at(FileType::BASE_COLOR_PNG));
-            } else {
-                renderer.load_model_with_materials(chosen_paths.at(FileType::MODEL));
-            }
-
-            if (reqs.contains(FileType::NORMAL_PNG)) {
-                renderer.load_normal_map(chosen_paths.at(FileType::NORMAL_PNG));
-            }
-
-            if (reqs.contains(FileType::ORM_PNG)) {
-                renderer.load_orm_map(chosen_paths.at(FileType::ORM_PNG));
-            } else if (reqs.contains(FileType::RMA_PNG)) {
-                renderer.load_rma_map(chosen_paths.at(FileType::RMA_PNG));
-            } else if (reqs.contains(FileType::ROUGHNESS_PNG)) {
-                const auto roughness_path = chosen_paths.at(FileType::ROUGHNESS_PNG);
-                const auto ao_path        = chosen_paths.contains(FileType::AO_PNG)
-                                                ? chosen_paths.at(FileType::AO_PNG)
-                                                : "";
-                const auto metallic_path = chosen_paths.contains(FileType::METALLIC_PNG)
-                                               ? chosen_paths.at(FileType::METALLIC_PNG)
-                                               : "";
-
-                renderer.load_orm_map(ao_path, roughness_path, metallic_path);
-            }
+            // if (reqs.contains(FileType::BASE_COLOR_PNG)) {
+            //     renderer.load_model(chosen_paths.at(FileType::MODEL));
+            //     renderer.load_base_color_texture(chosen_paths.at(FileType::BASE_COLOR_PNG));
+            // } else {
+            //     renderer.load_model_with_materials(chosen_paths.at(FileType::MODEL));
+            // }
+            //
+            // if (reqs.contains(FileType::NORMAL_PNG)) {
+            //     renderer.load_normal_map(chosen_paths.at(FileType::NORMAL_PNG));
+            // }
+            //
+            // if (reqs.contains(FileType::ORM_PNG)) {
+            //     renderer.load_orm_map(chosen_paths.at(FileType::ORM_PNG));
+            // } else if (reqs.contains(FileType::RMA_PNG)) {
+            //     renderer.load_rma_map(chosen_paths.at(FileType::RMA_PNG));
+            // } else if (reqs.contains(FileType::ROUGHNESS_PNG)) {
+            //     const auto roughness_path = chosen_paths.at(FileType::ROUGHNESS_PNG);
+            //     const auto ao_path        = chosen_paths.contains(FileType::AO_PNG)
+            //                                     ? chosen_paths.at(FileType::AO_PNG)
+            //                                     : "";
+            //     const auto metallic_path = chosen_paths.contains(FileType::METALLIC_PNG)
+            //                                    ? chosen_paths.at(FileType::METALLIC_PNG)
+            //                                    : "";
+            //
+            //     renderer.load_orm_map(ao_path, roughness_path, metallic_path);
+            // }
         } catch (std::exception &e) {
             curr_error_message = e.what();
         }

@@ -48,6 +48,7 @@ class SwapChain;
 class GuiRenderer;
 class AccelerationStructure;
 class Camera;
+class ResourceManager;
 
 struct QueueFamilyIndices {
     std::optional<uint32_t> graphics_compute_family;
@@ -110,15 +111,16 @@ class VulkanRenderer {
         vector<RenderNodeResources> topo_sorted_nodes;
     } render_graph_info;
 
-    std::map<ResourceHandle, unique_ptr<Buffer> > render_graph_ubos;
-    std::map<ResourceHandle, unique_ptr<Texture> > render_graph_textures;
-    std::map<ResourceHandle, unique_ptr<Model> > render_graph_models;
-    std::map<ResourceHandle, unique_ptr<GraphicsPipeline> > render_graph_pipelines;
+    struct PipelineInfo {
+        unique_ptr<GraphicsPipeline> pipeline;
+        GraphicsPipelineBuilder builder;
+        vector<shared_ptr<DescriptorSet>> descriptor_sets;
+    };
 
-    // buffers and other resources
+    unique_ptr<ResourceManager> resource_manager;
+    std::map<ResourceHandle, PipelineInfo> render_graph_pipelines;
 
-    unique_ptr<Buffer> skybox_vertex_buffer;
-    unique_ptr<Buffer> screen_space_quad_vertex_buffer;
+    // other resources
 
     using TimelineSemValueType = std::uint64_t;
 
@@ -156,6 +158,9 @@ class VulkanRenderer {
 
     vk::SampleCountFlagBits msaa_sample_count = vk::SampleCountFlagBits::e1;
     bool use_msaa = false;
+
+    friend RenderPassContext;
+    friend ShaderGatherRenderPassContext;
 
 public:
     explicit VulkanRenderer();
