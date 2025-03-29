@@ -1,6 +1,7 @@
 #pragma once
 
 #include <memory>
+#include <vector>
 
 using std::unique_ptr;
 using std::make_unique;

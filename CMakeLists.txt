@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(rayzor)
+project(cinder)
 
 set(CMAKE_CXX_STANDARD 20)
 
@@ -90,11 +90,11 @@ file(GLOB RAYZOR_SRCS
         "src/utils/*"
 )
 
-add_executable(rayzor
+add_executable(cinder
         ${RAYZOR_SRCS}
         ${IMGUI_SRCS}
         ${IMGUI_IMPL_SRCS}
         ${IMGUIZMO_QUAT_SRCS}
         ${VK_BOOTSTRAP_SRCS}
         ${HEADER_ONLY_DEPS_SRCS})
-target_link_libraries(rayzor ${ALL_LIBS})
+target_link_libraries(cinder ${ALL_LIBS})

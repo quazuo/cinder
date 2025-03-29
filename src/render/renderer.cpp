@@ -3,6 +3,8 @@
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
+#include <SPIRV-Reflect/spirv_reflect.h>
+
 #include <iostream>
 #include <stdexcept>
 #include <optional>
@@ -28,6 +30,8 @@
 #include "vk/ctx.hpp"
 
 #include <vk-bootstrap/VkBootstrap.h>
+
+#include "src/utils/logger.hpp"
 
 /**
  * Information held in the fragment shader's uniform buffer.
@@ -77,7 +81,7 @@ VulkanRenderer::VulkanRenderer() {
 
     init_glfw_user_pointer(window);
     auto *user_data = static_cast<GlfwStaticUserData *>(glfwGetWindowUserPointer(window));
-    if (!user_data) throw std::runtime_error("unexpected null window user pointer");
+    if (!user_data) Logger::error("unexpected null window user pointer");
     user_data->renderer = this;
 
     glfwSetFramebufferSizeCallback(window, framebuffer_resize_callback);
@@ -102,9 +106,6 @@ VulkanRenderer::VulkanRenderer() {
 
     create_descriptor_pool();
 
-    create_screen_space_quad_vertex_buffer();
-    create_skybox_vertex_buffer();
-
     create_sync_objects();
 
     init_imgui();
@@ -117,7 +118,7 @@ VulkanRenderer::~VulkanRenderer() {
 void VulkanRenderer::framebuffer_resize_callback(GLFWwindow *window, const int width, const int height) {
     (void) (width + height);
     const auto user_data = static_cast<GlfwStaticUserData *>(glfwGetWindowUserPointer(window));
-    if (!user_data) throw std::runtime_error("unexpected null window user pointer");
+    if (!user_data) Logger::error("unexpected null window user pointer");
     user_data->renderer->framebuffer_resized = true;
 }
 
@@ -136,7 +137,7 @@ vkb::Instance VulkanRenderer::create_instance() {
                     const auto type = vkb::to_string_message_type(messageType);
 
                     std::stringstream ss;
-                    ss << "[" << severity << ": " << type << "]\n" << pCallbackData->pMessage << "\n";
+                    ss << "[VALIDATION LAYER / " << severity << " / " << type << "]\n" << pCallbackData->pMessage << "\n";
 
                     if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
                         std::cerr << ss.str() << std::endl;
@@ -152,7 +153,7 @@ vkb::Instance VulkanRenderer::create_instance() {
             .build();
 
     if (!instance_result) {
-        throw std::runtime_error("failed to create instance: " + instance_result.error().message());
+        Logger::error("failed to create instance: " + instance_result.error().message());
     }
 
     instance = make_unique<vk::raii::Instance>(vk_ctx, instance_result.value().instance);
@@ -179,7 +180,7 @@ void VulkanRenderer::create_surface() {
     VkSurfaceKHR _surface;
 
     if (glfwCreateWindowSurface(**instance, window, nullptr, &_surface) != VK_SUCCESS) {
-        throw std::runtime_error("failed to create window surface!");
+        Logger::error("failed to create window surface!");
     }
 
     surface = make_unique<vk::raii::SurfaceKHR>(*instance, _surface);
@@ -226,7 +227,7 @@ vkb::PhysicalDevice VulkanRenderer::pick_physical_device(const vkb::Instance &vk
             .select();
 
     if (!physical_device_result) {
-        throw std::runtime_error("failed to select physical device: " + physical_device_result.error().message());
+        Logger::error("failed to select physical device: " + physical_device_result.error().message());
     }
 
     ctx.physical_device = make_unique<vk::raii::PhysicalDevice>(
@@ -240,7 +241,7 @@ void VulkanRenderer::create_logical_device(const vkb::PhysicalDevice &vkb_physic
     auto device_result = vkb::DeviceBuilder(vkb_physical_device).build();
 
     if (!device_result) {
-        throw std::runtime_error("failed to select logical device: " + device_result.error().message());
+        Logger::error("failed to select logical device: " + device_result.error().message());
     }
 
     ctx.device = make_unique<vk::raii::Device>(*ctx.physical_device, device_result.value().device);
@@ -248,13 +249,13 @@ void VulkanRenderer::create_logical_device(const vkb::PhysicalDevice &vkb_physic
     auto graphics_queue_result = device_result.value().get_queue(vkb::QueueType::graphics);
     auto graphics_queue_index_result = device_result.value().get_queue_index(vkb::QueueType::graphics);
     if (!graphics_queue_result || !graphics_queue_index_result) {
-        throw std::runtime_error("failed to get graphics queue: " + device_result.error().message());
+        Logger::error("failed to get graphics queue: " + device_result.error().message());
     }
 
     auto present_queue_result = device_result.value().get_queue(vkb::QueueType::present);
     auto present_queue_index_result = device_result.value().get_queue_index(vkb::QueueType::present);
     if (!present_queue_result || !present_queue_index_result) {
-        throw std::runtime_error("failed to get present queue: " + device_result.error().message());
+        Logger::error("failed to get present queue: " + device_result.error().message());
     }
 
     ctx.graphics_queue = make_unique<vk::raii::Queue>(*ctx.device, graphics_queue_result.value());
@@ -575,7 +576,6 @@ void VulkanRenderer::create_render_graph_resources() {
 
     for (const auto &[handle, description]: render_graph_info.render_graph->empty_tex_resources) {
         auto extent = description.extent;
-
         if (extent.width == 0 && extent.height == 0) {
             extent = swap_chain->get_extent();
         }
@@ -594,7 +594,6 @@ void VulkanRenderer::create_render_graph_resources() {
 
     for (const auto &[handle, description]: render_graph_info.render_graph->transient_tex_resources) {
         auto extent = description.extent;
-
         if (extent.width == 0 && extent.height == 0) {
             extent = swap_chain->get_extent();
         }
@@ -612,16 +611,16 @@ void VulkanRenderer::create_render_graph_resources() {
     for (const auto &[handle, description]: render_graph_info.render_graph->pipelines) {
         auto descriptor_sets = create_graph_descriptor_sets(handle);
         auto builder = create_graph_pipeline_builder(handle, descriptor_sets);
-        auto pipeline = make_unique<GraphicsPipeline>(builder.create(ctx));
-        render_graph_pipelines.emplace(handle, PipelineInfo { std::move(pipeline), builder, std::move(descriptor_sets) });
+        render_graph_pipelines.emplace(handle, builder.create(ctx));
+        pipeline_desc_sets.emplace(handle, std::move(descriptor_sets));
     }
 }
 
-vector<shared_ptr<DescriptorSet>>
+vector<DescriptorSet>
 VulkanRenderer::create_graph_descriptor_sets(const ResourceHandle pipeline_handle) const {
     const auto &pipeline_info = render_graph_info.render_graph->pipelines.at(pipeline_handle);
     const auto &set_descs = pipeline_info.descriptor_set_descs;
-    vector<shared_ptr<DescriptorSet> > descriptor_sets;
+    vector<DescriptorSet> descriptor_sets;
 
     const SpirvReflectModuleWrapper vert_spv_module { pipeline_info.vertex_path };
     const SpirvReflectModuleWrapper frag_spv_module { pipeline_info.fragment_path };
@@ -658,14 +657,14 @@ VulkanRenderer::create_graph_descriptor_sets(const ResourceHandle pipeline_handl
             }
 
             if (is_ubo_descriptor && is_tex_descriptor) {
-                throw std::runtime_error("ambiguous resource handle type");
+                Logger::error("ambiguous resource handle type");
             }
             if (is_ubo_descriptor) {
                 type = vk::DescriptorType::eUniformBuffer;
             } else if (is_tex_descriptor) {
                 type = vk::DescriptorType::eCombinedImageSampler;
             } else {
-                throw std::runtime_error("unknown resource handle");
+                Logger::error("unknown resource handle");
             }
 
             const auto matching_binding_fn = [&](const SpvReflectDescriptorBinding* binding) {
@@ -684,28 +683,27 @@ VulkanRenderer::create_graph_descriptor_sets(const ResourceHandle pipeline_handl
         }
 
         auto layout = std::make_shared<vk::raii::DescriptorSetLayout>(builder.create(ctx));
-        auto descriptor_set = std::make_shared<DescriptorSet>(
-            utils::desc::create_descriptor_set(ctx, *descriptor_pool, layout));
-        descriptor_sets.emplace_back(descriptor_set);
+        auto descriptor_set = utils::desc::create_descriptor_set(ctx, *descriptor_pool, layout);
+        descriptor_sets.emplace_back(std::move(descriptor_set));
     }
 
     for (size_t i = 0; i < set_descs.size(); i++) {
-        const auto &set_desc = set_descs[i];
-        const auto &descriptor_set = descriptor_sets[i];
+        auto &set_desc = set_descs[i];
+        auto &descriptor_set = descriptor_sets[i];
 
         for (uint32_t binding = 0; binding < set_desc.size(); binding++) {
             if (std::holds_alternative<ResourceHandle>(set_desc[binding])) {
                 const auto res_handle = std::get<ResourceHandle>(set_desc[binding]);
-                queue_set_update_with_handle(*descriptor_set, res_handle, binding);
+                queue_set_update_with_handle(descriptor_set, res_handle, binding);
             } else if (std::holds_alternative<ResourceHandleArray>(set_desc[binding])) {
                 const auto &res_handles = std::get<ResourceHandleArray>(set_desc[binding]);
                 for (uint32_t array_element = 0; array_element < res_handles.size(); array_element++) {
-                    queue_set_update_with_handle(*descriptor_set, res_handles[array_element], binding, array_element);
+                    queue_set_update_with_handle(descriptor_set, res_handles[array_element], binding, array_element);
                 }
             }
         }
 
-        descriptor_set->commit_updates(ctx);
+        descriptor_set.commit_updates(ctx);
     }
 
     return descriptor_sets;
@@ -713,7 +711,7 @@ VulkanRenderer::create_graph_descriptor_sets(const ResourceHandle pipeline_handl
 
 GraphicsPipelineBuilder
 VulkanRenderer::create_graph_pipeline_builder(const ResourceHandle pipeline_handle,
-                                              const vector<shared_ptr<DescriptorSet>> &descriptor_sets) const {
+                                              const vector<DescriptorSet> &descriptor_sets) const {
     const auto &pipeline_info = render_graph_info.render_graph->pipelines.at(pipeline_handle);
 
     vector<vk::Format> color_formats;
@@ -726,7 +724,7 @@ VulkanRenderer::create_graph_pipeline_builder(const ResourceHandle pipeline_hand
 
     vector<vk::DescriptorSetLayout> descriptor_set_layouts;
     for (const auto &set: descriptor_sets) {
-        descriptor_set_layouts.emplace_back(*set->get_layout());
+        descriptor_set_layouts.emplace_back(*set.get_layout());
     }
 
     auto builder = GraphicsPipelineBuilder()
@@ -880,7 +878,7 @@ void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resour
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
     const auto &node = render_graph_info.render_graph->nodes.at(node_resources.handle);
 
-    std::cout << "recording node: " << node.name << "\n";
+    Logger::debug("recording node: ", node.name);
 
     // if size > 1, then this means that this pass (node) draws to the swapchain image
     // and thus benefits from double or triple buffering
@@ -904,12 +902,11 @@ void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resour
 
 void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &node_resources) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    auto &[handle, render_infos] = node_resources;
-    const auto &node_info = render_graph_info.render_graph->nodes.at(handle);
+    const auto &node_info = render_graph_info.render_graph->nodes.at(node_resources.handle);
 
     utils::cmd::set_dynamic_states(command_buffer, get_node_target_extent(node_resources));
 
-    RenderPassContext ctx{ command_buffer };
+    RenderPassContext ctx{ command_buffer, *resource_manager, render_graph_pipelines, pipeline_desc_sets };
     node_info.body(ctx);
 }
 
@@ -1047,7 +1044,7 @@ bool VulkanRenderer::start_frame() {
     };
 
     if (ctx.device->waitSemaphores(wait_info, UINT64_MAX) != vk::Result::eSuccess) {
-        throw std::runtime_error("waitSemaphores on renderFinishedTimeline failed");
+        Logger::error("waitSemaphores on renderFinishedTimeline failed");
     }
 
     do_frame_begin_actions();
@@ -1059,7 +1056,7 @@ bool VulkanRenderer::start_frame() {
         return false;
     }
     if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR) {
-        throw std::runtime_error("failed to acquire swap chain image!");
+        Logger::error("failed to acquire swap chain image!");
     }
 
     return true;
@@ -1143,7 +1140,7 @@ void VulkanRenderer::end_frame() {
         framebuffer_resized = false;
         recreate_swap_chain();
     } else if (present_result != vk::Result::eSuccess) {
-        throw std::runtime_error("failed to present swap chain image!");
+        Logger::error("failed to present swap chain image!");
     }
 
     current_frame_idx = (current_frame_idx + 1) % MAX_FRAMES_IN_FLIGHT;

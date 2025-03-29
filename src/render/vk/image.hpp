@@ -7,7 +7,6 @@
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
 
-
 // for these bits, we're leveraging the already available flag system from vulkan-hpp.
 // for this reason, the following code needs to be in the vulkan-hpp namespace.
 namespace

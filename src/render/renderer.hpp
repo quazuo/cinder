@@ -111,14 +111,9 @@ class VulkanRenderer {
         vector<RenderNodeResources> topo_sorted_nodes;
     } render_graph_info;
 
-    struct PipelineInfo {
-        unique_ptr<GraphicsPipeline> pipeline;
-        GraphicsPipelineBuilder builder;
-        vector<shared_ptr<DescriptorSet>> descriptor_sets;
-    };
-
-    unique_ptr<ResourceManager> resource_manager;
-    std::map<ResourceHandle, PipelineInfo> render_graph_pipelines;
+    unique_ptr<ResourceManager> resource_manager = make_unique<ResourceManager>();
+    std::map<ResourceHandle, GraphicsPipeline> render_graph_pipelines;
+    std::map<ResourceHandle, vector<DescriptorSet>> pipeline_desc_sets;
 
     // other resources
 
@@ -218,10 +213,6 @@ private:
 
     // ==================== buffers ====================
 
-    void create_skybox_vertex_buffer();
-
-    void create_screen_space_quad_vertex_buffer();
-
     template<typename ElemType>
     unique_ptr<Buffer> create_local_buffer(const vector<ElemType> &contents, vk::BufferUsageFlags usage);
 
@@ -247,10 +238,10 @@ public:
 private:
     void create_render_graph_resources();
 
-    [[nodiscard]] vector<shared_ptr<DescriptorSet> > create_graph_descriptor_sets(ResourceHandle pipeline_handle) const;
+    [[nodiscard]] vector<DescriptorSet> create_graph_descriptor_sets(ResourceHandle pipeline_handle) const;
 
     [[nodiscard]] GraphicsPipelineBuilder create_graph_pipeline_builder(
-        ResourceHandle pipeline_handle, const vector<shared_ptr<DescriptorSet> > &descriptor_sets) const;
+        ResourceHandle pipeline_handle, const vector<DescriptorSet> &descriptor_sets) const;
 
     void queue_set_update_with_handle(DescriptorSet &descriptor_set, ResourceHandle res_handle,
                                       uint32_t binding, uint32_t array_element = 0) const;

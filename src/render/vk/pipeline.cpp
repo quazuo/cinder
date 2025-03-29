@@ -11,7 +11,7 @@ static vk::raii::ShaderModule create_shader_module(const RendererContext &ctx, c
     std::ifstream file(path, std::ios::ate | std::ios::binary);
 
     if (!file.is_open()) {
-        throw std::runtime_error("failed to open file!");
+        Logger::error("failed to open file!");
     }
 
     const size_t file_size = file.tellg();
@@ -227,15 +227,15 @@ GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) con
 
 void GraphicsPipelineBuilder::check_params() const {
     if (vertex_shader_path.empty()) {
-        throw std::invalid_argument("vertex shader must be specified during pipeline creation!");
+        Logger::error("vertex shader must be specified during pipeline creation!");
     }
 
     if (fragment_shader_path.empty()) {
-        throw std::invalid_argument("fragment shader must be specified during pipeline creation!");
+        Logger::error("fragment shader must be specified during pipeline creation!");
     }
 
     if (vertex_bindings.empty() && vertex_attributes.empty()) {
-        throw std::invalid_argument("vertex descriptions must be specified during pipeline creation!");
+        Logger::error("vertex descriptions must be specified during pipeline creation!");
     }
 }
 
@@ -278,15 +278,15 @@ RtPipeline RtPipelineBuilder::create(const RendererContext &ctx) const {
 
 void RtPipelineBuilder::check_params() const {
     if (raygen_shader_path.empty()) {
-        throw std::invalid_argument("ray generation shader must be specified during ray tracing pipeline creation!");
+        Logger::error("ray generation shader must be specified during ray tracing pipeline creation!");
     }
 
     if (closest_hit_shader_path.empty()) {
-        throw std::invalid_argument("closest hit shader must be specified during ray tracing pipeline creation!");
+        Logger::error("closest hit shader must be specified during ray tracing pipeline creation!");
     }
 
     if (miss_shader_path.empty()) {
-        throw std::invalid_argument("miss shader must be specified during ray tracing pipeline creation!");
+        Logger::error("miss shader must be specified during ray tracing pipeline creation!");
     }
 }
 

@@ -12,6 +12,7 @@
 #include "image.hpp"
 #include "accel-struct.hpp"
 #include "ctx.hpp"
+#include "src/utils/logger.hpp"
 
 namespace zrx {
 template<typename ResourceType>
@@ -167,7 +168,7 @@ public:
             } else if (std::holds_alternative<vk::WriteDescriptorSetAccelerationStructureKHR>(update.info)) {
                 write.pNext = &std::get<vk::WriteDescriptorSetAccelerationStructureKHR>(update.info);
             } else {
-                throw std::runtime_error("unexpected variant in DescriptorSet::commitUpdates");
+                Logger::error("unexpected variant in DescriptorSet::commitUpdates");
             }
 
             descriptor_writes.emplace_back(write);
@@ -187,7 +188,7 @@ public:
         const auto &pack = std::get<Binding>(packs);
 
         if (array_element >= pack.descriptor_count) {
-            throw std::invalid_argument("descriptor set array element out of bounds");
+            Logger::error("descriptor set array element out of bounds");
         }
 
         vk::WriteDescriptorSet write{
@@ -207,7 +208,7 @@ public:
         } else if constexpr (std::is_same_v<ResourceType, AccelerationStructure>) {
             write.pNext = &std::get<vk::WriteDescriptorSetAccelerationStructureKHR>(info);
         } else if constexpr (true) {
-            throw std::runtime_error("unimplemented resource type handling");
+            Logger::error("unimplemented resource type handling");
         }
 
         ctx.get().device->updateDescriptorSets(write, nullptr);
@@ -247,7 +248,7 @@ public:
             };
         }
 
-        throw std::runtime_error("unimplemented resource type handling");
+        Logger::error("unimplemented resource type handling");
     }
 
 private:
@@ -341,7 +342,7 @@ class FixedDescriptorSets {
 
 public:
     FixedDescriptorSets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool) {
-        throw std::runtime_error("unimplemented");
+        Logger::error("unimplemented");
         // todo - implement so that the sets share layouts
     }
 

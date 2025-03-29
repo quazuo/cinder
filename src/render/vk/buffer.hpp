@@ -5,6 +5,7 @@
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
 #include "ctx.hpp"
+#include "src/utils/logger.hpp"
 
 namespace zrx {
 /**
@@ -79,7 +80,7 @@ struct BufferSlice {
     BufferSlice(const Buffer &buffer, const vk::DeviceSize size, const vk::DeviceSize offset = 0)
         : buffer(buffer), size(size), offset(offset) {
         if (size + offset > buffer.get_size()) {
-            throw std::invalid_argument("buffer slice extent out of range");
+            Logger::error("buffer slice extent out of range");
         }
     }
 

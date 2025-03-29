@@ -2,9 +2,9 @@
 
 #include "gui/gui.hpp"
 #include "src/utils/glfw-statics.hpp"
+#include "src/utils/logger.hpp"
 
 #define GLFW_INCLUDE_VULKAN
-#include <iostream>
 #include <GLFW/glfw3.h>
 
 namespace zrx {
@@ -59,7 +59,7 @@ Camera::Camera(GLFWwindow *w) : window(w), input_manager(make_unique<InputManage
 
     init_glfw_user_pointer(window);
     auto *user_data = static_cast<GlfwStaticUserData *>(glfwGetWindowUserPointer(window));
-    if (!user_data) throw std::runtime_error("unexpected null window user pointer");
+    if (!user_data) Logger::error("unexpected null window user pointer");
     user_data->camera = this;
 
     glfwSetScrollCallback(window, &scroll_callback);
@@ -167,7 +167,7 @@ void Camera::render_gui_section() {
 
 void Camera::scroll_callback(GLFWwindow *window, const double dx, const double dy) {
     const auto user_data = static_cast<GlfwStaticUserData *>(glfwGetWindowUserPointer(window));
-    if (!user_data) throw std::runtime_error("unexpected null window user pointer");
+    if (!user_data) Logger::error("unexpected null window user pointer");
 
     if (
         !ImGui::IsWindowHovered(ImGuiHoveredFlags_AnyWindow)

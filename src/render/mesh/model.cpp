@@ -191,13 +191,13 @@ Model::Model(const RendererContext &ctx, const std::filesystem::path &path, cons
     );
 
     if (!scene) {
-        throw std::runtime_error(importer.GetErrorString());
+        Logger::error(importer.GetErrorString());
     }
 
     if (load_materials) {
         constexpr size_t MAX_MATERIAL_COUNT = 32;
         if (scene->mNumMaterials > MAX_MATERIAL_COUNT) {
-            throw std::runtime_error("Models with more than 32 materials are not supported");
+            Logger::error("Models with more than 32 materials are not supported");
         }
 
         for (size_t i = 0; i < scene->mNumMaterials; i++) {

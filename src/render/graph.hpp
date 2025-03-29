@@ -2,19 +2,18 @@
 
 #include <filesystem>
 #include <functional>
-#include <iostream>
 #include <string>
 #include <map>
-#include <memory>
 #include <set>
 #include <variant>
 
 #include "mesh/model.hpp"
 #include "vk/image.hpp"
 #include "vk/buffer.hpp"
+#include "resource-manager.hpp"
 
 namespace zrx {
-class ResourceManager;
+class DescriptorSet;
 class GraphicsPipeline;
 
 namespace detail {
@@ -28,7 +27,7 @@ namespace detail {
 
 using RenderNodeHandle = uint32_t;
 
-static constexpr ResourceHandle FINAL_IMAGE_RESOURCE_HANDLE  = -1;
+static constexpr ResourceHandle FINAL_IMAGE_RESOURCE_HANDLE = -1;
 static constexpr std::monostate EMPTY_DESCRIPTOR_SET_BINDING = {};
 
 struct UniformBufferResource {
@@ -69,7 +68,7 @@ struct FinalImageFormatPlaceholder {
 
 struct ShaderPack {
     using DescriptorSetDescription = vector<std::variant<std::monostate, ResourceHandle, ResourceHandleArray> >;
-    using AttachmentFormat         = std::variant<vk::Format, FinalImageFormatPlaceholder>;
+    using AttachmentFormat = std::variant<vk::Format, FinalImageFormatPlaceholder>;
 
     std::filesystem::path vertex_path;
     std::filesystem::path fragment_path;
@@ -80,19 +79,21 @@ struct ShaderPack {
     std::optional<AttachmentFormat> depth_format;
 
     struct CustomProperties {
-        bool use_msaa                  = false;
+        bool use_msaa = false;
         vk::CullModeFlagBits cull_mode = vk::CullModeFlagBits::eBack;
-        uint32_t multiview_count       = 1;
+        uint32_t multiview_count = 1;
     } custom_properties;
 
     template<typename VertexType>
         requires VertexLike<VertexType>
     ShaderPack(
-        std::filesystem::path &&vertex_path_, std::filesystem::path &&fragment_path_,
+        std::filesystem::path &&vertex_path_,
+        std::filesystem::path &&fragment_path_,
         vector<DescriptorSetDescription> &&descriptor_set_descs_,
         [[maybe_unused]] VertexType &&vertex_example, // it's not possible to explicitly specialize the ctor :(
-        vector<AttachmentFormat> colors, const std::optional<AttachmentFormat> depth_format = {},
-        CustomProperties &&custom_properties                                                = {}
+        vector<AttachmentFormat> colors,
+        const std::optional<AttachmentFormat> depth_format = {},
+        CustomProperties &&custom_properties = {}
     )
         : vertex_path(vertex_path_), fragment_path(fragment_path_),
           descriptor_set_descs(descriptor_set_descs_),
@@ -125,10 +126,14 @@ public:
 class RenderPassContext final : public IRenderPassContext {
     reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
     reference_wrapper<ResourceManager> resource_manager;
+    reference_wrapper<const std::map<ResourceHandle, GraphicsPipeline> > pipelines;
+    reference_wrapper<const std::map<ResourceHandle, vector<DescriptorSet> > > pipeline_desc_sets;
 
 public:
-    explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, ResourceManager &rm)
-        : command_buffer(cmd_buf), resource_manager(rm) {
+    explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, ResourceManager &rm,
+                               const std::map<ResourceHandle, GraphicsPipeline> &pipelines,
+                               const std::map<ResourceHandle, vector<DescriptorSet> > &sets)
+        : command_buffer(cmd_buf), resource_manager(rm), pipelines(pipelines), pipeline_desc_sets(sets) {
     }
 
     ~RenderPassContext() override = default;
@@ -162,7 +167,7 @@ public:
 };
 
 struct RenderNode {
-    using RenderNodeBodyFn   = std::function<void(IRenderPassContext &)>;
+    using RenderNodeBodyFn = std::function<void(IRenderPassContext &)>;
     using ShouldRunPredicate = std::function<bool()>;
 
     std::string name;

@@ -140,7 +140,7 @@ Image::Image(const RendererContext &ctx, const vk::ImageCreateInfo &image_info,
     );
 
     if (result != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate buffer!");
+        Logger::error("failed to allocate buffer!");
     }
 
     image      = make_unique<vk::raii::Image>(*ctx.device, new_image);
@@ -222,7 +222,7 @@ void Image::transition_layout(const vk::ImageLayout old_layout, const vk::ImageL
 void Image::transition_layout(vk::ImageLayout old_layout, vk::ImageLayout new_layout,
                               vk::ImageSubresourceRange range, const vk::raii::CommandBuffer &command_buffer) const {
     if (!transition_barrier_schemes.contains({old_layout, new_layout})) {
-        throw std::invalid_argument("unsupported layout transition!");
+        Logger::error("unsupported layout transition!");
     }
 
     const auto &[src_access_mask, dst_access_mask, src_stage, dst_stage] =
@@ -454,7 +454,7 @@ void Texture::generate_mipmaps(const RendererContext &ctx, const vk::ImageLayout
     const vk::FormatProperties format_properties = ctx.physical_device->getFormatProperties(get_format());
 
     if (!(format_properties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eSampledImageFilterLinear)) {
-        throw std::runtime_error("texture image format does not support linear blitting!");
+        Logger::error("texture image format does not support linear blitting!");
     }
 
     const vk::raii::CommandBuffer command_buffer = utils::cmd::begin_single_time_commands(ctx);
@@ -641,7 +641,7 @@ TextureBuilder &TextureBuilder::from_paths(const vector<std::filesystem::path> &
 
 TextureBuilder &TextureBuilder::from_memory(void *ptr, const vk::Extent3D extent) {
     if (!ptr) {
-        throw std::invalid_argument("cannot specify null memory source!");
+        Logger::error("cannot specify null memory source!");
     }
 
     memory_source  = ptr;
@@ -754,7 +754,7 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
 
 void TextureBuilder::check_params() const {
     if (paths.empty() && !memory_source && !is_from_swizzle_fill && !is_uninitialized) {
-        throw std::invalid_argument("no specified data source for texture!");
+        Logger::error("no specified data source for texture!");
     }
 
     size_t sources_count = 0;
@@ -763,47 +763,47 @@ void TextureBuilder::check_params() const {
     if (is_from_swizzle_fill) sources_count++;
 
     if (sources_count > 1) {
-        throw std::invalid_argument("cannot specify more than one texture source!");
+        Logger::error("cannot specify more than one texture source!");
     }
 
     if (sources_count != 0 && is_uninitialized) {
-        throw std::invalid_argument("cannot simultaneously set texture as uninitialized and specify sources!");
+        Logger::error("cannot simultaneously set texture as uninitialized and specify sources!");
     }
 
     if (tex_flags & vk::TextureFlagBitsZRX::CUBEMAP) {
         if (memory_source) {
-            throw std::invalid_argument("cubemaps from a memory source are currently not supported!");
+            Logger::error("cubemaps from a memory source are currently not supported!");
         }
 
         if (is_separate_channels) {
-            throw std::invalid_argument("cubemaps from separated channels are currently not supported!");
+            Logger::error("cubemaps from separated channels are currently not supported!");
         }
 
         if (is_from_swizzle_fill) {
-            throw std::invalid_argument("cubemaps from swizzle fill are currently not supported!");
+            Logger::error("cubemaps from swizzle fill are currently not supported!");
         }
 
         if (usage & vk::ImageUsageFlagBits::eDepthStencilAttachment) {
-            throw std::invalid_argument("cubemaps cannot be depth/stencil attachments!");
+            Logger::error("cubemaps cannot be depth/stencil attachments!");
         }
 
         if (paths.size() != 6 && !is_uninitialized) {
-            throw std::invalid_argument("invalid layer count for cubemap texture!");
+            Logger::error("invalid layer count for cubemap texture!");
         }
     } else {
         // non-cubemap
         if (is_separate_channels) {
             if (paths.size() != 3) {
-                throw std::invalid_argument("unsupported channel count for separate-channelled non-cubemap texture!");
+                Logger::error("unsupported channel count for separate-channelled non-cubemap texture!");
             }
         } else if (!memory_source && !is_from_swizzle_fill && !is_uninitialized && paths.size() != 1) {
-            throw std::invalid_argument("invalid layer count for non-cubemap texture!");
+            Logger::error("invalid layer count for non-cubemap texture!");
         }
     }
 
     if (is_separate_channels) {
         if (paths.empty()) {
-            throw std::invalid_argument("separate-channeled textures must provide path sources!");
+            Logger::error("separate-channeled textures must provide path sources!");
         }
 
         if (utils::img::get_format_size_in_bytes(format) != 4) {
@@ -824,7 +824,7 @@ void TextureBuilder::check_params() const {
                     && (*swizzle)[comp] != SwizzleComponent::ONE
                     && (*swizzle)[comp] != SwizzleComponent::MAX
                     && (*swizzle)[comp] != SwizzleComponent::HALF_MAX) {
-                    throw std::invalid_argument("invalid swizzle component for channel provided by an empty path!");
+                    Logger::error("invalid swizzle component for channel provided by an empty path!");
                 }
             }
         }
@@ -832,7 +832,7 @@ void TextureBuilder::check_params() const {
 
     if (is_from_swizzle_fill) {
         if (!swizzle) {
-            throw std::invalid_argument("textures filled from swizzle must provide a swizzle!");
+            Logger::error("textures filled from swizzle must provide a swizzle!");
         }
 
         for (size_t comp = 0; comp < 3; comp++) {
@@ -840,7 +840,7 @@ void TextureBuilder::check_params() const {
                 && (*swizzle)[comp] != SwizzleComponent::ONE
                 && (*swizzle)[comp] != SwizzleComponent::MAX
                 && (*swizzle)[comp] != SwizzleComponent::HALF_MAX) {
-                throw std::invalid_argument("invalid swizzle component for swizzle-filled texture!");
+                Logger::error("invalid swizzle component for swizzle-filled texture!");
             }
         }
     }
@@ -879,7 +879,7 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_paths() const {
         }
 
         if (!src) {
-            throw std::runtime_error("failed to load texture image at path: " + path.string());
+            Logger::error("failed to load texture image at path: " + path.string());
         }
 
         if (is_first_non_empty && !desired_extent) {
@@ -887,7 +887,7 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_paths() const {
             tex_height         = curr_tex_height;
             is_first_non_empty = false;
         } else if (tex_width != curr_tex_width || tex_height != curr_tex_height) {
-            throw std::runtime_error("size mismatch while loading a texture from paths!");
+            Logger::error("size mismatch while loading a texture from paths!");
         }
 
         data_sources.push_back(src);
@@ -900,7 +900,7 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_paths() const {
 
     constexpr uint32_t component_count = 4;
     if (format_size % component_count != 0) {
-        throw std::runtime_error("texture formats with component count other than 4 are currently unsupported!");
+        Logger::error("texture formats with component count other than 4 are currently unsupported!");
     }
 
     if (is_separate_channels) {
@@ -936,7 +936,7 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_memory() const {
 
     constexpr uint32_t component_count = 4;
     if (format_size % component_count != 0) {
-        throw std::runtime_error("texture formats with component count other than 4 are currently unsupported!");
+        Logger::error("texture formats with component count other than 4 are currently unsupported!");
     }
 
     if (swizzle) {
@@ -966,7 +966,7 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_swizzle_fill() const
 
     constexpr uint32_t component_count = 4;
     if (format_size % component_count != 0) {
-        throw std::runtime_error("texture formats with component count other than 4 are currently unsupported!");
+        Logger::error("texture formats with component count other than 4 are currently unsupported!");
     }
 
     const vector<void *> data_sources = {malloc(texture_size)};
@@ -1022,7 +1022,7 @@ void *TextureBuilder::merge_channels(const vector<void *> &channels_data, const 
                                      const size_t component_count) {
     auto *merged = static_cast<uint8_t *>(malloc(texture_size));
     if (!merged) {
-        throw std::runtime_error("malloc failed");
+        Logger::error("malloc failed");
     }
 
     for (size_t i = 0; i < texture_size; i++) {
@@ -1038,7 +1038,7 @@ void *TextureBuilder::merge_channels(const vector<void *> &channels_data, const 
 
 void TextureBuilder::perform_swizzle(uint8_t *data, const size_t size) const {
     if (!swizzle) {
-        throw std::runtime_error("unexpected empty swizzle optional in TextureBuilder::performSwizzle");
+        Logger::error("unexpected empty swizzle optional in TextureBuilder::performSwizzle");
     }
 
     constexpr size_t COMPONENT_COUNT = 4;
@@ -1201,7 +1201,8 @@ namespace utils::img {
             case vk::Format::eR32G32B32A32Sfloat:
                 return 16;
             default:
-                throw std::runtime_error("unexpected_format_in_utils::img::get_format_size_in_bytes");
+                Logger::error("unexpected_format_in_utils::img::get_format_size_in_bytes");
+                return 0;
         }
     }
 

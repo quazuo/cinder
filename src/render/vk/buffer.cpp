@@ -34,7 +34,7 @@ Buffer::Buffer(const VmaAllocator _allocator, const vk::DeviceSize size, const v
     );
 
     if (result != VK_SUCCESS) {
-        throw std::runtime_error("failed to allocate buffer!");
+        Logger::error("failed to allocate buffer!");
     }
 }
 
@@ -48,7 +48,7 @@ Buffer::~Buffer() {
 
 void *Buffer::map() {
     if (!mapped && vmaMapMemory(allocator, allocation, &mapped) != VK_SUCCESS) {
-        throw std::runtime_error("failed to map buffer memory!");
+        Logger::error("failed to map buffer memory!");
     }
 
     return mapped;
@@ -56,7 +56,7 @@ void *Buffer::map() {
 
 void Buffer::unmap() {
     if (!mapped) {
-        throw std::runtime_error("tried to unmap a buffer that wasn't mapped!");
+        Logger::error("tried to unmap a buffer that wasn't mapped!");
     }
 
     vmaUnmapMemory(allocator, allocation);

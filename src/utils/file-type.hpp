@@ -1,5 +1,7 @@
 #pragma once
 
+#include "src/utils/logger.hpp"
+
 namespace zrx {
 enum class FileType {
     MODEL,
@@ -28,7 +30,7 @@ enum class FileType {
         case FileType::ENVMAP_HDR:
             return {".hdr"};
         default:
-            throw std::runtime_error("unexpected filetype in get_file_type_extensions");
+            Logger::error("unexpected filetype in get_file_type_extensions");
     }
 }
 
@@ -63,7 +65,7 @@ enum class FileType {
         case FileType::ENVMAP_HDR:
             return "Load environment map...";
         default:
-            throw std::runtime_error("unexpected filetype in get_file_type_load_label");
+            Logger::error("unexpected filetype in get_file_type_load_label");
     }
 }
 

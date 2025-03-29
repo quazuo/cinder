@@ -158,7 +158,7 @@ vk::Extent2D SwapChain::choose_extent(const vk::SurfaceCapabilitiesKHR &capabili
 
 vk::SurfaceFormatKHR SwapChain::choose_surface_format(const vector<vk::SurfaceFormatKHR> &available_formats) {
     if (available_formats.empty()) {
-        throw std::runtime_error("unexpected empty list of available formats");
+        Logger::error("unexpected empty list of available formats");
     }
 
     for (const auto &available_format: available_formats) {
@@ -300,6 +300,7 @@ vk::Format SwapChain::find_supported_format(const RendererContext &ctx, const ve
         }
     }
 
-    throw std::runtime_error("failed to find supported format!");
+    Logger::error("failed to find supported format!");
+    return {};
 }
 } // zrx

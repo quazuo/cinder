@@ -13,7 +13,6 @@
 #include "render/renderer.hpp"
 #include "render/resource-manager.hpp"
 #include "render/gui/gui.hpp"
-#include "render/vk/shader.hpp"
 #include "utils/input-manager.hpp"
 #include "utils/file-type.hpp"
 
@@ -146,9 +145,9 @@ private:
             "../assets/example models/kettle/kettle.obj"
         });
 
-        const auto skybox_vert_buf = render_graph.add_resource(VertexBufferResource{
-            // todo
-        });
+        // const auto skybox_vert_buf = render_graph.add_resource(VertexBufferResource{
+        //     // todo
+        // });
 
         // ================== uniform buffers ==================
 
@@ -286,7 +285,7 @@ private:
             .color_targets = {skybox_texture},
             .body = [=](IRenderPassContext &ctx) {
                 ctx.bind_pipeline(cubecap_shaders);
-                ctx.draw_skybox();
+               //  ctx.draw_skybox();
                 should_compute_skybox = false;
             },
             .should_run_predicate = [&] { return should_compute_skybox; },
@@ -311,7 +310,7 @@ private:
             .color_targets = {ssao_texture},
             .body = [=](IRenderPassContext &ctx) {
                 ctx.bind_pipeline(ssao_shaders);
-                ctx.draw_screenspace_quad();
+                // ctx.draw_screenspace_quad();
             },
             .should_run_predicate = [&] { return use_ssao; }
         });
@@ -325,7 +324,7 @@ private:
                 ctx.draw_model(scene_model);
 
                 ctx.bind_pipeline(skybox_shaders);
-                ctx.draw_skybox();
+                // ctx.draw_skybox();
             },
             .explicit_dependencies = {cubecap_node, prepass_node, ssao_node}
         });

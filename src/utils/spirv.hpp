@@ -1,12 +1,16 @@
 #pragma once
 
-#include <SPIRV-Reflect/spirv_reflect.h>
 #include <filesystem>
 
 #include "src/render/globals.hpp"
 
+struct SpvReflectShaderModule;
+struct SpvReflectDescriptorSet;
+struct SpvReflectDescriptorBinding;
+
+namespace zrx {
 class SpirvReflectModuleWrapper {
-    SpvReflectShaderModule module{};
+    unique_ptr<SpvReflectShaderModule> module = nullptr;
 
 public:
     explicit SpirvReflectModuleWrapper(const std::filesystem::path& path);
@@ -17,3 +21,4 @@ public:
 
     [[nodiscard]] vector<SpvReflectDescriptorBinding*> descriptor_bindings() const;
 };
+} // zrx

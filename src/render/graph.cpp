@@ -2,6 +2,8 @@
 
 #include "resource-manager.hpp"
 #include "vk/pipeline.hpp"
+#include "src/utils/logger.hpp"
+#include "vk/descriptor.hpp"
 
 namespace zrx {
 [[nodiscard]] std::set<ResourceHandle> ShaderPack::get_bound_resources_set() const {
@@ -23,9 +25,21 @@ namespace zrx {
 
 void RenderPassContext::bind_pipeline(const ResourceHandle pipeline_handle) {
     const auto &pipeline = pipelines.get().at(pipeline_handle);
-    command_buffer.get().bindPipeline(vk::PipelineBindPoint::eGraphics, ***pipeline);
+    command_buffer.get().bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
 
-    throw std::runtime_error("todo: bind descriptors!");
+    const auto& desc_sets = pipeline_desc_sets.get().at(pipeline_handle);
+    std::vector<vk::DescriptorSet> raw_sets;
+    for (const auto& set: desc_sets) {
+        raw_sets.push_back(*set);
+    }
+
+    command_buffer.get().bindDescriptorSets(
+        vk::PipelineBindPoint::eGraphics,
+        pipeline.get_layout(),
+        0,
+        raw_sets,
+        nullptr
+    );
 }
 
 void RenderPassContext::draw_model(const ResourceHandle model_handle) {
@@ -111,7 +125,7 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
     const auto shader_resources = node.get_all_shader_resources_set(pipelines);
 
     if (!detail::empty_intersection(targets_set, shader_resources)) {
-        throw std::invalid_argument("invalid render node: cannot use a target as a shader resource!");
+        Logger::error("invalid render node: cannot use a target as a shader resource!");
     }
 
     std::set<RenderNodeHandle> dependencies;
@@ -175,7 +189,7 @@ void RenderGraph::cycles_helper(const RenderNodeHandle handle, std::set<RenderNo
 
     for (const auto &neighbour: dependency_graph.at(handle)) {
         if (discovered.contains(neighbour)) {
-            throw std::invalid_argument("invalid render graph: illegal cycle in dependency graph!");
+            Logger::error("invalid render graph: illegal cycle in dependency graph!");
         }
 
         if (!finished.contains(neighbour)) {

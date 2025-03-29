@@ -127,7 +127,7 @@ void DescriptorSet::commit_updates(const RendererContext &ctx) {
         } else if (std::holds_alternative<vk::WriteDescriptorSetAccelerationStructureKHR>(update.info)) {
             write.pNext = &std::get<vk::WriteDescriptorSetAccelerationStructureKHR>(update.info);
         } else {
-            throw std::runtime_error("unexpected variant in DescriptorSet::commitUpdates");
+            Logger::error("unexpected variant in DescriptorSet::commitUpdates");
         }
 
         descriptor_writes.emplace_back(write);

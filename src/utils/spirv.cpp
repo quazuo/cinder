@@ -1,13 +1,18 @@
 #include "spirv.hpp"
 
+#include <SPIRV-Reflect/spirv_reflect.h>
+
 #include <fstream>
 #include <functional>
 
+#include "src/utils/logger.hpp"
+
+namespace zrx {
 static vector<char> read_file(const std::filesystem::path &path) {
     std::ifstream file(path, std::ios::ate | std::ios::binary);
 
     if (!file.is_open()) {
-        throw std::runtime_error("failed to open file!");
+        Logger::error("failed to open file!");
     }
 
     const size_t file_size = file.tellg();
@@ -20,7 +25,7 @@ static vector<char> read_file(const std::filesystem::path &path) {
 
 static void check_spv_result(const SpvReflectResult result) {
     if (result != SPV_REFLECT_RESULT_SUCCESS) {
-        throw std::runtime_error("call to SPV library function failed with code: " + std::to_string(result));
+        Logger::error("call to SPV library function failed with code: " + std::to_string(result));
     }
 }
 
@@ -37,18 +42,20 @@ static vector<T *> enumerate_spv_objects(const SpvReflectShaderModule *module, S
 }
 
 SpirvReflectModuleWrapper::SpirvReflectModuleWrapper(const std::filesystem::path &path) {
+    module = make_unique<SpvReflectShaderModule>();
     const auto file_buffer = read_file(path);
-    check_spv_result(spvReflectCreateShaderModule(file_buffer.size(), file_buffer.data(), &module));
+    check_spv_result(spvReflectCreateShaderModule(file_buffer.size(), file_buffer.data(), &*module));
 }
 
 SpirvReflectModuleWrapper::~SpirvReflectModuleWrapper() {
-    spvReflectDestroyShaderModule(&module);
+    spvReflectDestroyShaderModule(&*module);
 }
 
 vector<SpvReflectDescriptorSet*> SpirvReflectModuleWrapper::descriptor_sets() const {
-    return enumerate_spv_objects<SpvReflectDescriptorSet>(&module, spvReflectEnumerateDescriptorSets);
+    return enumerate_spv_objects<SpvReflectDescriptorSet>(&*module, spvReflectEnumerateDescriptorSets);
 }
 
 vector<SpvReflectDescriptorBinding*> SpirvReflectModuleWrapper::descriptor_bindings() const {
-    return enumerate_spv_objects<SpvReflectDescriptorBinding>(&module, spvReflectEnumerateDescriptorBindings);
+    return enumerate_spv_objects<SpvReflectDescriptorBinding>(&*module, spvReflectEnumerateDescriptorBindings);
 }
+} // zrx
