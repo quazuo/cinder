@@ -137,7 +137,8 @@ vkb::Instance VulkanRenderer::create_instance() {
                     const auto type = vkb::to_string_message_type(messageType);
 
                     std::stringstream ss;
-                    ss << "[VALIDATION LAYER / " << severity << " / " << type << "]\n" << pCallbackData->pMessage << "\n";
+                    ss << "[VALIDATION LAYER / " << severity << " / " << type << "]\n" << pCallbackData->pMessage <<
+                            "\n";
 
                     if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
                         std::cerr << ss.str() << std::endl;
@@ -385,30 +386,27 @@ vk::SampleCountFlagBits VulkanRenderer::get_max_usable_sample_count() const {
 
 // ==================== buffers ====================
 
-template<typename ElemType>
-unique_ptr<Buffer>
-VulkanRenderer::create_local_buffer(const vector<ElemType> &contents, const vk::BufferUsageFlags usage) {
-    const vk::DeviceSize buffer_size = sizeof(contents[0]) * contents.size();
-
+unique_ptr<Buffer> VulkanRenderer::create_local_buffer(const void *data, const vk::DeviceSize size,
+                                                       const vk::BufferUsageFlags usage) const {
     Buffer staging_buffer{
         **ctx.allocator,
-        buffer_size,
+        size,
         vk::BufferUsageFlagBits::eTransferSrc,
         vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
     };
 
-    void *data = staging_buffer.map();
-    memcpy(data, contents.data(), static_cast<size_t>(buffer_size));
+    void *staging_data = staging_buffer.map();
+    memcpy(staging_data, data, static_cast<size_t>(size));
     staging_buffer.unmap();
 
     auto result_buffer = make_unique<Buffer>(
         **ctx.allocator,
-        buffer_size,
+        size,
         vk::BufferUsageFlagBits::eTransferDst | usage,
         vk::MemoryPropertyFlagBits::eDeviceLocal
     );
 
-    result_buffer->copy_from_buffer(ctx, staging_buffer, buffer_size);
+    result_buffer->copy_from_buffer(ctx, staging_buffer, size);
 
     return result_buffer;
 }
@@ -552,6 +550,13 @@ void VulkanRenderer::create_render_graph_resources() {
         resource_manager->add(handle, std::move(model));
     }
 
+    for (const auto &[handle, description]: render_graph_info.render_graph->vertex_buffers) {
+        resource_manager->add(
+            handle,
+            create_local_buffer(description.data, description.size, vk::BufferUsageFlagBits::eVertexBuffer)
+        );
+    }
+
     for (const auto &[handle, description]: render_graph_info.render_graph->uniform_buffers) {
         resource_manager->add(handle, utils::buf::create_uniform_buffer(ctx, description.size));
     }
@@ -622,8 +627,8 @@ VulkanRenderer::create_graph_descriptor_sets(const ResourceHandle pipeline_handl
     const auto &set_descs = pipeline_info.descriptor_set_descs;
     vector<DescriptorSet> descriptor_sets;
 
-    const SpirvReflectModuleWrapper vert_spv_module { pipeline_info.vertex_path };
-    const SpirvReflectModuleWrapper frag_spv_module { pipeline_info.fragment_path };
+    const SpirvReflectModuleWrapper vert_spv_module{pipeline_info.vertex_path};
+    const SpirvReflectModuleWrapper frag_spv_module{pipeline_info.fragment_path};
 
     const auto reflected_vert_bindings = vert_spv_module.descriptor_bindings();
     const auto reflected_frag_bindings = frag_spv_module.descriptor_bindings();
@@ -667,7 +672,7 @@ VulkanRenderer::create_graph_descriptor_sets(const ResourceHandle pipeline_handl
                 Logger::error("unknown resource handle");
             }
 
-            const auto matching_binding_fn = [&](const SpvReflectDescriptorBinding* binding) {
+            const auto matching_binding_fn = [&](const SpvReflectDescriptorBinding *binding) {
                 return binding->set == set_idx && binding->binding == binding_idx;
             };
 
@@ -717,8 +722,8 @@ VulkanRenderer::create_graph_pipeline_builder(const ResourceHandle pipeline_hand
     vector<vk::Format> color_formats;
     for (const auto &format_variant: pipeline_info.color_formats) {
         const vk::Format format = std::holds_alternative<vk::Format>(format_variant)
-                                    ? std::get<vk::Format>(format_variant)
-                                    : swap_chain->get_image_format();
+                                  ? std::get<vk::Format>(format_variant)
+                                  : swap_chain->get_image_format();
         color_formats.push_back(format);
     }
 
@@ -740,6 +745,11 @@ VulkanRenderer::create_graph_pipeline_builder(const ResourceHandle pipeline_hand
                 .frontFace = vk::FrontFace::eCounterClockwise,
                 .lineWidth = 1.0f,
             })
+            .with_depth_stencil({
+                .depthTestEnable = !pipeline_info.custom_properties.disable_depth_test,
+                .depthWriteEnable = !pipeline_info.custom_properties.disable_depth_write,
+                .depthCompareOp = pipeline_info.custom_properties.depth_compare_op,
+            })
             .with_multisampling({
                 .rasterizationSamples = pipeline_info.custom_properties.use_msaa
                                         ? get_msaa_sample_count()
@@ -751,8 +761,8 @@ VulkanRenderer::create_graph_pipeline_builder(const ResourceHandle pipeline_hand
 
     if (pipeline_info.depth_format) {
         const vk::Format format = std::holds_alternative<vk::Format>(*pipeline_info.depth_format)
-                                    ? std::get<vk::Format>(*pipeline_info.depth_format)
-                                    : swap_chain->get_depth_format();
+                                  ? std::get<vk::Format>(*pipeline_info.depth_format)
+                                  : swap_chain->get_depth_format();
         builder.with_depth_format(format);
     } else {
         builder.with_depth_stencil({
@@ -886,8 +896,8 @@ void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resour
     const auto &node_render_info = node_resources.render_infos[subresource_index];
 
     command_buffer.beginRendering(node_render_info.get(
-        get_node_target_extent(node_resources),
-        node.custom_properties.multiview_count)
+            get_node_target_extent(node_resources),
+            node.custom_properties.multiview_count)
     );
     record_node_rendering_commands(node_resources);
     command_buffer.endRendering();
@@ -906,7 +916,7 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &n
 
     utils::cmd::set_dynamic_states(command_buffer, get_node_target_extent(node_resources));
 
-    RenderPassContext ctx{ command_buffer, *resource_manager, render_graph_pipelines, pipeline_desc_sets };
+    RenderPassContext ctx{command_buffer, *resource_manager, render_graph_pipelines, pipeline_desc_sets};
     node_info.body(ctx);
 }
 
@@ -986,10 +996,10 @@ vk::Extent2D VulkanRenderer::get_node_target_extent(const RenderNodeResources &n
     const auto &node_info = render_graph_info.render_graph->nodes.at(node_resources.handle);
 
     return has_swapchain_target(node_resources.handle)
-                        ? swap_chain->get_extent()
-                        : resource_manager->get_texture(node_info.color_targets[0])
-                            .get_image()
-                            .get_extent_2d();
+           ? swap_chain->get_extent()
+           : resource_manager->get_texture(node_info.color_targets[0])
+           .get_image()
+           .get_extent_2d();
 }
 
 vk::Format VulkanRenderer::get_target_color_format(const ResourceHandle handle) const {

@@ -213,8 +213,8 @@ private:
 
     // ==================== buffers ====================
 
-    template<typename ElemType>
-    unique_ptr<Buffer> create_local_buffer(const vector<ElemType> &contents, vk::BufferUsageFlags usage);
+    [[nodiscard]] unique_ptr<Buffer>
+    create_local_buffer(const void* data, vk::DeviceSize size, vk::BufferUsageFlags usage) const;
 
     // ==================== commands ====================
 

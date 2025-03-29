@@ -30,6 +30,12 @@ using RenderNodeHandle = uint32_t;
 static constexpr ResourceHandle FINAL_IMAGE_RESOURCE_HANDLE = -1;
 static constexpr std::monostate EMPTY_DESCRIPTOR_SET_BINDING = {};
 
+struct VertexBufferResource {
+    std::string name;
+    vk::DeviceSize size;
+    const void *data;
+};
+
 struct UniformBufferResource {
     std::string name;
     vk::DeviceSize size;
@@ -80,6 +86,9 @@ struct ShaderPack {
 
     struct CustomProperties {
         bool use_msaa = false;
+        bool disable_depth_test = false;
+        bool disable_depth_write = false;
+        vk::CompareOp depth_compare_op = vk::CompareOp::eLess;
         vk::CullModeFlagBits cull_mode = vk::CullModeFlagBits::eBack;
         uint32_t multiview_count = 1;
     } custom_properties;
@@ -197,6 +206,7 @@ class RenderGraph {
     std::map<RenderNodeHandle, RenderNode> nodes;
     std::map<RenderNodeHandle, std::set<RenderNodeHandle> > dependency_graph;
 
+    std::map<ResourceHandle, VertexBufferResource> vertex_buffers;
     std::map<ResourceHandle, UniformBufferResource> uniform_buffers;
     std::map<ResourceHandle, ExternalTextureResource> external_tex_resources;
     std::map<ResourceHandle, EmptyTextureResource> empty_tex_resources;
@@ -212,6 +222,8 @@ public:
     [[nodiscard]] vector<RenderNodeHandle> get_topo_sorted() const;
 
     RenderNodeHandle add_node(const RenderNode &node);
+
+    [[nodiscard]] ResourceHandle add_resource(VertexBufferResource &&resource);
 
     [[nodiscard]] ResourceHandle add_resource(UniformBufferResource &&resource);
 
@@ -245,4 +257,4 @@ private:
         return handle;
     }
 };
-}; // zrx
+} // zrx

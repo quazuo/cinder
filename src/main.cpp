@@ -8,6 +8,9 @@
 #include <iostream>
 #include <random>
 
+#include "assimp/code/AssetLib/MDL/MDLFileData.h"
+#include "assimp/code/AssetLib/MMD/MMDPmxParser.h"
+#include "assimp/code/AssetLib/SMD/SMDLoader.h"
 #include "render/camera.hpp"
 #include "render/graph.hpp"
 #include "render/renderer.hpp"
@@ -83,7 +86,7 @@ class Engine {
     float debug_number = 0;
 
     bool use_ssao              = false;
-    bool should_compute_skybox = true;
+    bool should_capture_skybox = true;
 
 public:
     Engine() {
@@ -118,6 +121,7 @@ private:
         camera->tick(delta_time);
 
         renderer.run_render_graph();
+        // should_capture_skybox = false;
 
         if (file_browser.HasSelected()) {
             const std::filesystem::path path = file_browser.GetSelected().string();
@@ -136,8 +140,6 @@ private:
     void build_render_graph() {
         RenderGraph render_graph;
 
-        constexpr auto depth_format = vk::Format::eD32Sfloat;
-
         // ================== models and vertex buffers ==================
 
         const auto scene_model = render_graph.add_resource(ModelResource{
@@ -145,9 +147,17 @@ private:
             "../assets/example models/kettle/kettle.obj"
         });
 
-        // const auto skybox_vert_buf = render_graph.add_resource(VertexBufferResource{
-        //     // todo
-        // });
+        const auto skybox_vert_buf = render_graph.add_resource(VertexBufferResource{
+            "skybox-vb",
+            skybox_vertices.size() * sizeof(SkyboxVertex),
+            skybox_vertices.data()
+        });
+
+        const auto ss_quad_vert_buf = render_graph.add_resource(VertexBufferResource{
+            "ss-quad-vb",
+            screen_space_quad_vertices.size() * sizeof(ScreenSpaceQuadVertex),
+            screen_space_quad_vertices.data()
+        });
 
         // ================== uniform buffers ==================
 
@@ -208,10 +218,11 @@ private:
             g_buffer_color_format,
         });
 
+        constexpr auto g_buffer_depth_format = vk::Format::eD32Sfloat;
         const auto g_buffer_depth = render_graph.add_resource(EmptyTextureResource{
             "g-buffer-depth",
             {0, 0},
-            depth_format,
+            g_buffer_depth_format,
             {}
         });
 
@@ -227,7 +238,7 @@ private:
         const auto cubecap_shaders = render_graph.add_pipeline({
             "../shaders/obj/sphere-cube-vert.spv",
             "../shaders/obj/sphere-cube-frag.spv",
-            {{uniform_buffer}},
+            {{uniform_buffer, envmap_texture}},
             SkyboxVertex(),
             {skybox_tex_format},
             {},
@@ -242,7 +253,7 @@ private:
             {{uniform_buffer}},
             ModelVertex(),
             {g_buffer_color_format, g_buffer_color_format},
-            depth_format
+            g_buffer_depth_format
         });
 
         const auto ssao_shaders = render_graph.add_pipeline({
@@ -259,7 +270,10 @@ private:
             {{uniform_buffer, skybox_texture}},
             SkyboxVertex(),
             {FinalImageFormatPlaceholder()},
-            FinalImageFormatPlaceholder()
+            FinalImageFormatPlaceholder(),
+            ShaderPack::CustomProperties {
+                .depth_compare_op = vk::CompareOp::eLessOrEqual,
+            }
         });
 
         const auto main_shaders = render_graph.add_pipeline({
@@ -285,10 +299,9 @@ private:
             .color_targets = {skybox_texture},
             .body = [=](IRenderPassContext &ctx) {
                 ctx.bind_pipeline(cubecap_shaders);
-               //  ctx.draw_skybox();
-                should_compute_skybox = false;
+                ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
             },
-            .should_run_predicate = [&] { return should_compute_skybox; },
+            .should_run_predicate = [&] { return should_capture_skybox; },
             .custom_properties = RenderNode::CustomProperties {
                 .multiview_count = 6
             }
@@ -310,12 +323,12 @@ private:
             .color_targets = {ssao_texture},
             .body = [=](IRenderPassContext &ctx) {
                 ctx.bind_pipeline(ssao_shaders);
-                // ctx.draw_screenspace_quad();
+                ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
             },
             .should_run_predicate = [&] { return use_ssao; }
         });
 
-        const auto main_node = render_graph.add_node({
+        render_graph.add_node({
             .name = "main",
             .color_targets = {FINAL_IMAGE_RESOURCE_HANDLE},
             .depth_target = FINAL_IMAGE_RESOURCE_HANDLE,
@@ -324,7 +337,7 @@ private:
                 ctx.draw_model(scene_model);
 
                 ctx.bind_pipeline(skybox_shaders);
-                // ctx.draw_skybox();
+                ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
             },
             .explicit_dependencies = {cubecap_node, prepass_node, ssao_node}
         });

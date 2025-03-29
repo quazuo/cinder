@@ -155,6 +155,10 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
     return handle;
 }
 
+ResourceHandle RenderGraph::add_resource(VertexBufferResource &&resource) {
+    return add_resource_generic(std::move(resource), vertex_buffers);
+}
+
 ResourceHandle RenderGraph::add_resource(UniformBufferResource &&resource) {
     return add_resource_generic(std::move(resource), uniform_buffers);
 }
