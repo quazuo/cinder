@@ -638,31 +638,6 @@ static void show_error_box(const std::string &message) {
     );
 }
 
-void generate_ssao_kernel_samples() {
-    std::uniform_real_distribution<float> random_floats(0.0, 1.0);
-    std::default_random_engine generator;
-    vector<glm::vec3> ssao_kernel;
-    for (int i = 0; i < 64; ++i) {
-        glm::vec3 sample(
-            random_floats(generator) * 2.0 - 1.0,
-            random_floats(generator) * 2.0 - 1.0,
-            random_floats(generator)
-        );
-        sample = glm::normalize(sample);
-        sample *= random_floats(generator);
-
-        float scale = (float) i / 64.0;
-        scale       = glm::mix(0.1f, 1.0f, scale * scale);
-        sample *= scale;
-
-        ssao_kernel.push_back(sample);
-    }
-
-    for (auto &v: ssao_kernel) {
-        std::cout << "vec3(" << v.x << ", " << v.y << ", " << v.z << "),\n";
-    }
-}
-
 int main() {
     if (!glfwInit()) {
         show_error_box("Fatal error: GLFW initialization failed.");
