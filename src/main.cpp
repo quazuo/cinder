@@ -121,7 +121,7 @@ private:
         camera->tick(delta_time);
 
         renderer.run_render_graph();
-        // should_capture_skybox = false;
+        should_capture_skybox = false;
 
         if (file_browser.HasSelected()) {
             const std::filesystem::path path = file_browser.GetSelected().string();

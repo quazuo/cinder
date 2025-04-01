@@ -88,6 +88,7 @@ class VulkanRenderer {
 
     vk::raii::Context vk_ctx;
     unique_ptr<vk::raii::Instance> instance;
+    unique_ptr<vk::raii::DebugUtilsMessengerEXT> debug_messenger;
     unique_ptr<vk::raii::SurfaceKHR> surface;
 
     RendererContext ctx;

@@ -30,12 +30,12 @@ void RenderPassContext::bind_pipeline(const ResourceHandle pipeline_handle) {
     const auto& desc_sets = pipeline_desc_sets.get().at(pipeline_handle);
     std::vector<vk::DescriptorSet> raw_sets;
     for (const auto& set: desc_sets) {
-        raw_sets.push_back(*set);
+        raw_sets.push_back(**set);
     }
 
     command_buffer.get().bindDescriptorSets(
         vk::PipelineBindPoint::eGraphics,
-        pipeline.get_layout(),
+        *pipeline.get_layout(),
         0,
         raw_sets,
         nullptr

@@ -77,7 +77,7 @@ VulkanRenderer::VulkanRenderer() {
     constexpr int INIT_WINDOW_HEIGHT = 800;
 
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    window = glfwCreateWindow(INIT_WINDOW_WIDTH, INIT_WINDOW_HEIGHT, "Rayzor", nullptr, nullptr);
+    window = glfwCreateWindow(INIT_WINDOW_WIDTH, INIT_WINDOW_HEIGHT, "Cinder", nullptr, nullptr);
 
     init_glfw_user_pointer(window);
     auto *user_data = static_cast<GlfwStaticUserData *>(glfwGetWindowUserPointer(window));
@@ -87,6 +87,7 @@ VulkanRenderer::VulkanRenderer() {
     glfwSetFramebufferSizeCallback(window, framebuffer_resize_callback);
 
     const auto vkb_instance = create_instance();
+    debug_messenger = make_unique<vk::raii::DebugUtilsMessengerEXT>(*instance, vkb_instance.debug_messenger);
     create_surface();
     const auto vkb_physical_device = pick_physical_device(vkb_instance);
     create_logical_device(vkb_physical_device);
@@ -125,29 +126,31 @@ void VulkanRenderer::framebuffer_resize_callback(GLFWwindow *window, const int w
 // ==================== instance creation ====================
 
 vkb::Instance VulkanRenderer::create_instance() {
-    auto instance_result = vkb::InstanceBuilder().set_app_name("Rayzor")
-            .request_validation_layers()
-            .enable_layer("VK_LAYER_KHRONOS_validation")
-            .set_debug_callback([](
+    const auto debug_callback = [](
             const VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
             const VkDebugUtilsMessageTypeFlagsEXT messageType,
             const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
             void *p_user_data) -> VkBool32 {
-                    const auto severity = vkb::to_string_message_severity(messageSeverity);
-                    const auto type = vkb::to_string_message_type(messageType);
+        const auto severity = vkb::to_string_message_severity(messageSeverity);
+        const auto type = vkb::to_string_message_type(messageType);
 
-                    std::stringstream ss;
-                    ss << "[VALIDATION LAYER / " << severity << " / " << type << "]\n" << pCallbackData->pMessage <<
-                            "\n";
+        std::stringstream ss;
+        ss << "[VALIDATION LAYER / " << severity << " / " << type << "]\n" << pCallbackData->pMessage << "\n";
 
-                    if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-                        std::cerr << ss.str() << std::endl;
-                    } else {
-                        std::cout << ss.str() << std::endl;
-                    }
+        if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+            std::cerr << ss.str() << std::endl;
+        } else {
+            std::cout << ss.str() << std::endl;
+        }
 
-                    return VK_FALSE;
-                })
+        return VK_FALSE;
+    };
+
+    auto instance_result = vkb::InstanceBuilder()
+            .set_app_name("Cinder")
+            .request_validation_layers()
+            .enable_layer("VK_LAYER_KHRONOS_validation")
+            .set_debug_callback(debug_callback)
             .require_api_version(1, 3)
             .set_minimum_instance_version(1, 3)
             .enable_extensions(get_required_extensions())

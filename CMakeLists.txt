@@ -81,7 +81,7 @@ file(GLOB HEADER_ONLY_DEPS_SRCS
 
 # source files
 
-file(GLOB RAYZOR_SRCS
+file(GLOB CINDER_SRCS
         "src/*"
         "src/render/*"
         "src/render/vk/*"
@@ -91,7 +91,7 @@ file(GLOB RAYZOR_SRCS
 )
 
 add_executable(cinder
-        ${RAYZOR_SRCS}
+        ${CINDER_SRCS}
         ${IMGUI_SRCS}
         ${IMGUI_IMPL_SRCS}
         ${IMGUIZMO_QUAT_SRCS}
