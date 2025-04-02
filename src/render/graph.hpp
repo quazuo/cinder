@@ -27,7 +27,7 @@ namespace detail {
 
 using RenderNodeHandle = uint32_t;
 
-static constexpr ResourceHandle FINAL_IMAGE_RESOURCE_HANDLE = -1;
+static constexpr ResourceHandle FINAL_IMAGE_RESOURCE_HANDLE  = -1;
 static constexpr std::monostate EMPTY_DESCRIPTOR_SET_BINDING = {};
 
 struct VertexBufferResource {
@@ -73,24 +73,23 @@ struct FinalImageFormatPlaceholder {
 };
 
 struct ShaderPack {
-    using DescriptorSetDescription = vector<std::variant<std::monostate, ResourceHandle, ResourceHandleArray> >;
     using AttachmentFormat = std::variant<vk::Format, FinalImageFormatPlaceholder>;
 
     std::filesystem::path vertex_path;
     std::filesystem::path fragment_path;
-    vector<DescriptorSetDescription> descriptor_set_descs;
+    vector<ResourceHandle> used_resources;
     vector<vk::VertexInputBindingDescription> binding_descriptions;
     vector<vk::VertexInputAttributeDescription> attribute_descriptions;
     vector<AttachmentFormat> color_formats;
     std::optional<AttachmentFormat> depth_format;
 
     struct CustomProperties {
-        bool use_msaa = false;
-        bool disable_depth_test = false;
-        bool disable_depth_write = false;
+        bool use_msaa                  = false;
+        bool disable_depth_test        = false;
+        bool disable_depth_write       = false;
         vk::CompareOp depth_compare_op = vk::CompareOp::eLess;
         vk::CullModeFlagBits cull_mode = vk::CullModeFlagBits::eBack;
-        uint32_t multiview_count = 1;
+        uint32_t multiview_count       = 1;
     } custom_properties;
 
     template<typename VertexType>
@@ -98,23 +97,18 @@ struct ShaderPack {
     ShaderPack(
         std::filesystem::path &&vertex_path_,
         std::filesystem::path &&fragment_path_,
-        vector<DescriptorSetDescription> &&descriptor_set_descs_,
+        vector<ResourceHandle> &&used_resources_,
         [[maybe_unused]] VertexType &&vertex_example, // it's not possible to explicitly specialize the ctor :(
         vector<AttachmentFormat> colors,
         const std::optional<AttachmentFormat> depth_format = {},
-        CustomProperties &&custom_properties = {}
+        CustomProperties &&custom_properties               = {}
     )
         : vertex_path(vertex_path_), fragment_path(fragment_path_),
-          descriptor_set_descs(descriptor_set_descs_),
+          used_resources(used_resources_),
           binding_descriptions(VertexType::get_binding_descriptions()),
           attribute_descriptions(VertexType::get_attribute_descriptions()),
           color_formats(std::move(colors)), depth_format(depth_format),
           custom_properties(custom_properties) {
-        for (auto &set_desc: descriptor_set_descs) {
-            while (!set_desc.empty() && std::holds_alternative<std::monostate>(set_desc.back())) {
-                set_desc.pop_back();
-            }
-        }
     }
 
     [[nodiscard]] std::set<ResourceHandle> get_bound_resources_set() const;
@@ -135,14 +129,19 @@ public:
 class RenderPassContext final : public IRenderPassContext {
     reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
     reference_wrapper<ResourceManager> resource_manager;
-    reference_wrapper<const std::map<ResourceHandle, GraphicsPipeline> > pipelines;
-    reference_wrapper<const std::map<ResourceHandle, vector<DescriptorSet> > > pipeline_desc_sets;
+    reference_wrapper<const std::map<ResourceHandle, GraphicsPipeline>> pipelines;
+    reference_wrapper<const std::map<ResourceHandle, std::vector<ResourceHandle> >> pipeline_bound_res_ids;
+    reference_wrapper<const vk::raii::DescriptorSet> bindless_set;
+
+    std::optional<ResourceHandle> last_bound_pipeline;
 
 public:
     explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, ResourceManager &rm,
                                const std::map<ResourceHandle, GraphicsPipeline> &pipelines,
-                               const std::map<ResourceHandle, vector<DescriptorSet> > &sets)
-        : command_buffer(cmd_buf), resource_manager(rm), pipelines(pipelines), pipeline_desc_sets(sets) {
+                               const std::map<ResourceHandle, std::vector<ResourceHandle> > &bound_res_ids,
+                               const vk::raii::DescriptorSet &bindless_set)
+        : command_buffer(cmd_buf), resource_manager(rm), pipelines(pipelines),
+          pipeline_bound_res_ids(bound_res_ids), bindless_set(bindless_set) {
     }
 
     ~RenderPassContext() override = default;
@@ -153,6 +152,9 @@ public:
 
     void draw(ResourceHandle vertices_handle, uint32_t vertex_count, uint32_t instance_count,
               uint32_t first_vertex, uint32_t first_instance) override;
+
+private:
+    void push_constants() const;
 };
 
 class ShaderGatherRenderPassContext final : public IRenderPassContext {
@@ -176,7 +178,7 @@ public:
 };
 
 struct RenderNode {
-    using RenderNodeBodyFn = std::function<void(IRenderPassContext &)>;
+    using RenderNodeBodyFn   = std::function<void(IRenderPassContext &)>;
     using ShouldRunPredicate = std::function<bool()>;
 
     std::string name;

@@ -238,7 +238,7 @@ private:
         const auto cubecap_shaders = render_graph.add_pipeline({
             "../shaders/obj/sphere-cube-vert.spv",
             "../shaders/obj/sphere-cube-frag.spv",
-            {{uniform_buffer, envmap_texture}},
+            {uniform_buffer, envmap_texture},
             SkyboxVertex(),
             {skybox_tex_format},
             {},
@@ -250,7 +250,7 @@ private:
         const auto prepass_shaders = render_graph.add_pipeline({
             "../shaders/obj/prepass-vert.spv",
             "../shaders/obj/prepass-frag.spv",
-            {{uniform_buffer}},
+            {uniform_buffer},
             ModelVertex(),
             {g_buffer_color_format, g_buffer_color_format},
             g_buffer_depth_format
@@ -259,7 +259,7 @@ private:
         const auto ssao_shaders = render_graph.add_pipeline({
             "../shaders/obj/ssao-vert.spv",
             "../shaders/obj/ssao-frag.spv",
-            {{uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos}},
+            {uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos},
             ScreenSpaceQuadVertex(),
             {ssao_tex_format}
         });
@@ -267,7 +267,7 @@ private:
         const auto skybox_shaders = render_graph.add_pipeline({
             "../shaders/obj/skybox-vert.spv",
             "../shaders/obj/skybox-frag.spv",
-            {{uniform_buffer, skybox_texture}},
+            {uniform_buffer, skybox_texture},
             SkyboxVertex(),
             {FinalImageFormatPlaceholder()},
             FinalImageFormatPlaceholder(),
@@ -280,12 +280,11 @@ private:
             "../shaders/obj/main-vert.spv",
             "../shaders/obj/main-frag.spv",
             {
-                {uniform_buffer, ssao_texture},
-                {
-                    ResourceHandleArray{base_color_texture},
-                    ResourceHandleArray{normal_texture},
-                    ResourceHandleArray{orm_texture}
-                }
+                uniform_buffer,
+                ssao_texture,
+                base_color_texture,
+                normal_texture,
+                orm_texture
             },
             ModelVertex(),
             {FinalImageFormatPlaceholder()},
@@ -335,11 +334,10 @@ private:
             .body = [=](IRenderPassContext &ctx) {
                 ctx.bind_pipeline(main_shaders);
                 ctx.draw_model(scene_model);
-
                 ctx.bind_pipeline(skybox_shaders);
                 ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
             },
-            .explicit_dependencies = {cubecap_node, prepass_node, ssao_node}
+            .explicit_dependencies = {cubecap_node} // , prepass_node, ssao_node}
         });
 
         renderer.register_render_graph(render_graph);

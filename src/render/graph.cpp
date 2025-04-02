@@ -8,18 +8,7 @@
 namespace zrx {
 [[nodiscard]] std::set<ResourceHandle> ShaderPack::get_bound_resources_set() const {
     std::set<ResourceHandle> result;
-
-    for (const auto &set: descriptor_set_descs) {
-        for (const auto &binding: set) {
-            if (std::holds_alternative<ResourceHandle>(binding)) {
-                result.insert(std::get<ResourceHandle>(binding));
-            } else if (std::holds_alternative<ResourceHandleArray>(binding)) {
-                result.insert(std::get<ResourceHandleArray>(binding).begin(),
-                              std::get<ResourceHandleArray>(binding).end());
-            }
-        }
-    }
-
+    result.insert(used_resources.begin(), used_resources.end());
     return result;
 }
 
@@ -27,22 +16,22 @@ void RenderPassContext::bind_pipeline(const ResourceHandle pipeline_handle) {
     const auto &pipeline = pipelines.get().at(pipeline_handle);
     command_buffer.get().bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
 
-    const auto& desc_sets = pipeline_desc_sets.get().at(pipeline_handle);
-    std::vector<vk::DescriptorSet> raw_sets;
-    for (const auto& set: desc_sets) {
-        raw_sets.push_back(**set);
-    }
-
     command_buffer.get().bindDescriptorSets(
         vk::PipelineBindPoint::eGraphics,
         *pipeline.get_layout(),
         0,
-        raw_sets,
+        *bindless_set.get(),
         nullptr
     );
+
+    last_bound_pipeline = pipeline_handle;
 }
 
 void RenderPassContext::draw_model(const ResourceHandle model_handle) {
+    if (!last_bound_pipeline) {
+        Logger::error("no pipeline bound during draw!");
+    }
+
     uint32_t index_offset    = 0;
     int32_t vertex_offset    = 0;
     uint32_t instance_offset = 0;
@@ -51,6 +40,8 @@ void RenderPassContext::draw_model(const ResourceHandle model_handle) {
     model.bind_buffers(command_buffer);
 
     for (const auto &mesh: model.get_meshes()) {
+        push_constants();
+
         command_buffer.get().drawIndexed(
             static_cast<uint32_t>(mesh.indices.size()),
             static_cast<uint32_t>(mesh.instances.size()),
@@ -70,7 +61,29 @@ void RenderPassContext::draw(const ResourceHandle vertices_handle,
                              const uint32_t first_vertex, const uint32_t first_instance) {
     const Buffer &vertex_buffer = resource_manager.get().get_buffer(vertices_handle);
     command_buffer.get().bindVertexBuffers(0, *vertex_buffer, {0});
+    push_constants();
     command_buffer.get().draw(vertex_count, instance_count, first_vertex, first_instance);
+}
+
+void RenderPassContext::push_constants() const {
+    if (!last_bound_pipeline) {
+        Logger::error("no pipeline bound during draw!");
+    }
+
+    auto bound_res_ids = pipeline_bound_res_ids.get().at(*last_bound_pipeline);
+
+    if (!bound_res_ids.empty()) {
+        for (auto& res_id: bound_res_ids) {
+            res_id = resource_manager.get().get_bindless_handle(res_id);
+        }
+
+        command_buffer.get().pushConstants<ResourceHandle>(
+            *pipelines.get().at(*last_bound_pipeline).get_layout(),
+            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+            0,
+            bound_res_ids
+        );
+    }
 }
 
 std::set<ResourceHandle> RenderNode::get_all_targets_set() const {

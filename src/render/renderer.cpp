@@ -94,6 +94,8 @@ VulkanRenderer::VulkanRenderer() {
 
     ctx.allocator = make_unique<VmaAllocatorWrapper>(**ctx.physical_device, **ctx.device, **instance);
 
+    resource_manager = make_unique<ResourceManager>(BINDLESS_ARRAY_SIZE);
+
     swap_chain = make_unique<SwapChain>(
         ctx,
         *surface,
@@ -108,6 +110,8 @@ VulkanRenderer::VulkanRenderer() {
     create_descriptor_pool();
 
     create_sync_objects();
+
+    create_bindless_resources();
 
     init_imgui();
 }
@@ -206,10 +210,11 @@ vkb::PhysicalDevice VulkanRenderer::pick_physical_device(const vkb::Instance &vk
                 .shaderUniformBufferArrayNonUniformIndexing = vk::True,
                 .shaderSampledImageArrayNonUniformIndexing = vk::True,
                 .shaderStorageBufferArrayNonUniformIndexing = vk::True,
-                // .descriptorBindingUniformBufferUpdateAfterBind = vk::True,
+                .descriptorBindingUniformBufferUpdateAfterBind = vk::True,
                 .descriptorBindingSampledImageUpdateAfterBind = vk::True,
                 .descriptorBindingStorageBufferUpdateAfterBind = vk::True,
                 .descriptorBindingPartiallyBound = vk::True,
+                .runtimeDescriptorArray = vk::True,
                 .timelineSemaphore = vk::True,
                 .bufferDeviceAddress = vk::True,
             })
@@ -329,6 +334,28 @@ void VulkanRenderer::create_descriptor_pool() {
     };
 
     descriptor_pool = make_unique<vk::raii::DescriptorPool>(*ctx.device, pool_info);
+}
+
+void VulkanRenderer::create_bindless_resources() {
+    constexpr vk::DescriptorBindingFlags binding_flags = vk::DescriptorBindingFlagBits::ePartiallyBound
+                                                         | vk::DescriptorBindingFlagBits::eUpdateAfterBind;
+
+    bindless_descriptor_set = make_unique<BindlessDescriptorSet>(
+        ctx,
+        *descriptor_pool,
+        ResourcePack<Texture> {
+            BINDLESS_ARRAY_SIZE,
+            vk::ShaderStageFlagBits::eAllGraphics,
+            vk::DescriptorType::eCombinedImageSampler,
+            binding_flags
+        },
+        ResourcePack<Buffer> {
+            BINDLESS_ARRAY_SIZE,
+            vk::ShaderStageFlagBits::eAllGraphics,
+            vk::DescriptorType::eUniformBuffer,
+            binding_flags
+        }
+    );
 }
 
 // ==================== render infos ====================
@@ -562,6 +589,10 @@ void VulkanRenderer::create_render_graph_resources() {
 
     for (const auto &[handle, description]: render_graph_info.render_graph->uniform_buffers) {
         resource_manager->add(handle, utils::buf::create_uniform_buffer(ctx, description.size));
+
+        const auto bindless_handle = resource_manager->get_bindless_handle(handle);
+        const auto& buffer = resource_manager->get_buffer(handle);
+        bindless_descriptor_set->update_binding<1>(buffer, bindless_handle);
     }
 
     for (const auto &[handle, description]: render_graph_info.render_graph->external_tex_resources) {
@@ -580,6 +611,10 @@ void VulkanRenderer::create_render_graph_resources() {
             builder.with_swizzle(*description.swizzle);
 
         resource_manager->add(handle, builder.create(ctx));
+
+        const auto bindless_handle = resource_manager->get_bindless_handle(handle);
+        const auto& texture = resource_manager->get_texture(handle);
+        bindless_descriptor_set->update_binding<0>(texture, bindless_handle);
     }
 
     for (const auto &[handle, description]: render_graph_info.render_graph->empty_tex_resources) {
@@ -598,6 +633,10 @@ void VulkanRenderer::create_render_graph_resources() {
                            | utils::img::get_format_attachment_type(description.format));
 
         resource_manager->add(handle, builder.create(ctx));
+
+        const auto bindless_handle = resource_manager->get_bindless_handle(handle);
+        const auto& texture = resource_manager->get_texture(handle);
+        bindless_descriptor_set->update_binding<0>(texture, bindless_handle);
     }
 
     for (const auto &[handle, description]: render_graph_info.render_graph->transient_tex_resources) {
@@ -614,112 +653,21 @@ void VulkanRenderer::create_render_graph_resources() {
                            | utils::img::get_format_attachment_type(description.format));
 
         resource_manager->add(handle, builder.create(ctx));
+
+        const auto bindless_handle = resource_manager->get_bindless_handle(handle);
+        const auto& texture = resource_manager->get_texture(handle);
+        bindless_descriptor_set->update_binding<0>(texture, bindless_handle);
     }
 
     for (const auto &[handle, description]: render_graph_info.render_graph->pipelines) {
-        auto descriptor_sets = create_graph_descriptor_sets(handle);
-        auto builder = create_graph_pipeline_builder(handle, descriptor_sets);
+        auto builder = create_graph_pipeline_builder(handle);
         render_graph_pipelines.emplace(handle, builder.create(ctx));
-        pipeline_desc_sets.emplace(handle, std::move(descriptor_sets));
+        pipeline_bound_res_ids.emplace(handle, description.used_resources);
     }
-}
-
-vector<DescriptorSet>
-VulkanRenderer::create_graph_descriptor_sets(const ResourceHandle pipeline_handle) const {
-    const auto &pipeline_info = render_graph_info.render_graph->pipelines.at(pipeline_handle);
-    const auto &set_descs = pipeline_info.descriptor_set_descs;
-    vector<DescriptorSet> descriptor_sets;
-
-    const SpirvReflectModuleWrapper vert_spv_module{pipeline_info.vertex_path};
-    const SpirvReflectModuleWrapper frag_spv_module{pipeline_info.fragment_path};
-
-    const auto reflected_vert_bindings = vert_spv_module.descriptor_bindings();
-    const auto reflected_frag_bindings = frag_spv_module.descriptor_bindings();
-
-    for (size_t set_idx = 0; set_idx < set_descs.size(); set_idx++) {
-        const auto &set_desc = set_descs[set_idx];
-        DescriptorLayoutBuilder builder;
-
-        for (size_t binding_idx = 0; binding_idx < set_desc.size(); binding_idx++) {
-            if (std::holds_alternative<std::monostate>(set_desc[binding_idx])) continue;
-
-            bool is_ubo_descriptor = false;
-            bool is_tex_descriptor = false;
-            vk::DescriptorType type{};
-            vk::ShaderStageFlags stages{};
-            uint32_t descriptor_count = 1;
-
-            if (std::holds_alternative<ResourceHandle>(set_desc[binding_idx])) {
-                const auto res_handle = std::get<ResourceHandle>(set_desc[binding_idx]);
-                is_ubo_descriptor = resource_manager->contains_buffer(res_handle);
-                is_tex_descriptor = resource_manager->contains_texture(res_handle);
-            } else if (std::holds_alternative<ResourceHandleArray>(set_desc[binding_idx])) {
-                const auto &res_handles = std::get<ResourceHandleArray>(set_desc[binding_idx]);
-                is_ubo_descriptor = std::ranges::any_of(res_handles, [&](auto res_handle) {
-                    return resource_manager->contains_buffer(res_handle);
-                });
-                is_tex_descriptor = std::ranges::any_of(res_handles, [&](auto res_handle) {
-                    return resource_manager->contains_texture(res_handle);
-                });
-                descriptor_count = res_handles.size();
-            }
-
-            if (is_ubo_descriptor && is_tex_descriptor) {
-                Logger::error("ambiguous resource handle type");
-            }
-            if (is_ubo_descriptor) {
-                type = vk::DescriptorType::eUniformBuffer;
-            } else if (is_tex_descriptor) {
-                type = vk::DescriptorType::eCombinedImageSampler;
-            } else {
-                Logger::error("unknown resource handle");
-            }
-
-            const auto matching_binding_fn = [&](const SpvReflectDescriptorBinding *binding) {
-                return binding->set == set_idx && binding->binding == binding_idx;
-            };
-
-            if (std::ranges::find_if(reflected_vert_bindings, matching_binding_fn) != reflected_vert_bindings.end()) {
-                stages |= vk::ShaderStageFlagBits::eVertex;
-            }
-
-            if (std::ranges::find_if(reflected_frag_bindings, matching_binding_fn) != reflected_frag_bindings.end()) {
-                stages |= vk::ShaderStageFlagBits::eFragment;
-            }
-
-            builder.add_binding(type, stages, descriptor_count);
-        }
-
-        auto layout = std::make_shared<vk::raii::DescriptorSetLayout>(builder.create(ctx));
-        auto descriptor_set = utils::desc::create_descriptor_set(ctx, *descriptor_pool, layout);
-        descriptor_sets.emplace_back(std::move(descriptor_set));
-    }
-
-    for (size_t i = 0; i < set_descs.size(); i++) {
-        auto &set_desc = set_descs[i];
-        auto &descriptor_set = descriptor_sets[i];
-
-        for (uint32_t binding = 0; binding < set_desc.size(); binding++) {
-            if (std::holds_alternative<ResourceHandle>(set_desc[binding])) {
-                const auto res_handle = std::get<ResourceHandle>(set_desc[binding]);
-                queue_set_update_with_handle(descriptor_set, res_handle, binding);
-            } else if (std::holds_alternative<ResourceHandleArray>(set_desc[binding])) {
-                const auto &res_handles = std::get<ResourceHandleArray>(set_desc[binding]);
-                for (uint32_t array_element = 0; array_element < res_handles.size(); array_element++) {
-                    queue_set_update_with_handle(descriptor_set, res_handles[array_element], binding, array_element);
-                }
-            }
-        }
-
-        descriptor_set.commit_updates(ctx);
-    }
-
-    return descriptor_sets;
 }
 
 GraphicsPipelineBuilder
-VulkanRenderer::create_graph_pipeline_builder(const ResourceHandle pipeline_handle,
-                                              const vector<DescriptorSet> &descriptor_sets) const {
+VulkanRenderer::create_graph_pipeline_builder(const ResourceHandle pipeline_handle) const {
     const auto &pipeline_info = render_graph_info.render_graph->pipelines.at(pipeline_handle);
 
     vector<vk::Format> color_formats;
@@ -731,9 +679,7 @@ VulkanRenderer::create_graph_pipeline_builder(const ResourceHandle pipeline_hand
     }
 
     vector<vk::DescriptorSetLayout> descriptor_set_layouts;
-    for (const auto &set: descriptor_sets) {
-        descriptor_set_layouts.emplace_back(*set.get_layout());
-    }
+    descriptor_set_layouts.push_back(*bindless_descriptor_set->get_layout());
 
     auto builder = GraphicsPipelineBuilder()
             .with_vertex_shader(pipeline_info.vertex_path)
@@ -776,6 +722,16 @@ VulkanRenderer::create_graph_pipeline_builder(const ResourceHandle pipeline_hand
 
     if (pipeline_info.custom_properties.multiview_count > 1) {
         builder.for_views(pipeline_info.custom_properties.multiview_count);
+    }
+
+    if (pipeline_info.used_resources.size() > 0) {
+        builder.with_push_constants({
+            vk::PushConstantRange {
+                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                0,
+                static_cast<uint32_t>(pipeline_info.used_resources.size() * sizeof(uint32_t))
+            }
+        });
     }
 
     return builder;
@@ -919,7 +875,13 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &n
 
     utils::cmd::set_dynamic_states(command_buffer, get_node_target_extent(node_resources));
 
-    RenderPassContext ctx{command_buffer, *resource_manager, render_graph_pipelines, pipeline_desc_sets};
+    RenderPassContext ctx{
+        command_buffer,
+        *resource_manager,
+        render_graph_pipelines,
+        pipeline_bound_res_ids,
+        **bindless_descriptor_set
+    };
     node_info.body(ctx);
 }
 

@@ -1,5 +1,6 @@
 #version 450
 
+#include "utils/bindless.glsl"
 #include "utils/ubo.glsl"
 
 layout (location = 0) in vec3 inPosition;
@@ -13,15 +14,25 @@ layout (location = 0) out vec3 worldPosition;
 layout (location = 1) out vec2 fragTexCoord;
 layout (location = 2) out mat3 TBN;
 
-layout(binding = 0) uniform UniformBufferObject {
+layout (push_constant) uniform PushResourceIDs {
+    uint ubo_id;
+    uint ssao_tex_id;
+    uint base_color_tex_id;
+    uint normal_tex_id;
+    uint orm_tex_id;
+} constants;
+
+layout (set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform UniformBufferObject {
     WindowRes window;
     Matrices matrices;
     MiscData misc;
-} ubo;
+} ubos[];
 
 void main() {
-    const mat4 model = ubo.matrices.model * inInstanceTransform;
-    const mat4 mvp = ubo.matrices.proj * ubo.matrices.view * model;
+    const uint ubo_id = constants.ubo_id;
+
+    const mat4 model = ubos[ubo_id].matrices.model * inInstanceTransform;
+    const mat4 mvp = ubos[ubo_id].matrices.proj * ubos[ubo_id].matrices.view * model;
 
     gl_Position = mvp * vec4(inPosition, 1.0);
 

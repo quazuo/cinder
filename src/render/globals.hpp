@@ -20,3 +20,4 @@ using std::int8_t;
 
 using ResourceHandle = uint32_t;
 using ResourceHandleArray = vector<ResourceHandle>;
+using BindlessHandle = uint32_t;

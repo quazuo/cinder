@@ -1,21 +1,24 @@
 #version 450
 
+#include "utils/bindless.glsl"
 #include "utils/ubo.glsl"
 
 layout (location = 0) in vec2 texCoords;
 
 layout (location = 0) out vec4 outColor;
 
-layout (binding = 0) uniform UniformBufferObject {
+layout (push_constant) uniform PushResourceIDs {
+    uint ubo_id;
+    uint g_depth_tex_id;
+    uint g_normal_tex_id;
+    uint g_pos_tex_id;
+} constants;
+
+layout (set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform UniformBufferObject {
     WindowRes window;
     Matrices matrices;
     MiscData misc;
-} ubo;
-
-layout (binding = 1) uniform sampler2D gDepthSampler;
-layout (binding = 2) uniform sampler2D gNormalSampler;
-layout (binding = 3) uniform sampler2D gPosSampler;
-// layout (binding = 4) uniform sampler2D noiseSampler;
+} ubos[];
 
 #define KERNEL_SIZE 32
 
@@ -88,15 +91,17 @@ const vec3 ssao_kernel[KERNEL_SIZE] = vec3[KERNEL_SIZE](
 );
 
 void main() {
+    uint ubo_id = constants.ubo_id;
+
     const float radius = 0.2;
 
-    vec3 normal = normalize(texture(gNormalSampler, texCoords).xyz);
-    vec3 frag_pos = texture(gPosSampler, texCoords).xyz;
+    vec3 normal = normalize(texture(bindless_textures[constants.g_normal_tex_id], texCoords).xyz);
+    vec3 frag_pos = texture(bindless_textures[constants.g_pos_tex_id], texCoords).xyz;
 
     normal.y *= -1;
     frag_pos.y *= -1;
 
-    const vec2 noise_scale = vec2(ubo.window.width, ubo.window.height) / 4.0;
+    const vec2 noise_scale = vec2(ubos[ubo_id].window.width, ubos[ubo_id].window.height) / 4.0;
     vec3 random_vec = vec3(1.0); // texture(noiseSampler, texCoords * noise_scale).xyz;
     random_vec = normalize(random_vec);
 
@@ -109,11 +114,11 @@ void main() {
         vec3 sample_vec = tbn * ssao_kernel[i];
         vec3 sample_view_pos = frag_pos + sample_vec * radius;
 
-        vec4 sample_clip_pos = ubo.matrices.proj * vec4(sample_view_pos, 1.0);
+        vec4 sample_clip_pos = ubos[ubo_id].matrices.proj * vec4(sample_view_pos, 1.0);
         sample_clip_pos.xyz /= sample_clip_pos.w;
         sample_clip_pos.xyz = sample_clip_pos.xyz * 0.5 + 0.5;
 
-        float sample_depth = texture(gPosSampler, sample_clip_pos.xy).z;
+        float sample_depth = texture(bindless_textures[constants.g_pos_tex_id], sample_clip_pos.xy).z;
 
         float rangeCheck = smoothstep(0.0, 1.0, radius / abs(frag_pos.z - sample_depth));
 

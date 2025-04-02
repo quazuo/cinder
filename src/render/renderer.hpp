@@ -100,6 +100,13 @@ class VulkanRenderer {
 
     unique_ptr<vk::raii::DescriptorPool> descriptor_pool;
 
+    // bindless resources
+
+    using BindlessDescriptorSet = FixedDescriptorSet<Texture, Buffer>;
+    unique_ptr<BindlessDescriptorSet> bindless_descriptor_set;
+
+    static constexpr uint32_t BINDLESS_ARRAY_SIZE = 64;
+
     // render graph stuff
 
     struct RenderNodeResources {
@@ -112,9 +119,9 @@ class VulkanRenderer {
         vector<RenderNodeResources> topo_sorted_nodes;
     } render_graph_info;
 
-    unique_ptr<ResourceManager> resource_manager = make_unique<ResourceManager>();
+    unique_ptr<ResourceManager> resource_manager;
     std::map<ResourceHandle, GraphicsPipeline> render_graph_pipelines;
-    std::map<ResourceHandle, vector<DescriptorSet>> pipeline_desc_sets;
+    std::map<ResourceHandle, vector<ResourceHandle>> pipeline_bound_res_ids;
 
     // other resources
 
@@ -208,6 +215,8 @@ private:
 
     void create_descriptor_pool();
 
+    void create_bindless_resources();
+
     // ==================== multisampling ====================
 
     [[nodiscard]] vk::SampleCountFlagBits get_max_usable_sample_count() const;
@@ -239,10 +248,7 @@ public:
 private:
     void create_render_graph_resources();
 
-    [[nodiscard]] vector<DescriptorSet> create_graph_descriptor_sets(ResourceHandle pipeline_handle) const;
-
-    [[nodiscard]] GraphicsPipelineBuilder create_graph_pipeline_builder(
-        ResourceHandle pipeline_handle, const vector<DescriptorSet> &descriptor_sets) const;
+    [[nodiscard]] GraphicsPipelineBuilder create_graph_pipeline_builder(ResourceHandle pipeline_handle) const;
 
     void queue_set_update_with_handle(DescriptorSet &descriptor_set, ResourceHandle res_handle,
                                       uint32_t binding, uint32_t array_element = 0) const;
