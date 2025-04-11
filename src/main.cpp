@@ -240,7 +240,7 @@ private:
             SkyboxVertex(),
             {skybox_tex_format},
             {},
-            ShaderPackDesc::CustomProperties {
+            GraphicsPipelineDesc::CustomProperties {
                 .multiview_count = 6
             }
         });
@@ -269,7 +269,7 @@ private:
             SkyboxVertex(),
             {FinalImageFormatPlaceholder()},
             FinalImageFormatPlaceholder(),
-            ShaderPackDesc::CustomProperties {
+            GraphicsPipelineDesc::CustomProperties {
                 .depth_compare_op = vk::CompareOp::eLessOrEqual,
             }
         });

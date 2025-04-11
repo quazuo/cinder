@@ -6,7 +6,7 @@
 #include "vk/descriptor.hpp"
 
 namespace zrx {
-[[nodiscard]] std::set<ResourceHandle> ShaderPackDesc::get_bound_resources_set() const {
+[[nodiscard]] std::set<ResourceHandle> GraphicsPipelineDesc::get_bound_resources_set() const {
     std::set<ResourceHandle> result;
     result.insert(used_resources.begin(), used_resources.end());
     return result;
@@ -191,7 +191,7 @@ ResourceHandle RenderGraph::add_resource(ModelResourceDesc &&resource) {
     return add_resource_generic(std::move(resource), model_resources);
 }
 
-ResourceHandle RenderGraph::add_pipeline(ShaderPackDesc &&resource) {
+ResourceHandle RenderGraph::add_pipeline(GraphicsPipelineDesc &&resource) {
     return add_resource_generic(std::move(resource), pipelines);
 }
 

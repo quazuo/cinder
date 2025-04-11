@@ -77,7 +77,7 @@ struct ModelResourceDesc {
 struct FinalImageFormatPlaceholder {
 };
 
-struct ShaderPackDesc {
+struct GraphicsPipelineDesc {
     using AttachmentFormat = std::variant<vk::Format, FinalImageFormatPlaceholder>;
 
     std::filesystem::path vertex_path;
@@ -99,7 +99,7 @@ struct ShaderPackDesc {
 
     template<typename VertexType>
         requires VertexLike<VertexType>
-    ShaderPackDesc(
+    GraphicsPipelineDesc(
         std::filesystem::path &&vertex_path_,
         std::filesystem::path &&fragment_path_,
         vector<ResourceHandle> &&used_resources_,
@@ -118,6 +118,10 @@ struct ShaderPackDesc {
     }
 
     [[nodiscard]] std::set<ResourceHandle> get_bound_resources_set() const;
+};
+
+struct ComputePipelineDesc {
+    // todo
 };
 
 class IRenderPassContext {
@@ -197,7 +201,7 @@ class RenderGraph {
     std::map<ResourceHandle, TargetTextureResourceDesc> empty_tex_resources;
     std::map<ResourceHandle, TransientTextureResourceDesc> transient_tex_resources;
     std::map<ResourceHandle, ModelResourceDesc> model_resources;
-    std::map<ResourceHandle, ShaderPackDesc> pipelines;
+    std::map<ResourceHandle, GraphicsPipelineDesc> pipelines;
 
     std::set<ResourceHandle> produced_resources;
     std::map<ResourceHandle, string> resource_names;
@@ -237,7 +241,7 @@ public:
         return handles;
     }
 
-    [[nodiscard]] ResourceHandle add_pipeline(ShaderPackDesc &&resource);
+    [[nodiscard]] ResourceHandle add_pipeline(GraphicsPipelineDesc &&resource);
 
     void add_frame_begin_action(FrameBeginCallback &&callback);
 
