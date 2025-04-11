@@ -16,7 +16,6 @@ layout (location = 2) out vec3 normal;
 
 layout (push_constant) uniform PushResourceIDs {
     uint ubo_id;
-    uint skybox_tex_id;
 } constants;
 
 layout (set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform UniformBufferObject {

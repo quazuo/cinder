@@ -879,7 +879,7 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_paths() const {
         }
 
         if (!src) {
-            Logger::error("failed to load texture image at path: " + path.string());
+            Logger::error("failed to load texture image at path: {}", path.string());
         }
 
         if (is_first_non_empty && !desired_extent) {

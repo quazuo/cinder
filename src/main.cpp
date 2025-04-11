@@ -71,7 +71,7 @@ class Engine {
     std::unordered_map<FileType, std::filesystem::path> chosen_paths{};
     uint32_t load_scheme_idx = 0;
 
-    std::string curr_error_message;
+    string curr_error_message;
 
     // misc state variables
 
@@ -142,18 +142,18 @@ private:
 
         // ================== models and vertex buffers ==================
 
-        const auto scene_model = render_graph.add_resource(ModelResource{
+        const auto scene_model = render_graph.add_resource(ModelResourceDesc{
             "scene-model",
             "../assets/example models/kettle/kettle.obj"
         });
 
-        const auto skybox_vert_buf = render_graph.add_resource(VertexBufferResource{
+        const auto skybox_vert_buf = render_graph.add_resource(VertexBufferResourceDesc{
             "skybox-vb",
             skybox_vertices.size() * sizeof(SkyboxVertex),
             skybox_vertices.data()
         });
 
-        const auto ss_quad_vert_buf = render_graph.add_resource(VertexBufferResource{
+        const auto ss_quad_vert_buf = render_graph.add_resource(VertexBufferResourceDesc{
             "ss-quad-vb",
             screen_space_quad_vertices.size() * sizeof(ScreenSpaceQuadVertex),
             screen_space_quad_vertices.data()
@@ -161,7 +161,7 @@ private:
 
         // ================== uniform buffers ==================
 
-        const auto uniform_buffer = render_graph.add_resource(UniformBufferResource{
+        const auto uniform_buffer = render_graph.add_resource(UniformBufferResourceDesc{
             "general-ubo",
             sizeof(GraphicsUBO)
         });
@@ -170,67 +170,65 @@ private:
             update_graphics_uniform_buffer(fba_ctx.resource_manager.get().get_buffer(uniform_buffer));
         });
 
-        // ================== external resources ==================
+        // ================== external textures ==================
 
-        const auto base_color_texture = render_graph.add_resource(ExternalTextureResource{
+        const auto base_color_texture = render_graph.add_resource(ExternalTextureResourceDesc{
             "base-color-texture",
             {"../assets/example models/kettle/kettle-albedo.png"},
             vk::Format::eR8G8B8A8Srgb
         });
 
-        const auto normal_texture = render_graph.add_resource(ExternalTextureResource{
+        const auto normal_texture = render_graph.add_resource(ExternalTextureResourceDesc{
             "normal-texture",
             {"../assets/example models/kettle/kettle-normal.png"},
             vk::Format::eR8G8B8A8Unorm,
         });
 
-        const auto orm_texture = render_graph.add_resource(ExternalTextureResource{
+        const auto orm_texture = render_graph.add_resource(ExternalTextureResourceDesc{
             "orm-texture",
             {"../assets/example models/kettle/kettle-orm.png"},
             vk::Format::eR8G8B8A8Unorm,
         });
 
-        const auto envmap_texture = render_graph.add_resource(ExternalTextureResource{
+        const auto envmap_texture = render_graph.add_resource(ExternalTextureResourceDesc{
             "envmap-texture",
             {"../assets/envmaps/vienna.hdr"},
             vk::Format::eR32G32B32A32Sfloat,
             vk::TextureFlagBitsZRX::HDR | vk::TextureFlagBitsZRX::MIPMAPS
         });
 
+        // ================== render target textures ==================
+
         constexpr auto skybox_tex_format = vk::Format::eR8G8B8A8Srgb;
-        const auto skybox_texture = render_graph.add_resource(EmptyTextureResource{
-            "skybox-texture",
-            {2048, 2048},
-            skybox_tex_format,
-            vk::TextureFlagBitsZRX::CUBEMAP // | vk::TextureFlagBitsZRX::MIPMAPS
+        const auto skybox_texture = render_graph.add_resource(TargetTextureResourceDesc{
+            .name = "skybox-texture",
+            .format = skybox_tex_format,
+            .extent = {2048, 2048},
+            .flags = vk::TextureFlagBitsZRX::CUBEMAP // | vk::TextureFlagBitsZRX::MIPMAPS
         });
 
         constexpr auto g_buffer_color_format = vk::Format::eR16G16B16A16Sfloat;
-        const auto g_buffer_normal = render_graph.add_resource(EmptyTextureResource{
-            "g-buffer-normal",
-            {0, 0},
-            g_buffer_color_format,
+        const auto g_buffer_normal = render_graph.add_resource(TargetTextureResourceDesc{
+            .name = "g-buffer-normal",
+            .format = g_buffer_color_format,
         });
 
-        const auto g_buffer_pos = render_graph.add_resource(EmptyTextureResource{
-            "g-buffer-pos",
-            {0, 0},
-            g_buffer_color_format,
+        const auto g_buffer_pos = render_graph.add_resource(TargetTextureResourceDesc{
+            .name = "g-buffer-pos",
+            .format = g_buffer_color_format,
         });
 
         constexpr auto g_buffer_depth_format = vk::Format::eD32Sfloat;
-        const auto g_buffer_depth = render_graph.add_resource(EmptyTextureResource{
-            "g-buffer-depth",
-            {0, 0},
-            g_buffer_depth_format,
-            {}
+        const auto g_buffer_depth = render_graph.add_resource(TargetTextureResourceDesc{
+            .name = "g-buffer-depth",
+            .format = g_buffer_depth_format,
+            .flags = {},
         });
 
         constexpr auto ssao_tex_format = vk::Format::eR8G8B8A8Unorm;
-        const auto ssao_texture = render_graph.add_resource(EmptyTextureResource{
-            "ssao-texture",
-            {0, 0},
-            ssao_tex_format,
+        const auto ssao_texture = render_graph.add_resource(TargetTextureResourceDesc{
+            .name = "ssao-texture",
+            .format = ssao_tex_format,
         });
 
         // ================== shaders ==================
@@ -242,7 +240,7 @@ private:
             SkyboxVertex(),
             {skybox_tex_format},
             {},
-            ShaderPack::CustomProperties {
+            ShaderPackDesc::CustomProperties {
                 .multiview_count = 6
             }
         });
@@ -271,7 +269,7 @@ private:
             SkyboxVertex(),
             {FinalImageFormatPlaceholder()},
             FinalImageFormatPlaceholder(),
-            ShaderPack::CustomProperties {
+            ShaderPackDesc::CustomProperties {
                 .depth_compare_op = vk::CompareOp::eLessOrEqual,
             }
         });
@@ -279,13 +277,7 @@ private:
         const auto main_shaders = render_graph.add_pipeline({
             "../shaders/obj/main-vert.spv",
             "../shaders/obj/main-frag.spv",
-            {
-                uniform_buffer,
-                ssao_texture,
-                base_color_texture,
-                normal_texture,
-                orm_texture
-            },
+            {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture},
             ModelVertex(),
             {FinalImageFormatPlaceholder()},
             FinalImageFormatPlaceholder()
@@ -293,8 +285,9 @@ private:
 
         // ================== nodes ==================
 
-        const auto cubecap_node = render_graph.add_node({
+        render_graph.add_node({
             .name = "cubemap-capture",
+            .bound_resources = {uniform_buffer, envmap_texture},
             .color_targets = {skybox_texture},
             .body = [=](IRenderPassContext &ctx) {
                 ctx.bind_pipeline(cubecap_shaders);
@@ -306,8 +299,9 @@ private:
             }
         });
 
-        const auto prepass_node = render_graph.add_node({
+        render_graph.add_node({
             .name = "prepass",
+            .bound_resources = {uniform_buffer},
             .color_targets = {g_buffer_normal, g_buffer_pos},
             .depth_target = g_buffer_depth,
             .body = [=](IRenderPassContext &ctx) {
@@ -317,8 +311,9 @@ private:
             .should_run_predicate = [&] { return use_ssao; }
         });
 
-        const auto ssao_node = render_graph.add_node({
+        render_graph.add_node({
             .name = "ssao",
+            .bound_resources = {uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos},
             .color_targets = {ssao_texture},
             .body = [=](IRenderPassContext &ctx) {
                 ctx.bind_pipeline(ssao_shaders);
@@ -329,6 +324,7 @@ private:
 
         render_graph.add_node({
             .name = "main",
+            .bound_resources = {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture},
             .color_targets = {FINAL_IMAGE_RESOURCE_HANDLE},
             .depth_target = FINAL_IMAGE_RESOURCE_HANDLE,
             .body = [=](IRenderPassContext &ctx) {
@@ -337,7 +333,6 @@ private:
                 ctx.bind_pipeline(skybox_shaders);
                 ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
             },
-            .explicit_dependencies = {cubecap_node} // , prepass_node, ssao_node}
         });
 
         renderer.register_render_graph(render_graph);
@@ -492,8 +487,8 @@ private:
         renderer.render_gui_section();
     }
 
-    void render_tex_load_button(const std::string &label, const FileType file_type,
-                                const vector<std::string> &type_filters) {
+    void render_tex_load_button(const string &label, const FileType file_type,
+                                const vector<string> &type_filters) {
         if (ImGui::Button(label.c_str(), ImVec2(180, 0))) {
             current_type_being_chosen = file_type;
             file_browser.SetTypeFilters(type_filters);
@@ -627,7 +622,7 @@ private:
 };
 }
 
-static void show_error_box(const std::string &message) {
+static void show_error_box(const string &message) {
     MessageBox(
         nullptr,
         static_cast<LPCSTR>(message.c_str()),
@@ -647,7 +642,7 @@ int main() {
         zrx::Engine engine;
         engine.run();
     } catch (std::exception &e) {
-        show_error_box(std::string("Fatal error: ") + e.what());
+        show_error_box(string("Fatal error: ") + e.what());
         glfw_terminate();
         return EXIT_FAILURE;
     }

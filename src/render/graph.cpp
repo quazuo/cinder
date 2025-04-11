@@ -6,7 +6,7 @@
 #include "vk/descriptor.hpp"
 
 namespace zrx {
-[[nodiscard]] std::set<ResourceHandle> ShaderPack::get_bound_resources_set() const {
+[[nodiscard]] std::set<ResourceHandle> ShaderPackDesc::get_bound_resources_set() const {
     std::set<ResourceHandle> result;
     result.insert(used_resources.begin(), used_resources.end());
     return result;
@@ -92,20 +92,6 @@ std::set<ResourceHandle> RenderNode::get_all_targets_set() const {
     return result;
 }
 
-std::set<ResourceHandle>
-RenderNode::get_all_shader_resources_set(const std::map<ResourceHandle, ShaderPack> &shaders) const {
-    ShaderGatherRenderPassContext ctx{};
-    body(ctx);
-    std::set<ResourceHandle> result;
-
-    for (const ResourceHandle shader_handle: ctx.get()) {
-        const auto bound_resources = shaders.at(shader_handle).get_bound_resources_set();
-        result.insert(bound_resources.begin(), bound_resources.end());
-    }
-
-    return result;
-}
-
 vector<RenderNodeHandle> RenderGraph::get_topo_sorted() const {
     vector<RenderNodeHandle> result;
 
@@ -134,29 +120,42 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
     const auto handle = get_new_node_handle();
     nodes.emplace(handle, node);
 
-    const auto targets_set      = node.get_all_targets_set();
-    const auto shader_resources = node.get_all_shader_resources_set(pipelines);
+    const auto targets_set = node.get_all_targets_set();
 
-    if (!detail::empty_intersection(targets_set, shader_resources)) {
-        Logger::error("invalid render node: cannot use a target as a shader resource!");
+    if (!detail::empty_intersection(targets_set, node.bound_resources)) {
+        Logger::error("invalid render node: cannot simultaneously use a target as a shader resource!");
+    }
+
+    if (!detail::empty_intersection(targets_set, produced_resources)) {
+        Logger::error("invalid render node: each target can only be produced once!");
+    }
+
+    for (const auto& res: targets_set) {
+        if (res != FINAL_IMAGE_RESOURCE_HANDLE && !empty_tex_resources.contains(res)) {
+            Logger::error("invalid render node: resource <{}> with invalid type specified as target for node <{}>",
+                          resource_names.at(res), node.name);
+        }
+
+        if (res != FINAL_IMAGE_RESOURCE_HANDLE) {
+            produced_resources.emplace(res);
+        }
     }
 
     std::set<RenderNodeHandle> dependencies;
 
     // for each existing node A...
     for (const auto &[other_handle, other_node]: nodes) {
-        const auto other_targets_set      = other_node.get_all_targets_set();
-        const auto other_shader_resources = other_node.get_all_shader_resources_set(pipelines);
+        const auto other_targets_set = other_node.get_all_targets_set();
 
         // ...if any of the new node's targets is sampled in A,
         // then the new node is A's dependency.
-        if (!detail::empty_intersection(targets_set, other_shader_resources)) {
+        if (!detail::empty_intersection(targets_set, other_node.bound_resources)) {
             dependency_graph.at(other_handle).emplace(handle);
         }
 
         // and if the new node samples any of A's targets,
         // then A is the new node's dependency.
-        if (!detail::empty_intersection(other_targets_set, shader_resources)) {
+        if (!detail::empty_intersection(other_targets_set, node.bound_resources)) {
             dependencies.emplace(other_handle);
         }
     }
@@ -168,31 +167,31 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
     return handle;
 }
 
-ResourceHandle RenderGraph::add_resource(VertexBufferResource &&resource) {
+ResourceHandle RenderGraph::add_resource(VertexBufferResourceDesc &&resource) {
     return add_resource_generic(std::move(resource), vertex_buffers);
 }
 
-ResourceHandle RenderGraph::add_resource(UniformBufferResource &&resource) {
+ResourceHandle RenderGraph::add_resource(UniformBufferResourceDesc &&resource) {
     return add_resource_generic(std::move(resource), uniform_buffers);
 }
 
-ResourceHandle RenderGraph::add_resource(ExternalTextureResource &&resource) {
+ResourceHandle RenderGraph::add_resource(ExternalTextureResourceDesc &&resource) {
     return add_resource_generic(std::move(resource), external_tex_resources);
 }
 
-ResourceHandle RenderGraph::add_resource(EmptyTextureResource &&resource) {
+ResourceHandle RenderGraph::add_resource(TargetTextureResourceDesc &&resource) {
     return add_resource_generic(std::move(resource), empty_tex_resources);
 }
 
-ResourceHandle RenderGraph::add_resource(TransientTextureResource &&resource) {
+ResourceHandle RenderGraph::add_resource(TransientTextureResourceDesc &&resource) {
     return add_resource_generic(std::move(resource), transient_tex_resources);
 }
 
-ResourceHandle RenderGraph::add_resource(ModelResource &&resource) {
+ResourceHandle RenderGraph::add_resource(ModelResourceDesc &&resource) {
     return add_resource_generic(std::move(resource), model_resources);
 }
 
-ResourceHandle RenderGraph::add_pipeline(ShaderPack &&resource) {
+ResourceHandle RenderGraph::add_pipeline(ShaderPackDesc &&resource) {
     return add_resource_generic(std::move(resource), pipelines);
 }
 

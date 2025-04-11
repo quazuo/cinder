@@ -25,7 +25,7 @@ static vector<char> read_file(const std::filesystem::path &path) {
 
 static void check_spv_result(const SpvReflectResult result) {
     if (result != SPV_REFLECT_RESULT_SUCCESS) {
-        Logger::error("call to SPV library function failed with code: " + std::to_string(result));
+        Logger::error("call to SPV library function failed with code: {}", std::to_string(result));
     }
 }
 

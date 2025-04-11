@@ -163,7 +163,6 @@ class VulkanRenderer {
     bool use_msaa = false;
 
     friend RenderPassContext;
-    friend ShaderGatherRenderPassContext;
 
 public:
     explicit VulkanRenderer();

@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <vector>
+#include <string>
 
 using std::unique_ptr;
 using std::make_unique;
@@ -9,6 +10,7 @@ using std::shared_ptr;
 using std::make_shared;
 using std::reference_wrapper;
 using std::vector;
+using std::string;
 
 using std::uint32_t;
 using std::uint16_t;

@@ -161,7 +161,7 @@ vkb::Instance VulkanRenderer::create_instance() {
             .build();
 
     if (!instance_result) {
-        Logger::error("failed to create instance: " + instance_result.error().message());
+        Logger::error("failed to create instance: {}", instance_result.error().message());
     }
 
     instance = make_unique<vk::raii::Instance>(vk_ctx, instance_result.value().instance);
@@ -236,7 +236,7 @@ vkb::PhysicalDevice VulkanRenderer::pick_physical_device(const vkb::Instance &vk
             .select();
 
     if (!physical_device_result) {
-        Logger::error("failed to select physical device: " + physical_device_result.error().message());
+        Logger::error("failed to select physical device: {}", physical_device_result.error().message());
     }
 
     ctx.physical_device = make_unique<vk::raii::PhysicalDevice>(
@@ -250,7 +250,7 @@ void VulkanRenderer::create_logical_device(const vkb::PhysicalDevice &vkb_physic
     auto device_result = vkb::DeviceBuilder(vkb_physical_device).build();
 
     if (!device_result) {
-        Logger::error("failed to select logical device: " + device_result.error().message());
+        Logger::error("failed to select logical device: {}", device_result.error().message());
     }
 
     ctx.device = make_unique<vk::raii::Device>(*ctx.physical_device, device_result.value().device);
@@ -258,13 +258,13 @@ void VulkanRenderer::create_logical_device(const vkb::PhysicalDevice &vkb_physic
     auto graphics_queue_result = device_result.value().get_queue(vkb::QueueType::graphics);
     auto graphics_queue_index_result = device_result.value().get_queue_index(vkb::QueueType::graphics);
     if (!graphics_queue_result || !graphics_queue_index_result) {
-        Logger::error("failed to get graphics queue: " + device_result.error().message());
+        Logger::error("failed to get graphics queue: {}", device_result.error().message());
     }
 
     auto present_queue_result = device_result.value().get_queue(vkb::QueueType::present);
     auto present_queue_index_result = device_result.value().get_queue_index(vkb::QueueType::present);
     if (!present_queue_result || !present_queue_index_result) {
-        Logger::error("failed to get present queue: " + device_result.error().message());
+        Logger::error("failed to get present queue: {}", device_result.error().message());
     }
 
     ctx.graphics_queue = make_unique<vk::raii::Queue>(*ctx.device, graphics_queue_result.value());
@@ -297,6 +297,10 @@ void VulkanRenderer::recreate_swap_chain() {
         window,
         get_msaa_sample_count()
     );
+
+    for (auto& node: render_graph_info.topo_sorted_nodes) {
+        node.render_infos = create_node_render_infos(node.handle);
+    }
 }
 
 // ==================== descriptors ====================
@@ -624,7 +628,7 @@ void VulkanRenderer::create_render_graph_resources() {
         }
 
         auto builder = TextureBuilder()
-                .with_flags(description.tex_flags)
+                .with_flags(description.flags)
                 .as_uninitialized({extent.width, extent.height, 1u})
                 .use_format(description.format)
                 .use_usage(vk::ImageUsageFlagBits::eTransferSrc
@@ -646,7 +650,7 @@ void VulkanRenderer::create_render_graph_resources() {
         }
 
         auto builder = TextureBuilder()
-                .with_flags(description.tex_flags)
+                .with_flags(description.flags)
                 .as_uninitialized({extent.width, extent.height, 1u})
                 .use_format(description.format)
                 .use_usage(vk::ImageUsageFlagBits::eTransientAttachment
@@ -847,7 +851,7 @@ void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resour
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
     const auto &node = render_graph_info.render_graph->nodes.at(node_resources.handle);
 
-    Logger::debug("recording node: ", node.name);
+    Logger::debug("recording node: {}", node.name);
 
     // if size > 1, then this means that this pass (node) draws to the swapchain image
     // and thus benefits from double or triple buffering

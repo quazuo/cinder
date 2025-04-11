@@ -15,7 +15,7 @@ enum class FileType {
     ENVMAP_HDR,
 };
 
-[[nodiscard]] static vector<std::string> get_file_type_extensions(const FileType type) {
+[[nodiscard]] static vector<string> get_file_type_extensions(const FileType type) {
     switch (type) {
         case FileType::MODEL:
             return {".obj", ".fbx", ".gltf"};
@@ -44,7 +44,7 @@ enum class FileType {
     }
 }
 
-[[nodiscard]] static std::string get_file_type_load_label(const FileType type) {
+[[nodiscard]] static string get_file_type_load_label(const FileType type) {
     switch (type) {
         case FileType::MODEL:
             return "Load model...";
@@ -70,7 +70,7 @@ enum class FileType {
 }
 
 struct FileLoadScheme {
-    std::string name;
+    string name;
     std::set<FileType> requirements;
 };
 

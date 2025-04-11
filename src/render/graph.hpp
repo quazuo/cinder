@@ -18,9 +18,9 @@ class GraphicsPipeline;
 
 namespace detail {
     template<typename T>
-    [[nodiscard]] bool empty_intersection(const std::set<T> &s1, const std::set<T> &s2) {
-        return std::ranges::all_of(s1, [&](const T &elem) {
-            return !s2.contains(elem);
+    [[nodiscard]] bool empty_intersection(const std::set<T> &a, std::ranges::forward_range auto b) {
+        return std::ranges::all_of(b, [&](const T &elem) {
+            return !a.contains(elem);
         });
     }
 } // detail
@@ -30,41 +30,46 @@ using RenderNodeHandle = uint32_t;
 static constexpr ResourceHandle FINAL_IMAGE_RESOURCE_HANDLE  = -1;
 static constexpr std::monostate EMPTY_DESCRIPTOR_SET_BINDING = {};
 
-struct VertexBufferResource {
-    std::string name;
+template<typename T>
+concept ResourceLike = requires(T t) {
+    { t.name } -> std::same_as<string&>;
+};
+
+struct VertexBufferResourceDesc {
+    string name;
     vk::DeviceSize size;
     const void *data;
 };
 
-struct UniformBufferResource {
-    std::string name;
+struct UniformBufferResourceDesc {
+    string name;
     vk::DeviceSize size;
 };
 
-struct ExternalTextureResource {
-    std::string name;
+struct ExternalTextureResourceDesc {
+    string name;
     vector<std::filesystem::path> paths;
     vk::Format format;
     vk::TextureFlagsZRX tex_flags = vk::TextureFlagBitsZRX::MIPMAPS;
     std::optional<SwizzleDesc> swizzle{};
 };
 
-struct EmptyTextureResource {
-    std::string name;
-    vk::Extent2D extent = {0, 0}; // {0, 0} means we're using the swapchain image's extent
-    vk::Format format;
-    vk::TextureFlagsZRX tex_flags = vk::TextureFlagBitsZRX::MIPMAPS;
-};
-
-struct TransientTextureResource {
-    std::string name;
+struct TargetTextureResourceDesc {
+    string name;
     vk::Format format;
     vk::Extent2D extent = {0, 0}; // {0, 0} means we're using the swapchain image's extent
-    vk::TextureFlagsZRX tex_flags{};
+    vk::TextureFlagsZRX flags = vk::TextureFlagBitsZRX::MIPMAPS;
 };
 
-struct ModelResource {
-    std::string name;
+struct TransientTextureResourceDesc {
+    string name;
+    vk::Format format;
+    vk::Extent2D extent = {0, 0}; // {0, 0} means we're using the swapchain image's extent
+    vk::TextureFlagsZRX flags{};
+};
+
+struct ModelResourceDesc {
+    string name;
     std::filesystem::path path;
 };
 
@@ -72,7 +77,7 @@ struct ModelResource {
 struct FinalImageFormatPlaceholder {
 };
 
-struct ShaderPack {
+struct ShaderPackDesc {
     using AttachmentFormat = std::variant<vk::Format, FinalImageFormatPlaceholder>;
 
     std::filesystem::path vertex_path;
@@ -94,11 +99,12 @@ struct ShaderPack {
 
     template<typename VertexType>
         requires VertexLike<VertexType>
-    ShaderPack(
+    ShaderPackDesc(
         std::filesystem::path &&vertex_path_,
         std::filesystem::path &&fragment_path_,
         vector<ResourceHandle> &&used_resources_,
-        [[maybe_unused]] VertexType &&vertex_example, // it's not possible to explicitly specialize the ctor :(
+        // it's not possible to explicitly specialize the ctor :( todo: change this
+        [[maybe_unused]] VertexType &&vertex_example,
         vector<AttachmentFormat> colors,
         const std::optional<AttachmentFormat> depth_format = {},
         CustomProperties &&custom_properties               = {}
@@ -157,35 +163,15 @@ private:
     void push_constants() const;
 };
 
-class ShaderGatherRenderPassContext final : public IRenderPassContext {
-    vector<ResourceHandle> used_pipelines;
-
-public:
-    ~ShaderGatherRenderPassContext() override = default;
-
-    [[nodiscard]] const vector<ResourceHandle> &get() const { return used_pipelines; }
-
-    void bind_pipeline(const ResourceHandle pipeline_handle) override {
-        used_pipelines.push_back(pipeline_handle);
-    }
-
-    void draw_model(ResourceHandle model_handle) override {
-    }
-
-    void draw(ResourceHandle vertices_handle, uint32_t vertex_count, uint32_t instance_count,
-              uint32_t first_vertex, uint32_t first_instance) override {
-    }
-};
-
 struct RenderNode {
     using RenderNodeBodyFn   = std::function<void(IRenderPassContext &)>;
     using ShouldRunPredicate = std::function<bool()>;
 
-    std::string name;
+    string name;
+    vector<ResourceHandle> bound_resources;
     vector<ResourceHandle> color_targets;
     std::optional<ResourceHandle> depth_target;
     RenderNodeBodyFn body;
-    vector<RenderNodeHandle> explicit_dependencies;
     std::optional<ShouldRunPredicate> should_run_predicate;
 
     struct CustomProperties {
@@ -193,9 +179,6 @@ struct RenderNode {
     } custom_properties;
 
     [[nodiscard]] std::set<ResourceHandle> get_all_targets_set() const;
-
-    [[nodiscard]] std::set<ResourceHandle>
-    get_all_shader_resources_set(const std::map<ResourceHandle, ShaderPack> &shaders) const;
 };
 
 struct FrameBeginActionContext {
@@ -208,13 +191,16 @@ class RenderGraph {
     std::map<RenderNodeHandle, RenderNode> nodes;
     std::map<RenderNodeHandle, std::set<RenderNodeHandle> > dependency_graph;
 
-    std::map<ResourceHandle, VertexBufferResource> vertex_buffers;
-    std::map<ResourceHandle, UniformBufferResource> uniform_buffers;
-    std::map<ResourceHandle, ExternalTextureResource> external_tex_resources;
-    std::map<ResourceHandle, EmptyTextureResource> empty_tex_resources;
-    std::map<ResourceHandle, TransientTextureResource> transient_tex_resources;
-    std::map<ResourceHandle, ModelResource> model_resources;
-    std::map<ResourceHandle, ShaderPack> pipelines;
+    std::map<ResourceHandle, VertexBufferResourceDesc> vertex_buffers;
+    std::map<ResourceHandle, UniformBufferResourceDesc> uniform_buffers;
+    std::map<ResourceHandle, ExternalTextureResourceDesc> external_tex_resources;
+    std::map<ResourceHandle, TargetTextureResourceDesc> empty_tex_resources;
+    std::map<ResourceHandle, TransientTextureResourceDesc> transient_tex_resources;
+    std::map<ResourceHandle, ModelResourceDesc> model_resources;
+    std::map<ResourceHandle, ShaderPackDesc> pipelines;
+
+    std::set<ResourceHandle> produced_resources;
+    std::map<ResourceHandle, string> resource_names;
 
     vector<FrameBeginCallback> frame_begin_callbacks;
 
@@ -225,19 +211,33 @@ public:
 
     RenderNodeHandle add_node(const RenderNode &node);
 
-    [[nodiscard]] ResourceHandle add_resource(VertexBufferResource &&resource);
+    [[nodiscard]] ResourceHandle add_resource(VertexBufferResourceDesc &&resource);
 
-    [[nodiscard]] ResourceHandle add_resource(UniformBufferResource &&resource);
+    [[nodiscard]] ResourceHandle add_resource(UniformBufferResourceDesc &&resource);
 
-    [[nodiscard]] ResourceHandle add_resource(ExternalTextureResource &&resource);
+    [[nodiscard]] ResourceHandle add_resource(ExternalTextureResourceDesc &&resource);
 
-    [[nodiscard]] ResourceHandle add_resource(EmptyTextureResource &&resource);
+    [[nodiscard]] ResourceHandle add_resource(TargetTextureResourceDesc &&resource);
 
-    [[nodiscard]] ResourceHandle add_resource(TransientTextureResource &&resource);
+    [[nodiscard]] ResourceHandle add_resource(TransientTextureResourceDesc &&resource);
 
-    [[nodiscard]] ResourceHandle add_resource(ModelResource &&resource);
+    [[nodiscard]] ResourceHandle add_resource(ModelResourceDesc &&resource);
 
-    [[nodiscard]] ResourceHandle add_pipeline(ShaderPack &&resource);
+    template<typename T>
+        requires ResourceLike<T>
+    [[nodiscard]] vector<ResourceHandle> add_repeated_resource(const uint32_t count, T&& resource) {
+        vector<ResourceHandle> handles;
+
+        for (uint32_t i = 0; i < count; i++) {
+            T updated_res_desc = resource;
+            updated_res_desc.name += "#" + std::to_string(i);
+            handles.emplace_back(add_resource(updated_res_desc));
+        }
+
+        return handles;
+    }
+
+    [[nodiscard]] ResourceHandle add_pipeline(ShaderPackDesc &&resource);
 
     void add_frame_begin_action(FrameBeginCallback &&callback);
 
@@ -252,10 +252,13 @@ private:
     [[nodiscard]] static ResourceHandle get_new_resource_handle();
 
     template<typename ResourceType>
-    [[nodiscard]] static ResourceHandle
+    [[nodiscard]] ResourceHandle
     add_resource_generic(ResourceType &&resource, std::map<ResourceHandle, ResourceType> &resource_map) {
         const auto handle = get_new_resource_handle();
         resource_map.emplace(handle, resource);
+        if constexpr (ResourceLike<ResourceType>) {
+            resource_names.emplace(handle, resource.name);
+        }
         return handle;
     }
 };
