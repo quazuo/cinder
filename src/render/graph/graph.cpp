@@ -1,111 +1,19 @@
 #include "graph.hpp"
 
-#include "resource-manager.hpp"
-#include "vk/pipeline.hpp"
+#include "src/render/vk/pipeline.hpp"
+#include "src/render/vk/descriptor.hpp"
 #include "src/utils/logger.hpp"
-#include "vk/descriptor.hpp"
+
+namespace detail {
+template<typename T>
+[[nodiscard]] bool empty_intersection(const std::set<T> &a, std::ranges::forward_range auto b) {
+    return std::ranges::all_of(b, [&](const T &elem) {
+        return !a.contains(elem);
+    });
+}
+} // detail
 
 namespace zrx {
-[[nodiscard]] std::set<ResourceHandle> GraphicsPipelineDesc::get_bound_resources_set() const {
-    std::set<ResourceHandle> result;
-    result.insert(used_resources.begin(), used_resources.end());
-    return result;
-}
-
-void RenderPassContext::bind_pipeline(const ResourceHandle pipeline_handle) {
-    vk::Pipeline pipeline {};
-    vk::PipelineLayout layout {};
-    vk::PipelineBindPoint bind_point {};
-
-    if (graphics_pipelines.get().contains(pipeline_handle)) {
-        pipeline = **graphics_pipelines.get().at(pipeline_handle);
-        layout = *graphics_pipelines.get().at(pipeline_handle).get_layout();
-        bind_point = vk::PipelineBindPoint::eGraphics;
-
-    } else if (compute_pipelines.get().contains(pipeline_handle)) {
-        pipeline = **compute_pipelines.get().at(pipeline_handle);
-        layout = *compute_pipelines.get().at(pipeline_handle).get_layout();
-        bind_point = vk::PipelineBindPoint::eCompute;
-
-    } else {
-        Logger::error("Invalid pipeline handle in RenderPassContext::bind_pipeline!");
-    }
-
-    command_buffer.get().bindPipeline(bind_point, pipeline);
-    command_buffer.get().bindDescriptorSets(bind_point, layout, 0, *bindless_set.get(), nullptr);
-
-    last_bound_pipeline = pipeline_handle;
-}
-
-void RenderPassContext::draw_model(const ResourceHandle model_handle) const {
-    if (!last_bound_pipeline) {
-        Logger::error("no pipeline bound during draw!");
-    }
-
-    uint32_t index_offset    = 0;
-    int32_t vertex_offset    = 0;
-    uint32_t instance_offset = 0;
-
-    const Model &model = resource_manager.get().get_model(model_handle);
-    model.bind_buffers(command_buffer);
-
-    for (const auto &mesh: model.get_meshes()) {
-        push_constants();
-
-        command_buffer.get().drawIndexed(
-            static_cast<uint32_t>(mesh.indices.size()),
-            static_cast<uint32_t>(mesh.instances.size()),
-            index_offset,
-            vertex_offset,
-            instance_offset
-        );
-
-        index_offset += static_cast<uint32_t>(mesh.indices.size());
-        vertex_offset += static_cast<int32_t>(mesh.vertices.size());
-        instance_offset += static_cast<uint32_t>(mesh.instances.size());
-    }
-}
-
-void RenderPassContext::draw(const ResourceHandle vertices_handle,
-                             const uint32_t vertex_count, const uint32_t instance_count,
-                             const uint32_t first_vertex, const uint32_t first_instance) const {
-    const Buffer &vertex_buffer = resource_manager.get().get_buffer(vertices_handle);
-    command_buffer.get().bindVertexBuffers(0, *vertex_buffer, {0});
-    push_constants();
-    command_buffer.get().draw(vertex_count, instance_count, first_vertex, first_instance);
-}
-
-void RenderPassContext::dispatch(const uint32_t x, const uint32_t y, const uint32_t z) const {
-    command_buffer.get().dispatch(x, y, z);
-}
-
-void RenderPassContext::push_constants() const {
-    if (!last_bound_pipeline) {
-        Logger::error("no pipeline bound during draw!");
-    }
-
-    auto bound_res_ids = pipeline_bound_res_ids.get().at(*last_bound_pipeline);
-
-    if (!bound_res_ids.empty()) {
-        for (auto& res_id: bound_res_ids) {
-            res_id = resource_manager.get().get_bindless_handle(res_id);
-        }
-
-        command_buffer.get().pushConstants<ResourceHandle>(
-            *graphics_pipelines.get().at(*last_bound_pipeline).get_layout(),
-            vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-            0,
-            bound_res_ids
-        );
-    }
-}
-
-std::set<ResourceHandle> RenderNode::get_all_targets_set() const {
-    std::set result(color_targets.begin(), color_targets.end());
-    if (depth_target) result.insert(*depth_target);
-    return result;
-}
-
 vector<RenderNodeHandle> RenderGraph::get_topo_sorted() const {
     vector<RenderNodeHandle> result;
 

@@ -12,7 +12,7 @@
 #include "assimp/code/AssetLib/MMD/MMDPmxParser.h"
 #include "assimp/code/AssetLib/SMD/SMDLoader.h"
 #include "render/camera.hpp"
-#include "render/graph.hpp"
+#include "render/graph/graph.hpp"
 #include "render/renderer.hpp"
 #include "render/resource-manager.hpp"
 #include "render/gui/gui.hpp"

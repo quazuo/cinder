@@ -9,6 +9,7 @@
 #include "src/render/renderer.hpp"
 #include "src/render/vk/image.hpp"
 #include "src/render/vk/buffer.hpp"
+#include "src/render/vk/cmd.hpp"
 
 namespace zrx {
 static glm::vec3 assimp_vec_to_glm(const aiVector3D &v) {

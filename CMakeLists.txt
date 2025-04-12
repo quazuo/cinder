@@ -87,6 +87,7 @@ file(GLOB CINDER_SRCS
         "src/render/vk/*"
         "src/render/gui/*"
         "src/render/mesh/*"
+        "src/render/graph/*"
         "src/utils/*"
 )
 

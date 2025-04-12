@@ -8,9 +8,7 @@
 
 #include "libs.hpp"
 #include "globals.hpp"
-#include "graph.hpp"
-#include "mesh/model.hpp"
-#include "vk/cmd.hpp"
+#include "graph/graph.hpp"
 #include "vk/image.hpp"
 #include "vk/pipeline.hpp"
 #include "vk/ctx.hpp"

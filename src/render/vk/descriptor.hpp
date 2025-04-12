@@ -7,7 +7,7 @@
 
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
-#include "src/render/graph.hpp"
+#include "src/render/graph/graph.hpp"
 #include "buffer.hpp"
 #include "image.hpp"
 #include "accel-struct.hpp"
