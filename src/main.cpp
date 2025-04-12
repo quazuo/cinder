@@ -289,7 +289,7 @@ private:
             .name = "cubemap-capture",
             .bound_resources = {uniform_buffer, envmap_texture},
             .color_targets = {skybox_texture},
-            .body = [=](IRenderPassContext &ctx) {
+            .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(cubecap_shaders);
                 ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
             },
@@ -304,7 +304,7 @@ private:
             .bound_resources = {uniform_buffer},
             .color_targets = {g_buffer_normal, g_buffer_pos},
             .depth_target = g_buffer_depth,
-            .body = [=](IRenderPassContext &ctx) {
+            .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(prepass_shaders);
                 ctx.draw_model(scene_model);
             },
@@ -315,7 +315,7 @@ private:
             .name = "ssao",
             .bound_resources = {uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos},
             .color_targets = {ssao_texture},
-            .body = [=](IRenderPassContext &ctx) {
+            .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(ssao_shaders);
                 ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
             },
@@ -327,7 +327,7 @@ private:
             .bound_resources = {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture},
             .color_targets = {FINAL_IMAGE_RESOURCE_HANDLE},
             .depth_target = FINAL_IMAGE_RESOURCE_HANDLE,
-            .body = [=](IRenderPassContext &ctx) {
+            .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(main_shaders);
                 ctx.draw_model(scene_model);
                 ctx.bind_pipeline(skybox_shaders);

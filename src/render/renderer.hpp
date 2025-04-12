@@ -120,7 +120,8 @@ class VulkanRenderer {
     } render_graph_info;
 
     unique_ptr<ResourceManager> resource_manager;
-    std::map<ResourceHandle, GraphicsPipeline> render_graph_pipelines;
+    std::map<ResourceHandle, GraphicsPipeline> graphics_pipelines;
+    std::map<ResourceHandle, ComputePipeline> compute_pipelines;
     std::map<ResourceHandle, vector<ResourceHandle>> pipeline_bound_res_ids;
 
     // other resources
@@ -247,7 +248,9 @@ public:
 private:
     void create_render_graph_resources();
 
-    [[nodiscard]] GraphicsPipelineBuilder create_graph_pipeline_builder(ResourceHandle pipeline_handle) const;
+    [[nodiscard]] GraphicsPipelineBuilder create_graph_gfx_pipeline_builder(ResourceHandle pipeline_handle) const;
+
+    [[nodiscard]] ComputePipelineBuilder create_graph_compute_pipeline_builder(ResourceHandle pipeline_handle) const;
 
     void queue_set_update_with_handle(DescriptorSet &descriptor_set, ResourceHandle res_handle,
                                       uint32_t binding, uint32_t array_element = 0) const;

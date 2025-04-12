@@ -45,8 +45,8 @@ GraphicsPipelineBuilder::with_vertices(vector<vk::VertexInputBindingDescription>
     return *this;
 }
 
-GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_descriptor_layouts(
-    const vector<vk::DescriptorSetLayout> &layouts) {
+GraphicsPipelineBuilder &
+GraphicsPipelineBuilder::with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts) {
     descriptor_set_layouts = layouts;
     return *this;
 }
@@ -91,10 +91,8 @@ GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_depth_format(const vk::Fo
 }
 
 GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) const {
-    GraphicsPipeline result;
-
-    vk::raii::ShaderModule vert_shader_module = create_shader_module(ctx, vertex_shader_path);
-    vk::raii::ShaderModule frag_shader_module = create_shader_module(ctx, fragment_shader_path);
+    const vk::raii::ShaderModule vert_shader_module = create_shader_module(ctx, vertex_shader_path);
+    const vk::raii::ShaderModule frag_shader_module = create_shader_module(ctx, fragment_shader_path);
 
     const vk::PipelineShaderStageCreateInfo vert_shader_stage_info{
         .stage = vk::ShaderStageFlagBits::eVertex,
@@ -155,8 +153,6 @@ GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) con
                                        .minSampleShading = 1.0f,
                                    };
 
-    result.rasterization_samples = multisampling.rasterizationSamples;
-
     const vector<vk::PipelineColorBlendAttachmentState> color_blend_attachments(
         color_attachment_formats.size(),
         {
@@ -189,7 +185,7 @@ GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) con
         .pPushConstantRanges = push_constant_ranges.empty() ? nullptr : push_constant_ranges.data()
     };
 
-    result.layout = make_unique<vk::raii::PipelineLayout>(*ctx.device, pipeline_layout_info);
+    vk::raii::PipelineLayout layout {*ctx.device, pipeline_layout_info};
 
     const vk::StructureChain<
         vk::GraphicsPipelineCreateInfo,
@@ -206,7 +202,7 @@ GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) con
             .pDepthStencilState = &depth_stencil,
             .pColorBlendState = &color_blending,
             .pDynamicState = &dynamic_state,
-            .layout = **result.layout,
+            .layout = *layout,
         },
         {
             .viewMask = multiview_count == 1 ? 0 : ((1u << multiview_count) - 1),
@@ -216,13 +212,13 @@ GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) con
         }
     };
 
-    result.pipeline = make_unique<vk::raii::Pipeline>(
+    vk::raii::Pipeline pipeline {
         *ctx.device,
         nullptr,
         pipeline_create_info.get<vk::GraphicsPipelineCreateInfo>()
-    );
+    };
 
-    return result;
+    return {std::move(pipeline), std::move(layout), multisampling.rasterizationSamples};
 }
 
 void GraphicsPipelineBuilder::check_params() const {
@@ -237,6 +233,54 @@ void GraphicsPipelineBuilder::check_params() const {
     if (vertex_bindings.empty() && vertex_attributes.empty()) {
         Logger::error("vertex descriptions must be specified during pipeline creation!");
     }
+}
+
+ComputePipelineBuilder & ComputePipelineBuilder::with_shader(const std::filesystem::path &path) {
+    shader_path = path;
+    return *this;
+}
+
+ComputePipelineBuilder & ComputePipelineBuilder::
+with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts) {
+    descriptor_set_layouts = layouts;
+    return *this;
+}
+
+ComputePipelineBuilder & ComputePipelineBuilder::with_push_constants(const vector<vk::PushConstantRange> &ranges) {
+    push_constant_ranges = ranges;
+    return *this;
+}
+
+ComputePipeline ComputePipelineBuilder::create(const RendererContext &ctx) const {
+    if (shader_path.empty()) {
+        Logger::error("compute shader must be specified during compute pipeline creation!");
+    }
+
+    const vk::raii::ShaderModule shader_module = create_shader_module(ctx, shader_path);
+
+    const vk::PipelineShaderStageCreateInfo shader_stage_info{
+        .stage = vk::ShaderStageFlagBits::eCompute,
+        .module = *shader_module,
+        .pName = "main",
+    };
+
+    const vk::PipelineLayoutCreateInfo pipeline_layout_info{
+        .setLayoutCount = static_cast<uint32_t>(descriptor_set_layouts.size()),
+        .pSetLayouts = descriptor_set_layouts.empty() ? nullptr : descriptor_set_layouts.data(),
+        .pushConstantRangeCount = static_cast<uint32_t>(push_constant_ranges.size()),
+        .pPushConstantRanges = push_constant_ranges.empty() ? nullptr : push_constant_ranges.data()
+    };
+
+    vk::raii::PipelineLayout layout {*ctx.device, pipeline_layout_info};
+
+    const vk::ComputePipelineCreateInfo pipeline_create_info{
+        .stage = shader_stage_info,
+        .layout = *layout,
+    };
+
+    vk::raii::Pipeline pipeline {*ctx.device, nullptr, pipeline_create_info};
+
+    return {std::move(pipeline), std::move(layout)};
 }
 
 RtPipelineBuilder &RtPipelineBuilder::with_ray_gen_shader(const std::filesystem::path &path) {
@@ -265,15 +309,9 @@ RtPipelineBuilder &RtPipelineBuilder::with_push_constants(const vector<vk::PushC
 }
 
 RtPipeline RtPipelineBuilder::create(const RendererContext &ctx) const {
-    RtPipeline result;
-
     auto [pipeline, layout] = build_pipeline(ctx);
-    result.pipeline         = make_unique<decltype(pipeline)>(std::move(pipeline));
-    result.layout           = make_unique<decltype(layout)>(std::move(layout));
-
-    result.sbt = build_sbt(ctx, *result.pipeline);
-
-    return result;
+    auto sbt = build_sbt(ctx, pipeline);
+    return {std::move(pipeline), std::move(layout), std::move(sbt)};
 }
 
 void RtPipelineBuilder::check_params() const {

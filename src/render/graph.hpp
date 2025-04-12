@@ -15,6 +15,7 @@
 namespace zrx {
 class DescriptorSet;
 class GraphicsPipeline;
+class ComputePipeline;
 
 namespace detail {
     template<typename T>
@@ -121,25 +122,18 @@ struct GraphicsPipelineDesc {
 };
 
 struct ComputePipelineDesc {
-    // todo
+    std::filesystem::path path;
+    vector<ResourceHandle> used_resources;
+
+    struct CustomProperties {
+    } custom_properties;
 };
 
-class IRenderPassContext {
-public:
-    virtual ~IRenderPassContext() = default;
-
-    virtual void bind_pipeline(ResourceHandle pipeline_handle) = 0;
-
-    virtual void draw_model(ResourceHandle model_handle) = 0;
-
-    virtual void draw(ResourceHandle vertices_handle, uint32_t vertex_count, uint32_t instance_count,
-                      uint32_t first_vertex, uint32_t first_instance) = 0;
-};
-
-class RenderPassContext final : public IRenderPassContext {
+class RenderPassContext {
     reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
     reference_wrapper<ResourceManager> resource_manager;
-    reference_wrapper<const std::map<ResourceHandle, GraphicsPipeline>> pipelines;
+    reference_wrapper<const std::map<ResourceHandle, GraphicsPipeline>> graphics_pipelines;
+    reference_wrapper<const std::map<ResourceHandle, ComputePipeline>> compute_pipelines;
     reference_wrapper<const std::map<ResourceHandle, std::vector<ResourceHandle> >> pipeline_bound_res_ids;
     reference_wrapper<const vk::raii::DescriptorSet> bindless_set;
 
@@ -147,28 +141,30 @@ class RenderPassContext final : public IRenderPassContext {
 
 public:
     explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, ResourceManager &rm,
-                               const std::map<ResourceHandle, GraphicsPipeline> &pipelines,
+                               const std::map<ResourceHandle, GraphicsPipeline> &graphics_pipelines,
+                               const std::map<ResourceHandle, ComputePipeline> &compute_pipelines,
                                const std::map<ResourceHandle, std::vector<ResourceHandle> > &bound_res_ids,
                                const vk::raii::DescriptorSet &bindless_set)
-        : command_buffer(cmd_buf), resource_manager(rm), pipelines(pipelines),
+        : command_buffer(cmd_buf), resource_manager(rm),
+          graphics_pipelines(graphics_pipelines), compute_pipelines(compute_pipelines),
           pipeline_bound_res_ids(bound_res_ids), bindless_set(bindless_set) {
     }
 
-    ~RenderPassContext() override = default;
+    void bind_pipeline(ResourceHandle pipeline_handle);
 
-    void bind_pipeline(ResourceHandle pipeline_handle) override;
-
-    void draw_model(ResourceHandle model_handle) override;
+    void draw_model(ResourceHandle model_handle) const;
 
     void draw(ResourceHandle vertices_handle, uint32_t vertex_count, uint32_t instance_count,
-              uint32_t first_vertex, uint32_t first_instance) override;
+              uint32_t first_vertex, uint32_t first_instance) const;
+
+    void dispatch(uint32_t x, uint32_t y, uint32_t z) const;
 
 private:
     void push_constants() const;
 };
 
 struct RenderNode {
-    using RenderNodeBodyFn   = std::function<void(IRenderPassContext &)>;
+    using RenderNodeBodyFn   = std::function<void(RenderPassContext &)>;
     using ShouldRunPredicate = std::function<bool()>;
 
     string name;
@@ -201,7 +197,8 @@ class RenderGraph {
     std::map<ResourceHandle, TargetTextureResourceDesc> empty_tex_resources;
     std::map<ResourceHandle, TransientTextureResourceDesc> transient_tex_resources;
     std::map<ResourceHandle, ModelResourceDesc> model_resources;
-    std::map<ResourceHandle, GraphicsPipelineDesc> pipelines;
+    std::map<ResourceHandle, GraphicsPipelineDesc> graphics_pipelines;
+    std::map<ResourceHandle, ComputePipelineDesc> compute_pipelines;
 
     std::set<ResourceHandle> produced_resources;
     std::map<ResourceHandle, string> resource_names;
@@ -242,6 +239,8 @@ public:
     }
 
     [[nodiscard]] ResourceHandle add_pipeline(GraphicsPipelineDesc &&resource);
+
+    [[nodiscard]] ResourceHandle add_pipeline(ComputePipelineDesc &&resource);
 
     void add_frame_begin_action(FrameBeginCallback &&callback);
 

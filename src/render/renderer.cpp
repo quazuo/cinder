@@ -663,16 +663,22 @@ void VulkanRenderer::create_render_graph_resources() {
         bindless_descriptor_set->update_binding<0>(texture, bindless_handle);
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->pipelines) {
-        auto builder = create_graph_pipeline_builder(handle);
-        render_graph_pipelines.emplace(handle, builder.create(ctx));
+    for (const auto &[handle, description]: render_graph_info.render_graph->graphics_pipelines) {
+        auto builder = create_graph_gfx_pipeline_builder(handle);
+        graphics_pipelines.emplace(handle, builder.create(ctx));
+        pipeline_bound_res_ids.emplace(handle, description.used_resources);
+    }
+
+    for (const auto &[handle, description]: render_graph_info.render_graph->compute_pipelines) {
+        auto builder = create_graph_compute_pipeline_builder(handle);
+        compute_pipelines.emplace(handle, builder.create(ctx));
         pipeline_bound_res_ids.emplace(handle, description.used_resources);
     }
 }
 
 GraphicsPipelineBuilder
-VulkanRenderer::create_graph_pipeline_builder(const ResourceHandle pipeline_handle) const {
-    const auto &pipeline_info = render_graph_info.render_graph->pipelines.at(pipeline_handle);
+VulkanRenderer::create_graph_gfx_pipeline_builder(const ResourceHandle pipeline_handle) const {
+    const auto &pipeline_info = render_graph_info.render_graph->graphics_pipelines.at(pipeline_handle);
 
     vector<vk::Format> color_formats;
     for (const auto &format_variant: pipeline_info.color_formats) {
@@ -727,6 +733,30 @@ VulkanRenderer::create_graph_pipeline_builder(const ResourceHandle pipeline_hand
     if (pipeline_info.custom_properties.multiview_count > 1) {
         builder.for_views(pipeline_info.custom_properties.multiview_count);
     }
+
+    if (pipeline_info.used_resources.size() > 0) {
+        builder.with_push_constants({
+            vk::PushConstantRange {
+                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+                0,
+                static_cast<uint32_t>(pipeline_info.used_resources.size() * sizeof(uint32_t))
+            }
+        });
+    }
+
+    return builder;
+}
+
+ComputePipelineBuilder
+VulkanRenderer::create_graph_compute_pipeline_builder(const ResourceHandle pipeline_handle) const {
+    const auto &pipeline_info = render_graph_info.render_graph->compute_pipelines.at(pipeline_handle);
+
+    vector<vk::DescriptorSetLayout> descriptor_set_layouts;
+    descriptor_set_layouts.push_back(*bindless_descriptor_set->get_layout());
+
+    auto builder = ComputePipelineBuilder()
+            .with_shader(pipeline_info.path)
+            .with_descriptor_layouts(descriptor_set_layouts);
 
     if (pipeline_info.used_resources.size() > 0) {
         builder.with_push_constants({
@@ -882,7 +912,8 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &n
     RenderPassContext ctx{
         command_buffer,
         *resource_manager,
-        render_graph_pipelines,
+        graphics_pipelines,
+        compute_pipelines,
         pipeline_bound_res_ids,
         **bindless_descriptor_set
     };

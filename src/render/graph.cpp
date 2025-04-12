@@ -13,21 +13,31 @@ namespace zrx {
 }
 
 void RenderPassContext::bind_pipeline(const ResourceHandle pipeline_handle) {
-    const auto &pipeline = pipelines.get().at(pipeline_handle);
-    command_buffer.get().bindPipeline(vk::PipelineBindPoint::eGraphics, **pipeline);
+    vk::Pipeline pipeline {};
+    vk::PipelineLayout layout {};
+    vk::PipelineBindPoint bind_point {};
 
-    command_buffer.get().bindDescriptorSets(
-        vk::PipelineBindPoint::eGraphics,
-        *pipeline.get_layout(),
-        0,
-        *bindless_set.get(),
-        nullptr
-    );
+    if (graphics_pipelines.get().contains(pipeline_handle)) {
+        pipeline = **graphics_pipelines.get().at(pipeline_handle);
+        layout = *graphics_pipelines.get().at(pipeline_handle).get_layout();
+        bind_point = vk::PipelineBindPoint::eGraphics;
+
+    } else if (compute_pipelines.get().contains(pipeline_handle)) {
+        pipeline = **compute_pipelines.get().at(pipeline_handle);
+        layout = *compute_pipelines.get().at(pipeline_handle).get_layout();
+        bind_point = vk::PipelineBindPoint::eCompute;
+
+    } else {
+        Logger::error("Invalid pipeline handle in RenderPassContext::bind_pipeline!");
+    }
+
+    command_buffer.get().bindPipeline(bind_point, pipeline);
+    command_buffer.get().bindDescriptorSets(bind_point, layout, 0, *bindless_set.get(), nullptr);
 
     last_bound_pipeline = pipeline_handle;
 }
 
-void RenderPassContext::draw_model(const ResourceHandle model_handle) {
+void RenderPassContext::draw_model(const ResourceHandle model_handle) const {
     if (!last_bound_pipeline) {
         Logger::error("no pipeline bound during draw!");
     }
@@ -58,11 +68,15 @@ void RenderPassContext::draw_model(const ResourceHandle model_handle) {
 
 void RenderPassContext::draw(const ResourceHandle vertices_handle,
                              const uint32_t vertex_count, const uint32_t instance_count,
-                             const uint32_t first_vertex, const uint32_t first_instance) {
+                             const uint32_t first_vertex, const uint32_t first_instance) const {
     const Buffer &vertex_buffer = resource_manager.get().get_buffer(vertices_handle);
     command_buffer.get().bindVertexBuffers(0, *vertex_buffer, {0});
     push_constants();
     command_buffer.get().draw(vertex_count, instance_count, first_vertex, first_instance);
+}
+
+void RenderPassContext::dispatch(const uint32_t x, const uint32_t y, const uint32_t z) const {
+    command_buffer.get().dispatch(x, y, z);
 }
 
 void RenderPassContext::push_constants() const {
@@ -78,7 +92,7 @@ void RenderPassContext::push_constants() const {
         }
 
         command_buffer.get().pushConstants<ResourceHandle>(
-            *pipelines.get().at(*last_bound_pipeline).get_layout(),
+            *graphics_pipelines.get().at(*last_bound_pipeline).get_layout(),
             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
             0,
             bound_res_ids
@@ -192,7 +206,11 @@ ResourceHandle RenderGraph::add_resource(ModelResourceDesc &&resource) {
 }
 
 ResourceHandle RenderGraph::add_pipeline(GraphicsPipelineDesc &&resource) {
-    return add_resource_generic(std::move(resource), pipelines);
+    return add_resource_generic(std::move(resource), graphics_pipelines);
+}
+
+ResourceHandle RenderGraph::add_pipeline(ComputePipelineDesc &&resource) {
+    return add_resource_generic(std::move(resource), compute_pipelines);
 }
 
 void RenderGraph::add_frame_begin_action(FrameBeginCallback &&callback) {

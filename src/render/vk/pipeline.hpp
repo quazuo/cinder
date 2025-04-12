@@ -15,30 +15,37 @@ class Buffer;
  * Might be extended in the future as it's very bare-bones at this moment.
  */
 class Pipeline {
-    unique_ptr<vk::raii::Pipeline> pipeline;
-    unique_ptr<vk::raii::PipelineLayout> layout;
-
-    friend class GraphicsPipelineBuilder;
-    friend class RtPipelineBuilder;
+    vk::raii::Pipeline pipeline;
+    vk::raii::PipelineLayout layout;
 
 protected:
-    Pipeline() = default;
+    Pipeline(vk::raii::Pipeline&& pipeline, vk::raii::PipelineLayout&& layout)
+        : pipeline(std::move(pipeline)), layout(std::move(layout)) {}
 
 public:
-    [[nodiscard]] const vk::raii::Pipeline &operator*() const { return *pipeline; }
+    [[nodiscard]] const vk::raii::Pipeline &operator*() const { return pipeline; }
 
-    [[nodiscard]] const vk::raii::PipelineLayout &get_layout() const { return *layout; }
+    [[nodiscard]] const vk::raii::PipelineLayout &get_layout() const { return layout; }
 };
 
 class GraphicsPipeline : public Pipeline {
-    vk::SampleCountFlagBits rasterization_samples{};
+    vk::SampleCountFlagBits rasterization_samples;
 
     friend class GraphicsPipelineBuilder;
 
-    GraphicsPipeline() = default;
+    GraphicsPipeline(vk::raii::Pipeline&& pipeline, vk::raii::PipelineLayout&& layout,
+                     const vk::SampleCountFlagBits samples = {})
+        : Pipeline(std::move(pipeline), std::move(layout)), rasterization_samples(samples) {}
 
 public:
     [[nodiscard]] vk::SampleCountFlagBits get_sample_count() const { return rasterization_samples; }
+};
+
+class ComputePipeline : public Pipeline {
+    friend class ComputePipelineBuilder;
+
+    ComputePipeline(vk::raii::Pipeline&& pipeline, vk::raii::PipelineLayout&& layout)
+        : Pipeline(std::move(pipeline), std::move(layout)) {}
 };
 
 class RtPipeline : public Pipeline {
@@ -56,7 +63,8 @@ private:
 
     friend class RtPipelineBuilder;
 
-    RtPipeline() = default;
+    RtPipeline(vk::raii::Pipeline&& pipeline, vk::raii::PipelineLayout&& layout, ShaderBindingTable&& sbt)
+        : Pipeline(std::move(pipeline), std::move(layout)), sbt(std::move(sbt)) {}
 
 public:
     [[nodiscard]] const ShaderBindingTable &get_sbt() const { return sbt; }
@@ -122,6 +130,22 @@ public:
 
 private:
     void check_params() const;
+};
+
+class ComputePipelineBuilder {
+    std::filesystem::path shader_path;
+
+    vector<vk::DescriptorSetLayout> descriptor_set_layouts;
+    vector<vk::PushConstantRange> push_constant_ranges;
+
+public:
+    ComputePipelineBuilder &with_shader(const std::filesystem::path &path);
+
+    ComputePipelineBuilder &with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts);
+
+    ComputePipelineBuilder &with_push_constants(const vector<vk::PushConstantRange> &ranges);
+
+    [[nodiscard]] ComputePipeline create(const RendererContext &ctx) const;
 };
 
 class RtPipelineBuilder {
