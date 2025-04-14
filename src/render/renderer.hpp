@@ -120,7 +120,6 @@ class VulkanRenderer {
     unique_ptr<ResourceManager> resource_manager;
     std::map<ResourceHandle, GraphicsPipeline> graphics_pipelines;
     std::map<ResourceHandle, ComputePipeline> compute_pipelines;
-    std::map<ResourceHandle, vector<ResourceHandle>> pipeline_bound_res_ids;
 
     // other resources
 

@@ -60,14 +60,21 @@ struct ModelResourceDesc {
 struct FinalImageFormatPlaceholder {
 };
 
+enum class ShaderBindingType {
+    Empty,
+    SampledTexture,
+    StorageTexture,
+    UniformBuffer,
+    StorageBuffer,
+};
+
 struct GraphicsPipelineDesc {
     using AttachmentFormat = std::variant<vk::Format, FinalImageFormatPlaceholder>;
 
     std::filesystem::path vertex_path;
     std::filesystem::path fragment_path;
-    vector<ResourceHandle> used_resources;
     vector<vk::VertexInputBindingDescription> binding_descriptions;
-    vector<vk::VertexInputAttributeDescription> attribute_descriptions;
+    vector<vk::VertexInputAttributeDescription> attr_descriptions;
     vector<AttachmentFormat> color_formats;
     std::optional<AttachmentFormat> depth_format;
 
@@ -79,28 +86,6 @@ struct GraphicsPipelineDesc {
         vk::CullModeFlagBits cull_mode = vk::CullModeFlagBits::eBack;
         uint32_t multiview_count       = 1;
     } custom_properties;
-
-    template<typename VertexType>
-        requires VertexLike<VertexType>
-    GraphicsPipelineDesc(
-        std::filesystem::path &&vertex_path_,
-        std::filesystem::path &&fragment_path_,
-        vector<ResourceHandle> &&used_resources_,
-        // it's not possible to explicitly specialize the ctor :( todo: change this
-        [[maybe_unused]] VertexType &&vertex_example,
-        vector<AttachmentFormat> colors,
-        const std::optional<AttachmentFormat> depth_format = {},
-        CustomProperties &&custom_properties               = {}
-    )
-        : vertex_path(vertex_path_), fragment_path(fragment_path_),
-          used_resources(used_resources_),
-          binding_descriptions(VertexType::get_binding_descriptions()),
-          attribute_descriptions(VertexType::get_attribute_descriptions()),
-          color_formats(std::move(colors)), depth_format(depth_format),
-          custom_properties(custom_properties) {
-    }
-
-    [[nodiscard]] std::set<ResourceHandle> get_bound_resources_set() const;
 };
 
 struct ComputePipelineDesc {

@@ -7,6 +7,7 @@
 #include "src/render/mesh/vertex.hpp"
 
 namespace zrx {
+class SpirvReflectModuleWrapper;
 struct RendererContext;
 class Buffer;
 
@@ -81,7 +82,6 @@ class GraphicsPipelineBuilder {
     vector<vk::VertexInputAttributeDescription> vertex_attributes;
 
     vector<vk::DescriptorSetLayout> descriptor_set_layouts;
-    vector<vk::PushConstantRange> push_constant_ranges;
 
     std::optional<vk::PipelineRasterizationStateCreateInfo> rasterizer_override;
     std::optional<vk::PipelineMultisampleStateCreateInfo> multisampling_override;
@@ -109,8 +109,6 @@ public:
 
     GraphicsPipelineBuilder &with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts);
 
-    GraphicsPipelineBuilder &with_push_constants(const vector<vk::PushConstantRange> &ranges);
-
     GraphicsPipelineBuilder &with_rasterizer(const vk::PipelineRasterizationStateCreateInfo &rasterizer);
 
     GraphicsPipelineBuilder &with_multisampling(const vk::PipelineMultisampleStateCreateInfo &multisampling);
@@ -130,6 +128,10 @@ public:
 
 private:
     void check_params() const;
+
+    [[nodiscard]] static std::vector<vk::PushConstantRange>
+    eval_push_constant_ranges(const SpirvReflectModuleWrapper& vertex_spirv_reflect_module,
+                              const SpirvReflectModuleWrapper& fragment_spirv_reflect_module);
 };
 
 class ComputePipelineBuilder {

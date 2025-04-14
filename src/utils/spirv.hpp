@@ -7,6 +7,7 @@
 struct SpvReflectShaderModule;
 struct SpvReflectDescriptorSet;
 struct SpvReflectDescriptorBinding;
+struct SpvReflectBlockVariable;
 
 namespace zrx {
 class SpirvReflectModuleWrapper {
@@ -20,5 +21,7 @@ public:
     [[nodiscard]] vector<SpvReflectDescriptorSet*> descriptor_sets() const;
 
     [[nodiscard]] vector<SpvReflectDescriptorBinding*> descriptor_bindings() const;
+
+    [[nodiscard]] vector<SpvReflectBlockVariable*> push_constant_blocks() const;
 };
 } // zrx

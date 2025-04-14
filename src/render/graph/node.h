@@ -25,23 +25,24 @@ class RenderPassContext {
     reference_wrapper<ResourceManager> resource_manager;
     reference_wrapper<const std::map<ResourceHandle, GraphicsPipeline>> graphics_pipelines;
     reference_wrapper<const std::map<ResourceHandle, ComputePipeline>> compute_pipelines;
-    reference_wrapper<const std::map<ResourceHandle, std::vector<ResourceHandle> >> pipeline_bound_res_ids;
     reference_wrapper<const vk::raii::DescriptorSet> bindless_set;
 
     std::optional<ResourceHandle> last_bound_pipeline;
+    std::vector<ResourceHandle> bound_resource_ids;
 
 public:
     explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, ResourceManager &rm,
                                const std::map<ResourceHandle, GraphicsPipeline> &graphics_pipelines,
                                const std::map<ResourceHandle, ComputePipeline> &compute_pipelines,
-                               const std::map<ResourceHandle, std::vector<ResourceHandle> > &bound_res_ids,
                                const vk::raii::DescriptorSet &bindless_set)
         : command_buffer(cmd_buf), resource_manager(rm),
           graphics_pipelines(graphics_pipelines), compute_pipelines(compute_pipelines),
-          pipeline_bound_res_ids(bound_res_ids), bindless_set(bindless_set) {
+          bindless_set(bindless_set) {
     }
 
     void bind_pipeline(ResourceHandle pipeline_handle);
+
+    void bind_resources(const std::vector<ResourceHandle>& handles);
 
     void draw_model(ResourceHandle model_handle) const;
 

@@ -234,53 +234,53 @@ private:
         // ================== shaders ==================
 
         const auto cubecap_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
-            "../shaders/obj/sphere-cube-vert.spv",
-            "../shaders/obj/sphere-cube-frag.spv",
-            {uniform_buffer, envmap_texture},
-            SkyboxVertex(),
-            {skybox_tex_format},
-            {},
-            GraphicsPipelineDesc::CustomProperties {
+            .vertex_path = "../shaders/obj/sphere-cube-vert.spv",
+            .fragment_path = "../shaders/obj/sphere-cube-frag.spv",
+            .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
+            .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
+            .color_formats = {skybox_tex_format},
+            .depth_format = {},
+            .custom_properties = {
                 .multiview_count = 6
             }
         });
 
         const auto prepass_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
-            "../shaders/obj/prepass-vert.spv",
-            "../shaders/obj/prepass-frag.spv",
-            {uniform_buffer},
-            ModelVertex(),
-            {g_buffer_color_format, g_buffer_color_format},
-            g_buffer_depth_format
+            .vertex_path = "../shaders/obj/prepass-vert.spv",
+            .fragment_path = "../shaders/obj/prepass-frag.spv",
+            .binding_descriptions = ModelVertex::get_binding_descriptions(),
+            .attr_descriptions = ModelVertex::get_attribute_descriptions(),
+            .color_formats = {g_buffer_color_format, g_buffer_color_format},
+            .depth_format = g_buffer_depth_format
         });
 
         const auto ssao_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
-            "../shaders/obj/ssao-vert.spv",
-            "../shaders/obj/ssao-frag.spv",
-            {uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos},
-            ScreenSpaceQuadVertex(),
-            {ssao_tex_format}
+            .vertex_path = "../shaders/obj/ssao-vert.spv",
+            .fragment_path = "../shaders/obj/ssao-frag.spv",
+            .binding_descriptions = ScreenSpaceQuadVertex::get_binding_descriptions(),
+            .attr_descriptions = ScreenSpaceQuadVertex::get_attribute_descriptions(),
+            .color_formats = {ssao_tex_format}
         });
 
         const auto skybox_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
-            "../shaders/obj/skybox-vert.spv",
-            "../shaders/obj/skybox-frag.spv",
-            {uniform_buffer, skybox_texture},
-            SkyboxVertex(),
-            {FinalImageFormatPlaceholder()},
-            FinalImageFormatPlaceholder(),
-            GraphicsPipelineDesc::CustomProperties {
+            .vertex_path = "../shaders/obj/skybox-vert.spv",
+            .fragment_path = "../shaders/obj/skybox-frag.spv",
+            .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
+            .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
+            .color_formats = {FinalImageFormatPlaceholder()},
+            .depth_format = FinalImageFormatPlaceholder(),
+            .custom_properties = {
                 .depth_compare_op = vk::CompareOp::eLessOrEqual,
             }
         });
 
         const auto main_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
-            "../shaders/obj/main-vert.spv",
-            "../shaders/obj/main-frag.spv",
-            {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture},
-            ModelVertex(),
-            {FinalImageFormatPlaceholder()},
-            FinalImageFormatPlaceholder()
+            .vertex_path = "../shaders/obj/main-vert.spv",
+            .fragment_path = "../shaders/obj/main-frag.spv",
+            .binding_descriptions = ModelVertex::get_binding_descriptions(),
+            .attr_descriptions = ModelVertex::get_attribute_descriptions(),
+            .color_formats = {FinalImageFormatPlaceholder()},
+            .depth_format = FinalImageFormatPlaceholder()
         });
 
         // ================== nodes ==================
@@ -291,6 +291,7 @@ private:
             .color_targets = {skybox_texture},
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(cubecap_shaders);
+                ctx.bind_resources({uniform_buffer, envmap_texture});
                 ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
             },
             .should_run_predicate = [&] { return should_capture_skybox; },
@@ -306,6 +307,7 @@ private:
             .depth_target = g_buffer_depth,
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(prepass_shaders);
+                ctx.bind_resources({uniform_buffer});
                 ctx.draw_model(scene_model);
             },
             .should_run_predicate = [&] { return use_ssao; }
@@ -317,6 +319,7 @@ private:
             .color_targets = {ssao_texture},
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(ssao_shaders);
+                ctx.bind_resources({uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos});
                 ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
             },
             .should_run_predicate = [&] { return use_ssao; }
@@ -324,13 +327,16 @@ private:
 
         render_graph.add_node({
             .name = "main",
-            .bound_resources = {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture},
+            .bound_resources = {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture, skybox_texture},
             .color_targets = {FINAL_IMAGE_RESOURCE_HANDLE},
             .depth_target = FINAL_IMAGE_RESOURCE_HANDLE,
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(main_shaders);
+                ctx.bind_resources({uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture});
                 ctx.draw_model(scene_model);
+
                 ctx.bind_pipeline(skybox_shaders);
+                ctx.bind_resources({uniform_buffer, skybox_texture});
                 ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
             },
         });

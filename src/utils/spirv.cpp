@@ -58,4 +58,8 @@ vector<SpvReflectDescriptorSet*> SpirvReflectModuleWrapper::descriptor_sets() co
 vector<SpvReflectDescriptorBinding*> SpirvReflectModuleWrapper::descriptor_bindings() const {
     return enumerate_spv_objects<SpvReflectDescriptorBinding>(&*module, spvReflectEnumerateDescriptorBindings);
 }
+
+vector<SpvReflectBlockVariable *> SpirvReflectModuleWrapper::push_constant_blocks() const {
+    return enumerate_spv_objects<SpvReflectBlockVariable>(&*module, spvReflectEnumeratePushConstantBlocks);
+}
 } // zrx

@@ -666,13 +666,11 @@ void VulkanRenderer::create_render_graph_resources() {
     for (const auto &[handle, description]: render_graph_info.render_graph->graphics_pipelines) {
         auto builder = create_graph_gfx_pipeline_builder(handle);
         graphics_pipelines.emplace(handle, builder.create(ctx));
-        pipeline_bound_res_ids.emplace(handle, description.used_resources);
     }
 
     for (const auto &[handle, description]: render_graph_info.render_graph->compute_pipelines) {
         auto builder = create_graph_compute_pipeline_builder(handle);
         compute_pipelines.emplace(handle, builder.create(ctx));
-        pipeline_bound_res_ids.emplace(handle, description.used_resources);
     }
 }
 
@@ -696,7 +694,7 @@ VulkanRenderer::create_graph_gfx_pipeline_builder(const ResourceHandle pipeline_
             .with_fragment_shader(pipeline_info.fragment_path)
             .with_vertices(
                 pipeline_info.binding_descriptions,
-                pipeline_info.attribute_descriptions
+                pipeline_info.attr_descriptions
             )
             .with_rasterizer({
                 .polygonMode = vk::PolygonMode::eFill,
@@ -732,16 +730,6 @@ VulkanRenderer::create_graph_gfx_pipeline_builder(const ResourceHandle pipeline_
 
     if (pipeline_info.custom_properties.multiview_count > 1) {
         builder.for_views(pipeline_info.custom_properties.multiview_count);
-    }
-
-    if (pipeline_info.used_resources.size() > 0) {
-        builder.with_push_constants({
-            vk::PushConstantRange {
-                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-                0,
-                static_cast<uint32_t>(pipeline_info.used_resources.size() * sizeof(uint32_t))
-            }
-        });
     }
 
     return builder;
@@ -914,7 +902,6 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &n
         *resource_manager,
         graphics_pipelines,
         compute_pipelines,
-        pipeline_bound_res_ids,
         **bindless_descriptor_set
     };
     node_info.body(ctx);

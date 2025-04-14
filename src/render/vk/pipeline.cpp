@@ -1,10 +1,12 @@
 #include "pipeline.hpp"
 
 #include <fstream>
+#include <SPIRV-Reflect/spirv_reflect.h>
 
 #include "src/render/mesh/vertex.hpp"
 #include "ctx.hpp"
 #include "buffer.hpp"
+#include "src/utils/spirv.hpp"
 
 namespace zrx {
 static vk::raii::ShaderModule create_shader_module(const RendererContext &ctx, const std::filesystem::path &path) {
@@ -51,12 +53,6 @@ GraphicsPipelineBuilder::with_descriptor_layouts(const vector<vk::DescriptorSetL
     return *this;
 }
 
-GraphicsPipelineBuilder &
-GraphicsPipelineBuilder::with_push_constants(const vector<vk::PushConstantRange> &ranges) {
-    push_constant_ranges = ranges;
-    return *this;
-}
-
 GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_rasterizer(
     const vk::PipelineRasterizationStateCreateInfo &rasterizer) {
     rasterizer_override = rasterizer;
@@ -93,6 +89,9 @@ GraphicsPipelineBuilder &GraphicsPipelineBuilder::with_depth_format(const vk::Fo
 GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) const {
     const vk::raii::ShaderModule vert_shader_module = create_shader_module(ctx, vertex_shader_path);
     const vk::raii::ShaderModule frag_shader_module = create_shader_module(ctx, fragment_shader_path);
+
+    const SpirvReflectModuleWrapper vertex_spirv_reflect_module { vertex_shader_path };
+    const SpirvReflectModuleWrapper fragment_spirv_reflect_module { fragment_shader_path };
 
     const vk::PipelineShaderStageCreateInfo vert_shader_stage_info{
         .stage = vk::ShaderStageFlagBits::eVertex,
@@ -178,6 +177,8 @@ GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) con
                                        .depthCompareOp = vk::CompareOp::eLess,
                                    };
 
+    const auto push_constant_ranges = eval_push_constant_ranges(vertex_spirv_reflect_module, fragment_spirv_reflect_module);
+
     const vk::PipelineLayoutCreateInfo pipeline_layout_info{
         .setLayoutCount = static_cast<uint32_t>(descriptor_set_layouts.size()),
         .pSetLayouts = descriptor_set_layouts.empty() ? nullptr : descriptor_set_layouts.data(),
@@ -233,6 +234,33 @@ void GraphicsPipelineBuilder::check_params() const {
     if (vertex_bindings.empty() && vertex_attributes.empty()) {
         Logger::error("vertex descriptions must be specified during pipeline creation!");
     }
+}
+
+std::vector<vk::PushConstantRange>
+GraphicsPipelineBuilder::eval_push_constant_ranges(const SpirvReflectModuleWrapper& vertex_spirv_reflect_module,
+                                                   const SpirvReflectModuleWrapper& fragment_spirv_reflect_module) {
+    std::vector<vk::PushConstantRange> result;
+
+    const auto vertex_push_constant_blocks = vertex_spirv_reflect_module.push_constant_blocks();
+    const auto fragment_push_constant_blocks = fragment_spirv_reflect_module.push_constant_blocks();
+
+    for (const auto& block: vertex_push_constant_blocks) {
+        result.emplace_back(vk::PushConstantRange {
+            .stageFlags = vk::ShaderStageFlagBits::eVertex,
+            .offset = block->offset,
+            .size = block->size,
+        });
+    }
+
+    for (const auto& block: fragment_push_constant_blocks) {
+        result.emplace_back(vk::PushConstantRange {
+            .stageFlags = vk::ShaderStageFlagBits::eFragment,
+            .offset = block->offset,
+            .size = block->size,
+        });
+    }
+
+    return result;
 }
 
 ComputePipelineBuilder & ComputePipelineBuilder::with_shader(const std::filesystem::path &path) {

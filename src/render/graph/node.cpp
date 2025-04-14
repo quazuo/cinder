@@ -28,6 +28,14 @@ void RenderPassContext::bind_pipeline(const ResourceHandle pipeline_handle) {
     last_bound_pipeline = pipeline_handle;
 }
 
+void RenderPassContext::bind_resources(const std::vector<ResourceHandle> &handles) {
+    bound_resource_ids = handles;
+
+    for (auto& res_id: bound_resource_ids) {
+        res_id = resource_manager.get().get_bindless_handle(res_id);
+    }
+}
+
 void RenderPassContext::draw_model(const ResourceHandle model_handle) const {
     if (!last_bound_pipeline) {
         Logger::error("no pipeline bound during draw!");
@@ -75,18 +83,12 @@ void RenderPassContext::push_constants() const {
         Logger::error("no pipeline bound during draw!");
     }
 
-    auto bound_res_ids = pipeline_bound_res_ids.get().at(*last_bound_pipeline);
-
-    if (!bound_res_ids.empty()) {
-        for (auto& res_id: bound_res_ids) {
-            res_id = resource_manager.get().get_bindless_handle(res_id);
-        }
-
+    if (!bound_resource_ids.empty()) {
         command_buffer.get().pushConstants<ResourceHandle>(
             *graphics_pipelines.get().at(*last_bound_pipeline).get_layout(),
             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
             0,
-            bound_res_ids
+            bound_resource_ids
         );
     }
 }
