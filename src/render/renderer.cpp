@@ -601,7 +601,7 @@ void VulkanRenderer::create_render_graph_resources() {
 
     for (const auto &[handle, description]: render_graph_info.render_graph->external_tex_resources) {
         auto builder = TextureBuilder()
-                .with_flags(description.tex_flags)
+                .with_flags(description.flags)
                 .from_paths(description.paths)
                 .use_format(description.format)
                 .use_usage(vk::ImageUsageFlagBits::eTransferSrc
@@ -609,7 +609,7 @@ void VulkanRenderer::create_render_graph_resources() {
                            | vk::ImageUsageFlagBits::eSampled
                            | utils::img::get_format_attachment_type(description.format));
 
-        if (description.paths.size() > 1 && !(description.tex_flags & vk::TextureFlagBitsZRX::CUBEMAP))
+        if (description.paths.size() > 1 && !(description.flags & vk::TextureFlagBitsZRX::CUBEMAP))
             builder.as_separate_channels();
         if (description.swizzle)
             builder.with_swizzle(*description.swizzle);

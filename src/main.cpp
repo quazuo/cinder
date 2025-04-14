@@ -143,27 +143,27 @@ private:
         // ================== models and vertex buffers ==================
 
         const auto scene_model = render_graph.add_resource(ModelResourceDesc{
-            "scene-model",
-            "../assets/example models/kettle/kettle.obj"
+            .name = "scene-model",
+            .path = "../assets/example models/kettle/kettle.obj"
         });
 
         const auto skybox_vert_buf = render_graph.add_resource(VertexBufferResourceDesc{
-            "skybox-vb",
-            skybox_vertices.size() * sizeof(SkyboxVertex),
-            skybox_vertices.data()
+            .name = "skybox-vb",
+            .size = skybox_vertices.size() * sizeof(SkyboxVertex),
+            .data = skybox_vertices.data()
         });
 
         const auto ss_quad_vert_buf = render_graph.add_resource(VertexBufferResourceDesc{
-            "ss-quad-vb",
-            screen_space_quad_vertices.size() * sizeof(ScreenSpaceQuadVertex),
-            screen_space_quad_vertices.data()
+            .name = "ss-quad-vb",
+            .size = screen_space_quad_vertices.size() * sizeof(ScreenSpaceQuadVertex),
+            .data = screen_space_quad_vertices.data()
         });
 
         // ================== uniform buffers ==================
 
         const auto uniform_buffer = render_graph.add_resource(UniformBufferResourceDesc{
-            "general-ubo",
-            sizeof(GraphicsUBO)
+            .name = "general-ubo",
+            .size = sizeof(GraphicsUBO)
         });
 
         render_graph.add_frame_begin_action([this, uniform_buffer](const FrameBeginActionContext &fba_ctx) {
@@ -173,28 +173,28 @@ private:
         // ================== external textures ==================
 
         const auto base_color_texture = render_graph.add_resource(ExternalTextureResourceDesc{
-            "base-color-texture",
-            {"../assets/example models/kettle/kettle-albedo.png"},
-            vk::Format::eR8G8B8A8Srgb
+            .name = "base-color-texture",
+            .paths = {"../assets/example models/kettle/kettle-albedo.png"},
+            .format = vk::Format::eR8G8B8A8Srgb
         });
 
         const auto normal_texture = render_graph.add_resource(ExternalTextureResourceDesc{
-            "normal-texture",
-            {"../assets/example models/kettle/kettle-normal.png"},
-            vk::Format::eR8G8B8A8Unorm,
+            .name = "normal-texture",
+            .paths = {"../assets/example models/kettle/kettle-normal.png"},
+            .format = vk::Format::eR8G8B8A8Unorm,
         });
 
         const auto orm_texture = render_graph.add_resource(ExternalTextureResourceDesc{
-            "orm-texture",
-            {"../assets/example models/kettle/kettle-orm.png"},
-            vk::Format::eR8G8B8A8Unorm,
+            .name = "orm-texture",
+            .paths = {"../assets/example models/kettle/kettle-orm.png"},
+           .format = vk::Format::eR8G8B8A8Unorm,
         });
 
         const auto envmap_texture = render_graph.add_resource(ExternalTextureResourceDesc{
-            "envmap-texture",
-            {"../assets/envmaps/vienna.hdr"},
-            vk::Format::eR32G32B32A32Sfloat,
-            vk::TextureFlagBitsZRX::HDR | vk::TextureFlagBitsZRX::MIPMAPS
+            .name = "envmap-texture",
+            .paths = {"../assets/envmaps/vienna.hdr"},
+            .format = vk::Format::eR32G32B32A32Sfloat,
+            .flags = vk::TextureFlagBitsZRX::HDR | vk::TextureFlagBitsZRX::MIPMAPS
         });
 
         // ================== render target textures ==================
@@ -233,7 +233,7 @@ private:
 
         // ================== shaders ==================
 
-        const auto cubecap_shaders = render_graph.add_pipeline({
+        const auto cubecap_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
             "../shaders/obj/sphere-cube-vert.spv",
             "../shaders/obj/sphere-cube-frag.spv",
             {uniform_buffer, envmap_texture},
@@ -245,7 +245,7 @@ private:
             }
         });
 
-        const auto prepass_shaders = render_graph.add_pipeline({
+        const auto prepass_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
             "../shaders/obj/prepass-vert.spv",
             "../shaders/obj/prepass-frag.spv",
             {uniform_buffer},
@@ -254,7 +254,7 @@ private:
             g_buffer_depth_format
         });
 
-        const auto ssao_shaders = render_graph.add_pipeline({
+        const auto ssao_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
             "../shaders/obj/ssao-vert.spv",
             "../shaders/obj/ssao-frag.spv",
             {uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos},
@@ -262,7 +262,7 @@ private:
             {ssao_tex_format}
         });
 
-        const auto skybox_shaders = render_graph.add_pipeline({
+        const auto skybox_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
             "../shaders/obj/skybox-vert.spv",
             "../shaders/obj/skybox-frag.spv",
             {uniform_buffer, skybox_texture},
@@ -274,7 +274,7 @@ private:
             }
         });
 
-        const auto main_shaders = render_graph.add_pipeline({
+        const auto main_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
             "../shaders/obj/main-vert.spv",
             "../shaders/obj/main-frag.spv",
             {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture},

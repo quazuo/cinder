@@ -33,7 +33,7 @@ struct ExternalTextureResourceDesc {
     string name;
     vector<std::filesystem::path> paths;
     vk::Format format;
-    vk::TextureFlagsZRX tex_flags = vk::TextureFlagBitsZRX::MIPMAPS;
+    vk::TextureFlagsZRX flags = vk::TextureFlagBitsZRX::MIPMAPS;
     std::optional<SwizzleDesc> swizzle{};
 };
 
