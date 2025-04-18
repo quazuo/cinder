@@ -115,6 +115,12 @@ file(GLOB HEADER_ONLY_DEPS_SRCS
         "deps/SPIRV-Reflect/spirv_reflect.cpp"
 )
 
+# deps custom module wrappers
+
+file(GLOB DEPS_CUSTOM_MODULES
+        "deps/custom_modules/*.ixx"
+)
+
 # source files
 
 file(GLOB CINDER_SRCS
@@ -144,16 +150,8 @@ target_sources(cinder
         FILE_SET CXX_MODULES
         FILES
             ${CINDER_MODULES}
-            "deps/vma/vk_mem_alloc.ixx"
-            "deps/SPIRV-Reflect/spirv_reflect.ixx"
-            "deps/stb/stb_image.ixx"
-            "deps/vk-bootstrap/VkBootstrap.ixx"
-            "deps/imGuIZMO.quat/imGuIZMO.quat/imGuIZMOquat.ixx"
-            "deps/imgui-filebrowser/imfilebrowser.ixx"
-            "deps/custom_modules/imgui.ixx"
-            "deps/custom_modules/assimp.ixx"
+            ${DEPS_CUSTOM_MODULES}
             "deps/glm/glm/glm.cppm"
-            "deps/custom_modules/glfw.ixx"
         PRIVATE
             ${CINDER_SRCS}
             ${IMGUI_SRCS}

@@ -1,6 +1,6 @@
 module;
 
-#include "VkBootstrap.h"
+#include "../vk-bootstrap/VkBootstrap.h"
 
 export module VkBootstrap;
 

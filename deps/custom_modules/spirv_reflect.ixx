@@ -1,6 +1,6 @@
 module;
 
-#include "spirv_reflect.h"
+#include "../SPIRV-Reflect/spirv_reflect.h"
 
 export module SpirvReflect;
 
