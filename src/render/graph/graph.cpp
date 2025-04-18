@@ -1,8 +1,11 @@
-#include "graph.hpp"
+module;
 
 #include "src/render/vk/pipeline.hpp"
 #include "src/render/vk/descriptor.hpp"
-#include "src/utils/logger.hpp"
+
+module Cinder.Render.Graph;
+
+import Cinder.Utils;
 
 namespace detail {
 template<typename T>

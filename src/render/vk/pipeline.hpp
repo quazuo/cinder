@@ -1,7 +1,5 @@
 #pragma once
 
-#include <filesystem>
-
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
 #include "src/render/mesh/vertex.hpp"

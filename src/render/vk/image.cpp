@@ -1,14 +1,12 @@
 #include "image.hpp"
 
-#include <filesystem>
-#include <map>
-
-#include <stb/stb_image.h>
-#include <stb/stb_image_write.h>
-
 #include "buffer.hpp"
 #include "cmd.hpp"
 #include "ctx.hpp"
+
+import StbImage;
+import vulkan_hpp;
+import std;
 
 struct ImageBarrierInfo {
     vk::AccessFlagBits src_access_mask;
@@ -969,7 +967,7 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_swizzle_fill() const
         Logger::error("texture formats with component count other than 4 are currently unsupported!");
     }
 
-    const vector<void *> data_sources = {malloc(texture_size)};
+    const vector<void *> data_sources = {std::malloc(texture_size)};
 
     for (const auto &source: data_sources) {
         perform_swizzle(static_cast<uint8_t *>(source), layer_size);
@@ -1004,10 +1002,10 @@ TextureBuilder::make_staging_buffer(const RendererContext &ctx, const LoadedText
 
     for (size_t i = 0; i < get_layer_count(); i++) {
         const size_t offset = layer_size * i;
-        memcpy(static_cast<char *>(mapped) + offset, data.sources[i], static_cast<size_t>(layer_size));
+        std::memcpy(static_cast<char *>(mapped) + offset, data.sources[i], static_cast<size_t>(layer_size));
 
         if (is_separate_channels || is_from_swizzle_fill) {
-            free(data.sources[i]);
+            std::free(data.sources[i]);
         } else if (!memory_source) {
             stbi_image_free(data.sources[i]);
         }
@@ -1020,7 +1018,7 @@ TextureBuilder::make_staging_buffer(const RendererContext &ctx, const LoadedText
 
 void *TextureBuilder::merge_channels(const vector<void *> &channels_data, const size_t texture_size,
                                      const size_t component_count) {
-    auto *merged = static_cast<uint8_t *>(malloc(texture_size));
+    auto *merged = static_cast<uint8_t *>(std::malloc(texture_size));
     if (!merged) {
         Logger::error("malloc failed");
     }
@@ -1100,7 +1098,7 @@ vk::RenderingAttachmentInfo RenderTarget::get_attachment_info() const {
                             ? vk::ImageLayout::eDepthStencilAttachmentOptimal
                             : vk::ImageLayout::eColorAttachmentOptimal;
 
-    vk::ClearValue clear_value = vk::ClearColorValue{0.0f, 0.0f, 0.0f, 1.0f};
+    vk::ClearValue clear_value = vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f);
     if (utils::img::is_depth_format(format)) {
         clear_value = vk::ClearDepthStencilValue{
             .depth = 1.0f,

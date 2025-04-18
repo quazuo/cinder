@@ -1,17 +1,10 @@
 #pragma once
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
 #include "src/render/libs.hpp"
 
-#define IMGUI_DEFINE_MATH_OPERATORS
-#define NOMINMAX 1
-#include <imgui/imgui.h>
-#include <imgui/backends/imgui_impl_glfw.h>
-#include <imgui/backends/imgui_impl_vulkan.h>
-#include <imgui-filebrowser/imfilebrowser.h>
-#include <imGuIZMO.quat/imGuIZMOquat.h>
+import Imgui;
+import vulkan_hpp;
+import glfw;
 
 namespace zrx {
 class GuiRenderer {

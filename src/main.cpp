@@ -1,3 +1,18 @@
+#include "render/camera.hpp"
+#include "render/renderer.hpp"
+#include "render/resource-manager.hpp"
+#include "render/gui/gui.hpp"
+
+import ImGuIZMOquat;
+import ImFileBrowser;
+import Cinder.Utils;
+import Cinder.Render.Graph;
+import std;
+import glfw;
+import glm;
+
+import vulkan_hpp;
+
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 
@@ -5,19 +20,13 @@
 #define NOMINMAX 1
 #include <GLFW/glfw3native.h>
 
-#include <iostream>
-#include <random>
+#define VULKAN_HPP_ENABLE_STD_MODULE
+#define VULKAN_HPP_STD_MODULE
+#include <vulkan/vulkan_hpp_macros.hpp>
 
-#include "assimp/code/AssetLib/MDL/MDLFileData.h"
-#include "assimp/code/AssetLib/MMD/MMDPmxParser.h"
-#include "assimp/code/AssetLib/SMD/SMDLoader.h"
-#include "render/camera.hpp"
-#include "render/graph/graph.hpp"
-#include "render/renderer.hpp"
-#include "render/resource-manager.hpp"
-#include "render/gui/gui.hpp"
-#include "utils/input-manager.hpp"
-#include "utils/file-type.hpp"
+#if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1
+VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
+#endif
 
 struct GraphicsUBO {
     struct WindowRes {
@@ -345,9 +354,9 @@ private:
     }
 
     void update_graphics_uniform_buffer(Buffer &buffer) const {
-        const glm::mat4 model = glm::translate(model_translate)
+        const glm::mat4 model = glm::translate(glm::identity<glm::mat4>(), model_translate)
                                 * glm::mat4_cast(model_rotation)
-                                * glm::scale(glm::vec3(model_scale));
+                                * glm::scale(glm::identity<glm::mat4>(), glm::vec3(model_scale));
         const glm::mat4 view = camera->get_view_matrix();
         const glm::mat4 proj = camera->get_projection_matrix();
 

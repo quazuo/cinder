@@ -1,9 +1,8 @@
 #pragma once
 
-#include <map>
-#include <queue>
-
 #include "globals.hpp"
+
+import std;
 
 namespace zrx {
 class Buffer;

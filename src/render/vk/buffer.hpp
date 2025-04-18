@@ -1,11 +1,11 @@
 #pragma once
 
-#include <vma/vk_mem_alloc.h>
-
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
 #include "ctx.hpp"
-#include "src/utils/logger.hpp"
+
+import VkMemAlloc;
+import Cinder.Utils;
 
 namespace zrx {
 /**
@@ -102,7 +102,7 @@ namespace utils::buf {
         };
 
         void *data = staging_buffer.map();
-        memcpy(data, contents.data(), static_cast<size_t>(buffer_size));
+        std::memcpy(data, contents.data(), static_cast<size_t>(buffer_size));
         staging_buffer.unmap();
 
         auto result_buffer = make_unique<Buffer>(

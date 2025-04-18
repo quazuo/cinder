@@ -1,25 +1,11 @@
 #include "renderer.hpp"
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
-#include <SPIRV-Reflect/spirv_reflect.h>
-
-#include <iostream>
-#include <stdexcept>
-#include <optional>
-#include <vector>
-#include <filesystem>
-#include <array>
-#include <random>
-
 #include "camera.hpp"
 #include "resource-manager.hpp"
 #include "gui/gui.hpp"
 #include "mesh/model.hpp"
 #include "mesh/vertex.hpp"
-#include "src/utils/glfw-statics.hpp"
-#include "src/utils/spirv.hpp"
+#include "src/utils/glfw_statics.hpp"
 #include "vk/image.hpp"
 #include "vk/buffer.hpp"
 #include "vk/swapchain.hpp"
@@ -29,9 +15,12 @@
 #include "vk/accel-struct.hpp"
 #include "vk/ctx.hpp"
 
-#include <vk-bootstrap/VkBootstrap.h>
+import SpirvReflect;
+import Cinder.Utils;
+import glfw;
 
-#include "src/utils/logger.hpp"
+#define GLFW_INCLUDE_VULKAN
+#include <GLFW/glfw3.h>
 
 /**
  * Information held in the fragment shader's uniform buffer.

@@ -1,11 +1,12 @@
-#include "spirv.hpp"
+module;
 
-#include <SPIRV-Reflect/spirv_reflect.h>
+#include "src/render/globals.hpp"
 
-#include <fstream>
-#include <functional>
+module Cinder.Utils;
 
-#include "src/utils/logger.hpp"
+import std;
+import SpirvReflect;
+import :Logger;
 
 namespace zrx {
 static vector<char> read_file(const std::filesystem::path &path) {

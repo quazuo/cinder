@@ -1,17 +1,12 @@
 #pragma once
 
-#include <filesystem>
-#include <vector>
-
 #include "vertex.hpp"
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
 #include "src/render/vk/accel-struct.hpp"
 
-struct aiMaterial;
-struct aiScene;
-struct aiMesh;
-struct aiNode;
+import Assimp;
+import std;
 
 namespace zrx {
 struct RendererContext;

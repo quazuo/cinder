@@ -1,11 +1,14 @@
 #include "camera.hpp"
 
 #include "gui/gui.hpp"
-#include "src/utils/glfw-statics.hpp"
-#include "src/utils/logger.hpp"
+#include "src/utils/glfw_statics.hpp"
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+
+import glfw;
+import Cinder.Utils;
+import glm;
 
 namespace zrx {
 Rotator &Rotator::operator=(const glm::vec2 other) {
@@ -109,13 +112,13 @@ void Camera::render_gui_section() {
 
         ImGui::Text("Axes:");
         if (ImGui::BeginChild("Axes", ImVec2(50, 50))) {
-            draw_list->AddRectFilled(
-                ImGui::GetWindowPos(),
-                ImGui::GetWindowPos() + ImVec2(50, 50),
-                IM_COL32(0, 0, 0, 255)
-            );
+            // draw_list->AddRectFilled(
+            //     ImGui::GetWindowPos(),
+            //     ImGui::GetWindowPos() + ImVec2(50, 50),
+            //     IM_COL32(0, 0, 0, 255)
+            // );
 
-            const ImVec2 offset        = ImGui::GetWindowPos() + ImVec2(25, 25);
+            // const ImVec2 offset        = ImGui::GetWindowPos() + ImVec2(25, 25);
             constexpr float scale      = 20;
             const glm::mat4 view       = get_static_view_matrix();
             constexpr auto projection_x = glm::vec3(1, 0, 0);
@@ -124,17 +127,17 @@ void Camera::render_gui_section() {
             const glm::vec3 x = view * glm::vec4(1, 0, 0, 0);
             const float tx1   = scale * glm::dot(projection_x, x);
             const float tx2   = scale * glm::dot(projection_y, x);
-            draw_list->AddLine(offset, offset + ImVec2(tx1, -tx2), IM_COL32(255, 0, 0, 255));
+            //draw_list->AddLine(offset, offset + ImVec2(tx1, -tx2), IM_COL32(255, 0, 0, 255));
 
             const glm::vec3 y = view * glm::vec4(0, 1, 0, 0);
             const float ty1   = scale * glm::dot(projection_x, y);
             const float ty2   = scale * glm::dot(projection_y, y);
-            draw_list->AddLine(offset, offset + ImVec2(ty1, -ty2), IM_COL32(0, 255, 0, 255));
+            //draw_list->AddLine(offset, offset + ImVec2(ty1, -ty2), IM_COL32(0, 255, 0, 255));
 
             const glm::vec3 z = view * glm::vec4(0, 0, 1, 0);
             const float tz1   = scale * glm::dot(projection_x, z);
             const float tz2   = scale * glm::dot(projection_y, z);
-            draw_list->AddLine(offset, offset + ImVec2(tz1, -tz2), IM_COL32(0, 0, 255, 255));
+            //draw_list->AddLine(offset, offset + ImVec2(tz1, -tz2), IM_COL32(0, 0, 255, 255));
         }
         ImGui::EndChild();
 
@@ -159,8 +162,8 @@ void Camera::render_gui_section() {
         ImGui::SliderFloat("Field of view", &field_of_view, 20.0f, 160.0f, "%.0f");
 
         if (!is_locked_cam) {
-            ImGui::DragFloat("Rotation speed", &rotation_speed, 0.01f, 0.0f, FLT_MAX, "%.2f");
-            ImGui::DragFloat("Movement speed", &movement_speed, 0.01f, 0.0f, FLT_MAX, "%.2f");
+            ImGui::DragFloat("Rotation speed", &rotation_speed, 0.01f, 0.0f, std::numeric_limits<float>::max(), "%.2f");
+            ImGui::DragFloat("Movement speed", &movement_speed, 0.01f, 0.0f, std::numeric_limits<float>::max(), "%.2f");
         }
     }
 }

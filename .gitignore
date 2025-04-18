@@ -40,3 +40,7 @@ cmake-build-release
 
 ### JetBrains IDE stuff
 .idea
+
+### Useless stufff
+*.html
+*.js

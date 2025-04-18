@@ -1,9 +1,11 @@
 #pragma once
 
-#include <concepts>
-
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
+
+import std;
+import glm;
+import vulkan_hpp;
 
 namespace zrx {
 template<typename T>
@@ -110,10 +112,11 @@ static const vector<ScreenSpaceQuadVertex> screen_space_quad_vertices = {
 template<>
 struct std::hash<zrx::ModelVertex> {
     size_t operator()(zrx::ModelVertex const &vertex) const noexcept {
-        return (hash<glm::vec3>()(vertex.pos) >> 1) ^
-               (hash<glm::vec2>()(vertex.tex_coord) << 1) ^
-               (hash<glm::vec3>()(vertex.normal) << 1) ^
-               (hash<glm::vec3>()(vertex.tangent) << 1) ^
-               (hash<glm::vec3>()(vertex.bitangent) << 1);
+        return 0;
+        // return (hash<glm::vec3>()(vertex.pos) >> 1) ^
+        //        (hash<glm::vec2>()(vertex.tex_coord) << 1) ^
+        //        (hash<glm::vec3>()(vertex.normal) << 1) ^
+        //        (hash<glm::vec3>()(vertex.tangent) << 1) ^
+        //        (hash<glm::vec3>()(vertex.bitangent) << 1);
     }
 };

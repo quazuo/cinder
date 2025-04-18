@@ -1,12 +1,38 @@
-cmake_minimum_required(VERSION 3.16)
-project(cinder)
+cmake_minimum_required(VERSION 3.30.2 FATAL_ERROR)
 
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_MODULE_STD 1)
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "0e5b6991-d74f-4b3d-a41c-cf096e0b2508")
+
+include(FetchContent)
+
+project(cinder LANGUAGES CXX)
 
 # add_compile_options(-fsanitize=address)
 # add_link_options(-fsanitize=address)
 
+# Vulkan
+
 find_package(Vulkan REQUIRED)
+
+if( ${Vulkan_VERSION} VERSION_LESS "1.3.256" )
+    message( FATAL_ERROR "Minimum required Vulkan version for C++ modules is 1.3.256. "
+            "Found ${Vulkan_VERSION}."
+    )
+endif()
+
+add_library(VulkanHppModule)
+target_sources(VulkanHppModule PUBLIC
+        FILE_SET CXX_MODULES
+        BASE_DIRS ${Vulkan_INCLUDE_DIR}
+        FILES ${Vulkan_INCLUDE_DIR}/vulkan/vulkan.cppm
+)
+target_compile_definitions(VulkanHppModule PUBLIC
+        VULKAN_HPP_NO_SPACESHIP_OPERATOR
+        VULKAN_HPP_NO_STRUCT_CONSTRUCTORS
+)
+target_compile_features(VulkanHppModule PUBLIC cxx_std_20)
+target_link_libraries(VulkanHppModule PUBLIC Vulkan::Vulkan)
 
 include_directories(
         deps/
@@ -62,14 +88,24 @@ add_subdirectory(deps/assimp)
 # imguizmo.quat
 
 set(IMGUIZMO_QUAT_SRCS
-    deps/imGuIZMO.quat/imGuIZMO.quat/imGuIZMOquat.cpp
+        deps/imGuIZMO.quat/imGuIZMO.quat/imGuIZMOquat.cpp
 )
 
 # vk-bootstrap
 
 set(VK_BOOTSTRAP_SRCS
-    deps/vk-bootstrap/VkBootstrap.cpp
+        deps/vk-bootstrap/VkBootstrap.cpp
 )
+
+# glm
+
+FetchContent_Declare(
+        glm
+        GIT_REPOSITORY	https://github.com/g-truc/glm.git
+        GIT_TAG 	    bf71a834948186f4097caa076cd2663c69a10e1e #refs/tags/1.0.1
+)
+
+FetchContent_MakeAvailable(glm)
 
 # header-only deps
 
@@ -82,20 +118,51 @@ file(GLOB HEADER_ONLY_DEPS_SRCS
 # source files
 
 file(GLOB CINDER_SRCS
-        "src/*"
-        "src/render/*"
-        "src/render/vk/*"
-        "src/render/gui/*"
-        "src/render/mesh/*"
-        "src/render/graph/*"
-        "src/utils/*"
+        "src/*.cpp"
+        "src/render/*.cpp"
+        "src/render/vk/*.cpp"
+        "src/render/gui/*.cpp"
+        "src/render/mesh/*.cpp"
+        "src/render/graph/*.cpp"
+        "src/utils/*.cpp"
 )
 
-add_executable(cinder
-        ${CINDER_SRCS}
-        ${IMGUI_SRCS}
-        ${IMGUI_IMPL_SRCS}
-        ${IMGUIZMO_QUAT_SRCS}
-        ${VK_BOOTSTRAP_SRCS}
-        ${HEADER_ONLY_DEPS_SRCS})
-target_link_libraries(cinder ${ALL_LIBS})
+file(GLOB CINDER_MODULES
+        "src/*.ixx"
+        "src/render/*.ixx"
+        "src/render/vk/*.ixx"
+        "src/render/gui/*.ixx"
+        "src/render/mesh/*.ixx"
+        "src/render/graph/*.ixx"
+        "src/utils/*.ixx"
+)
+
+add_executable(cinder)
+
+target_sources(cinder
+        PUBLIC
+        FILE_SET CXX_MODULES
+        FILES
+            ${CINDER_MODULES}
+            "deps/vma/vk_mem_alloc.ixx"
+            "deps/SPIRV-Reflect/spirv_reflect.ixx"
+            "deps/stb/stb_image.ixx"
+            "deps/vk-bootstrap/VkBootstrap.ixx"
+            "deps/imGuIZMO.quat/imGuIZMO.quat/imGuIZMOquat.ixx"
+            "deps/imgui-filebrowser/imfilebrowser.ixx"
+            "deps/custom_modules/imgui.ixx"
+            "deps/custom_modules/assimp.ixx"
+            "deps/glm/glm/glm.cppm"
+            "deps/custom_modules/glfw.ixx"
+        PRIVATE
+            ${CINDER_SRCS}
+            ${IMGUI_SRCS}
+            ${IMGUI_IMPL_SRCS}
+            ${IMGUIZMO_QUAT_SRCS}
+            ${VK_BOOTSTRAP_SRCS}
+            ${HEADER_ONLY_DEPS_SRCS})
+
+target_link_libraries(cinder PRIVATE ${ALL_LIBS} glm::glm VulkanHppModule)
+
+#find_package(glm CONFIG REQUIRED)
+#target_link_libraries(main PRIVATE glm::glm)

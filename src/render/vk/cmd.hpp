@@ -3,6 +3,8 @@
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
 
+import vulkan_hpp;
+
 namespace zrx {
 struct RendererContext;
 

@@ -166,6 +166,18 @@ GLM_FUNC_QUALIFIER void glm_mat4_transpose(glm_vec4 const in[4], glm_vec4 out[4]
 	out[3] = _mm_shuffle_ps(tmp2, tmp3, 0xDD);
 }
 
+GLM_FUNC_QUALIFIER void glm_mat3_transpose(glm_vec4 const in[3], glm_vec4 out[3])
+{
+	__m128 tmp0 = _mm_shuffle_ps(in[0], in[1], 0x44);
+	__m128 tmp2 = _mm_shuffle_ps(in[0], in[1], 0xEE);
+	__m128 tmp1 = _mm_shuffle_ps(in[2], in[2], 0x44);
+	__m128 tmp3 = _mm_shuffle_ps(in[2], in[2], 0xEE);
+
+	out[0] = _mm_shuffle_ps(tmp0, tmp1, 0x88);
+	out[1] = _mm_shuffle_ps(tmp0, tmp1, 0xDD);
+	out[2] = _mm_shuffle_ps(tmp2, tmp3, 0x88);
+}
+
 GLM_FUNC_QUALIFIER glm_vec4 glm_mat4_determinant_highp(glm_vec4 const in[4])
 {
 	__m128 Fac0;
@@ -318,40 +330,40 @@ GLM_FUNC_QUALIFIER glm_vec4 glm_mat4_determinant_highp(glm_vec4 const in[4])
 	// m[0][3]
 	// m[0][3]
 	__m128 Temp3 = _mm_shuffle_ps(in[1], in[0], _MM_SHUFFLE(3, 3, 3, 3));
-	__m128 glm::vec3 = _mm_shuffle_ps(Temp3, Temp3, _MM_SHUFFLE(2, 2, 2, 0));
+	__m128 Vec3 = _mm_shuffle_ps(Temp3, Temp3, _MM_SHUFFLE(2, 2, 2, 0));
 
 	// col0
-	// + (Vec1[0] * Fac0[0] - Vec2[0] * Fac1[0] + glm::vec3[0] * Fac2[0]),
-	// - (Vec1[1] * Fac0[1] - Vec2[1] * Fac1[1] + glm::vec3[1] * Fac2[1]),
-	// + (Vec1[2] * Fac0[2] - Vec2[2] * Fac1[2] + glm::vec3[2] * Fac2[2]),
-	// - (Vec1[3] * Fac0[3] - Vec2[3] * Fac1[3] + glm::vec3[3] * Fac2[3]),
+	// + (Vec1[0] * Fac0[0] - Vec2[0] * Fac1[0] + Vec3[0] * Fac2[0]),
+	// - (Vec1[1] * Fac0[1] - Vec2[1] * Fac1[1] + Vec3[1] * Fac2[1]),
+	// + (Vec1[2] * Fac0[2] - Vec2[2] * Fac1[2] + Vec3[2] * Fac2[2]),
+	// - (Vec1[3] * Fac0[3] - Vec2[3] * Fac1[3] + Vec3[3] * Fac2[3]),
 	__m128 Mul00 = _mm_mul_ps(Vec1, Fac0);
 	__m128 Mul01 = _mm_mul_ps(Vec2, Fac1);
-	__m128 Mul02 = _mm_mul_ps(glm::vec3, Fac2);
+	__m128 Mul02 = _mm_mul_ps(Vec3, Fac2);
 	__m128 Sub00 = _mm_sub_ps(Mul00, Mul01);
 	__m128 Add00 = _mm_add_ps(Sub00, Mul02);
 	__m128 Inv0 = _mm_mul_ps(SignB, Add00);
 
 	// col1
-	// - (Vec0[0] * Fac0[0] - Vec2[0] * Fac3[0] + glm::vec3[0] * Fac4[0]),
-	// + (Vec0[0] * Fac0[1] - Vec2[1] * Fac3[1] + glm::vec3[1] * Fac4[1]),
-	// - (Vec0[0] * Fac0[2] - Vec2[2] * Fac3[2] + glm::vec3[2] * Fac4[2]),
-	// + (Vec0[0] * Fac0[3] - Vec2[3] * Fac3[3] + glm::vec3[3] * Fac4[3]),
+	// - (Vec0[0] * Fac0[0] - Vec2[0] * Fac3[0] + Vec3[0] * Fac4[0]),
+	// + (Vec0[0] * Fac0[1] - Vec2[1] * Fac3[1] + Vec3[1] * Fac4[1]),
+	// - (Vec0[0] * Fac0[2] - Vec2[2] * Fac3[2] + Vec3[2] * Fac4[2]),
+	// + (Vec0[0] * Fac0[3] - Vec2[3] * Fac3[3] + Vec3[3] * Fac4[3]),
 	__m128 Mul03 = _mm_mul_ps(Vec0, Fac0);
 	__m128 Mul04 = _mm_mul_ps(Vec2, Fac3);
-	__m128 Mul05 = _mm_mul_ps(glm::vec3, Fac4);
+	__m128 Mul05 = _mm_mul_ps(Vec3, Fac4);
 	__m128 Sub01 = _mm_sub_ps(Mul03, Mul04);
 	__m128 Add01 = _mm_add_ps(Sub01, Mul05);
 	__m128 Inv1 = _mm_mul_ps(SignA, Add01);
 
 	// col2
-	// + (Vec0[0] * Fac1[0] - Vec1[0] * Fac3[0] + glm::vec3[0] * Fac5[0]),
-	// - (Vec0[0] * Fac1[1] - Vec1[1] * Fac3[1] + glm::vec3[1] * Fac5[1]),
-	// + (Vec0[0] * Fac1[2] - Vec1[2] * Fac3[2] + glm::vec3[2] * Fac5[2]),
-	// - (Vec0[0] * Fac1[3] - Vec1[3] * Fac3[3] + glm::vec3[3] * Fac5[3]),
+	// + (Vec0[0] * Fac1[0] - Vec1[0] * Fac3[0] + Vec3[0] * Fac5[0]),
+	// - (Vec0[0] * Fac1[1] - Vec1[1] * Fac3[1] + Vec3[1] * Fac5[1]),
+	// + (Vec0[0] * Fac1[2] - Vec1[2] * Fac3[2] + Vec3[2] * Fac5[2]),
+	// - (Vec0[0] * Fac1[3] - Vec1[3] * Fac3[3] + Vec3[3] * Fac5[3]),
 	__m128 Mul06 = _mm_mul_ps(Vec0, Fac1);
 	__m128 Mul07 = _mm_mul_ps(Vec1, Fac3);
-	__m128 Mul08 = _mm_mul_ps(glm::vec3, Fac5);
+	__m128 Mul08 = _mm_mul_ps(Vec3, Fac5);
 	__m128 Sub02 = _mm_sub_ps(Mul06, Mul07);
 	__m128 Add02 = _mm_add_ps(Sub02, Mul08);
 	__m128 Inv2 = _mm_mul_ps(SignB, Add02);
@@ -658,40 +670,40 @@ GLM_FUNC_QUALIFIER void glm_mat4_inverse(glm_vec4 const in[4], glm_vec4 out[4])
 	// m[0][3]
 	// m[0][3]
 	__m128 Temp3 = _mm_shuffle_ps(in[1], in[0], _MM_SHUFFLE(3, 3, 3, 3));
-	__m128 glm::vec3 = _mm_shuffle_ps(Temp3, Temp3, _MM_SHUFFLE(2, 2, 2, 0));
+	__m128 Vec3 = _mm_shuffle_ps(Temp3, Temp3, _MM_SHUFFLE(2, 2, 2, 0));
 
 	// col0
-	// + (Vec1[0] * Fac0[0] - Vec2[0] * Fac1[0] + glm::vec3[0] * Fac2[0]),
-	// - (Vec1[1] * Fac0[1] - Vec2[1] * Fac1[1] + glm::vec3[1] * Fac2[1]),
-	// + (Vec1[2] * Fac0[2] - Vec2[2] * Fac1[2] + glm::vec3[2] * Fac2[2]),
-	// - (Vec1[3] * Fac0[3] - Vec2[3] * Fac1[3] + glm::vec3[3] * Fac2[3]),
+	// + (Vec1[0] * Fac0[0] - Vec2[0] * Fac1[0] + Vec3[0] * Fac2[0]),
+	// - (Vec1[1] * Fac0[1] - Vec2[1] * Fac1[1] + Vec3[1] * Fac2[1]),
+	// + (Vec1[2] * Fac0[2] - Vec2[2] * Fac1[2] + Vec3[2] * Fac2[2]),
+	// - (Vec1[3] * Fac0[3] - Vec2[3] * Fac1[3] + Vec3[3] * Fac2[3]),
 	__m128 Mul00 = _mm_mul_ps(Vec1, Fac0);
 	__m128 Mul01 = _mm_mul_ps(Vec2, Fac1);
-	__m128 Mul02 = _mm_mul_ps(glm::vec3, Fac2);
+	__m128 Mul02 = _mm_mul_ps(Vec3, Fac2);
 	__m128 Sub00 = _mm_sub_ps(Mul00, Mul01);
 	__m128 Add00 = _mm_add_ps(Sub00, Mul02);
 	__m128 Inv0 = _mm_mul_ps(SignB, Add00);
 
 	// col1
-	// - (Vec0[0] * Fac0[0] - Vec2[0] * Fac3[0] + glm::vec3[0] * Fac4[0]),
-	// + (Vec0[0] * Fac0[1] - Vec2[1] * Fac3[1] + glm::vec3[1] * Fac4[1]),
-	// - (Vec0[0] * Fac0[2] - Vec2[2] * Fac3[2] + glm::vec3[2] * Fac4[2]),
-	// + (Vec0[0] * Fac0[3] - Vec2[3] * Fac3[3] + glm::vec3[3] * Fac4[3]),
+	// - (Vec0[0] * Fac0[0] - Vec2[0] * Fac3[0] + Vec3[0] * Fac4[0]),
+	// + (Vec0[0] * Fac0[1] - Vec2[1] * Fac3[1] + Vec3[1] * Fac4[1]),
+	// - (Vec0[0] * Fac0[2] - Vec2[2] * Fac3[2] + Vec3[2] * Fac4[2]),
+	// + (Vec0[0] * Fac0[3] - Vec2[3] * Fac3[3] + Vec3[3] * Fac4[3]),
 	__m128 Mul03 = _mm_mul_ps(Vec0, Fac0);
 	__m128 Mul04 = _mm_mul_ps(Vec2, Fac3);
-	__m128 Mul05 = _mm_mul_ps(glm::vec3, Fac4);
+	__m128 Mul05 = _mm_mul_ps(Vec3, Fac4);
 	__m128 Sub01 = _mm_sub_ps(Mul03, Mul04);
 	__m128 Add01 = _mm_add_ps(Sub01, Mul05);
 	__m128 Inv1 = _mm_mul_ps(SignA, Add01);
 
 	// col2
-	// + (Vec0[0] * Fac1[0] - Vec1[0] * Fac3[0] + glm::vec3[0] * Fac5[0]),
-	// - (Vec0[0] * Fac1[1] - Vec1[1] * Fac3[1] + glm::vec3[1] * Fac5[1]),
-	// + (Vec0[0] * Fac1[2] - Vec1[2] * Fac3[2] + glm::vec3[2] * Fac5[2]),
-	// - (Vec0[0] * Fac1[3] - Vec1[3] * Fac3[3] + glm::vec3[3] * Fac5[3]),
+	// + (Vec0[0] * Fac1[0] - Vec1[0] * Fac3[0] + Vec3[0] * Fac5[0]),
+	// - (Vec0[0] * Fac1[1] - Vec1[1] * Fac3[1] + Vec3[1] * Fac5[1]),
+	// + (Vec0[0] * Fac1[2] - Vec1[2] * Fac3[2] + Vec3[2] * Fac5[2]),
+	// - (Vec0[0] * Fac1[3] - Vec1[3] * Fac3[3] + Vec3[3] * Fac5[3]),
 	__m128 Mul06 = _mm_mul_ps(Vec0, Fac1);
 	__m128 Mul07 = _mm_mul_ps(Vec1, Fac3);
-	__m128 Mul08 = _mm_mul_ps(glm::vec3, Fac5);
+	__m128 Mul08 = _mm_mul_ps(Vec3, Fac5);
 	__m128 Sub02 = _mm_sub_ps(Mul06, Mul07);
 	__m128 Add02 = _mm_add_ps(Sub02, Mul08);
 	__m128 Inv2 = _mm_mul_ps(SignB, Add02);
@@ -879,40 +891,40 @@ GLM_FUNC_QUALIFIER void glm_mat4_inverse_lowp(glm_vec4 const in[4], glm_vec4 out
 	// m[0][3]
 	// m[0][3]
 	__m128 Temp3 = _mm_shuffle_ps(in[1], in[0], _MM_SHUFFLE(3, 3, 3, 3));
-	__m128 glm::vec3 = _mm_shuffle_ps(Temp3, Temp3, _MM_SHUFFLE(2, 2, 2, 0));
+	__m128 Vec3 = _mm_shuffle_ps(Temp3, Temp3, _MM_SHUFFLE(2, 2, 2, 0));
 
 	// col0
-	// + (Vec1[0] * Fac0[0] - Vec2[0] * Fac1[0] + glm::vec3[0] * Fac2[0]),
-	// - (Vec1[1] * Fac0[1] - Vec2[1] * Fac1[1] + glm::vec3[1] * Fac2[1]),
-	// + (Vec1[2] * Fac0[2] - Vec2[2] * Fac1[2] + glm::vec3[2] * Fac2[2]),
-	// - (Vec1[3] * Fac0[3] - Vec2[3] * Fac1[3] + glm::vec3[3] * Fac2[3]),
+	// + (Vec1[0] * Fac0[0] - Vec2[0] * Fac1[0] + Vec3[0] * Fac2[0]),
+	// - (Vec1[1] * Fac0[1] - Vec2[1] * Fac1[1] + Vec3[1] * Fac2[1]),
+	// + (Vec1[2] * Fac0[2] - Vec2[2] * Fac1[2] + Vec3[2] * Fac2[2]),
+	// - (Vec1[3] * Fac0[3] - Vec2[3] * Fac1[3] + Vec3[3] * Fac2[3]),
 	__m128 Mul00 = _mm_mul_ps(Vec1, Fac0);
 	__m128 Mul01 = _mm_mul_ps(Vec2, Fac1);
-	__m128 Mul02 = _mm_mul_ps(glm::vec3, Fac2);
+	__m128 Mul02 = _mm_mul_ps(Vec3, Fac2);
 	__m128 Sub00 = _mm_sub_ps(Mul00, Mul01);
 	__m128 Add00 = _mm_add_ps(Sub00, Mul02);
 	__m128 Inv0 = _mm_mul_ps(SignB, Add00);
 
 	// col1
-	// - (Vec0[0] * Fac0[0] - Vec2[0] * Fac3[0] + glm::vec3[0] * Fac4[0]),
-	// + (Vec0[0] * Fac0[1] - Vec2[1] * Fac3[1] + glm::vec3[1] * Fac4[1]),
-	// - (Vec0[0] * Fac0[2] - Vec2[2] * Fac3[2] + glm::vec3[2] * Fac4[2]),
-	// + (Vec0[0] * Fac0[3] - Vec2[3] * Fac3[3] + glm::vec3[3] * Fac4[3]),
+	// - (Vec0[0] * Fac0[0] - Vec2[0] * Fac3[0] + Vec3[0] * Fac4[0]),
+	// + (Vec0[0] * Fac0[1] - Vec2[1] * Fac3[1] + Vec3[1] * Fac4[1]),
+	// - (Vec0[0] * Fac0[2] - Vec2[2] * Fac3[2] + Vec3[2] * Fac4[2]),
+	// + (Vec0[0] * Fac0[3] - Vec2[3] * Fac3[3] + Vec3[3] * Fac4[3]),
 	__m128 Mul03 = _mm_mul_ps(Vec0, Fac0);
 	__m128 Mul04 = _mm_mul_ps(Vec2, Fac3);
-	__m128 Mul05 = _mm_mul_ps(glm::vec3, Fac4);
+	__m128 Mul05 = _mm_mul_ps(Vec3, Fac4);
 	__m128 Sub01 = _mm_sub_ps(Mul03, Mul04);
 	__m128 Add01 = _mm_add_ps(Sub01, Mul05);
 	__m128 Inv1 = _mm_mul_ps(SignA, Add01);
 
 	// col2
-	// + (Vec0[0] * Fac1[0] - Vec1[0] * Fac3[0] + glm::vec3[0] * Fac5[0]),
-	// - (Vec0[0] * Fac1[1] - Vec1[1] * Fac3[1] + glm::vec3[1] * Fac5[1]),
-	// + (Vec0[0] * Fac1[2] - Vec1[2] * Fac3[2] + glm::vec3[2] * Fac5[2]),
-	// - (Vec0[0] * Fac1[3] - Vec1[3] * Fac3[3] + glm::vec3[3] * Fac5[3]),
+	// + (Vec0[0] * Fac1[0] - Vec1[0] * Fac3[0] + Vec3[0] * Fac5[0]),
+	// - (Vec0[0] * Fac1[1] - Vec1[1] * Fac3[1] + Vec3[1] * Fac5[1]),
+	// + (Vec0[0] * Fac1[2] - Vec1[2] * Fac3[2] + Vec3[2] * Fac5[2]),
+	// - (Vec0[0] * Fac1[3] - Vec1[3] * Fac3[3] + Vec3[3] * Fac5[3]),
 	__m128 Mul06 = _mm_mul_ps(Vec0, Fac1);
 	__m128 Mul07 = _mm_mul_ps(Vec1, Fac3);
-	__m128 Mul08 = _mm_mul_ps(glm::vec3, Fac5);
+	__m128 Mul08 = _mm_mul_ps(Vec3, Fac5);
 	__m128 Sub02 = _mm_sub_ps(Mul06, Mul07);
 	__m128 Add02 = _mm_add_ps(Sub02, Mul08);
 	__m128 Inv2 = _mm_mul_ps(SignB, Add02);

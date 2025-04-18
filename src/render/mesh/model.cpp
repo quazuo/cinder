@@ -1,10 +1,5 @@
 #include "model.hpp"
 
-#include <iostream>
-#include <assimp/Importer.hpp>
-#include <assimp/scene.h>
-#include <assimp/postprocess.h>
-
 #include "vertex.hpp"
 #include "src/render/renderer.hpp"
 #include "src/render/vk/image.hpp"

@@ -1,5 +1,9 @@
 #include "vertex.hpp"
 
+#define offsetof(s,m) ((::size_t)&reinterpret_cast<char const volatile&>((((s*)0)->m)))
+
+import std;
+
 namespace zrx {
 vector<vk::VertexInputBindingDescription> ModelVertex::get_binding_descriptions() {
     return {

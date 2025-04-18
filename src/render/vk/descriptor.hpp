@@ -1,18 +1,15 @@
 #pragma once
 
-#include <utility>
-#include <variant>
-#include <algorithm>
-#include <numeric>
-
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
-#include "src/render/graph/graph.hpp"
 #include "buffer.hpp"
 #include "image.hpp"
 #include "accel-struct.hpp"
 #include "ctx.hpp"
-#include "src/utils/logger.hpp"
+
+import std;
+import Cinder.Utils;
+import Cinder.Render.Graph;
 
 namespace zrx {
 template<typename ResourceType>

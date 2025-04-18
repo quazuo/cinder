@@ -1,16 +1,19 @@
 #pragma once
 
-#include <filesystem>
-#include <map>
+#define VULKAN_HPP_ENABLE_STD_MODULE
+#define VULKAN_HPP_STD_MODULE
+#include <vulkan/vulkan_hpp_macros.hpp>
 
-#include <vma/vk_mem_alloc.h>
 #include "src/render/libs.hpp"
 #include "src/render/globals.hpp"
 
+import VkMemAlloc;
+import std;
+import vulkan_hpp;
+
 // for these bits, we're leveraging the already available flag system from vulkan-hpp.
 // for this reason, the following code needs to be in the vulkan-hpp namespace.
-namespace
-VULKAN_HPP_NAMESPACE {
+namespace VULKAN_HPP_NAMESPACE {
 enum class TextureFlagBitsZRX : uint32_t {
     CUBEMAP = 1 << 0,
     HDR     = 1 << 1,

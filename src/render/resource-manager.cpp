@@ -1,8 +1,8 @@
 #include "resource-manager.hpp"
 
 #include "vk/buffer.hpp"
-#include "mesh/model.hpp"
 #include "vk/image.hpp"
+#include "mesh/model.hpp"
 
 namespace zrx {
 ResourceManager::ResourceManager(const uint32_t max_bindless_handles) {

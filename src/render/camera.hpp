@@ -2,7 +2,9 @@
 
 #include "libs.hpp"
 #include "globals.hpp"
-#include "src/utils/input-manager.hpp"
+
+import Cinder.Utils;
+import glm;
 
 struct GLFWwindow;
 

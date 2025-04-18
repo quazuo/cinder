@@ -1,10 +1,9 @@
 #include "swapchain.hpp"
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
-
 #include "src/render/renderer.hpp"
 #include "ctx.hpp"
+
+import glfw;
 
 namespace zrx {
 SwapChainSupportDetails::SwapChainSupportDetails(const vk::raii::PhysicalDevice &physical_device,

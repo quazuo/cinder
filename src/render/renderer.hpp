@@ -1,20 +1,17 @@
 #pragma once
 
-#include <optional>
-#include <vector>
-#include <filesystem>
-#include <array>
-#include <queue>
+#include <vulkan/vulkan_core.h>
 
 #include "libs.hpp"
 #include "globals.hpp"
-#include "graph/graph.hpp"
 #include "vk/image.hpp"
 #include "vk/pipeline.hpp"
 #include "vk/ctx.hpp"
 #include "vk/descriptor.hpp"
 
-#include <vk-bootstrap/VkBootstrap.h>
+import VkBootstrap;
+import Cinder.Render.Graph;
+import vulkan_hpp;
 
 struct GLFWwindow;
 

@@ -38,6 +38,17 @@ namespace detail
 	};
 
 	template<qualifier Q>
+	struct compute_transpose<3, 3, float, Q, true>
+	{
+		GLM_FUNC_QUALIFIER static mat<3, 3, float, Q> call(mat<3, 3, float, Q> const& m)
+		{
+			mat<3, 3, float, Q> Result;
+			glm_mat3_transpose(&m[0].data, &Result[0].data);
+			return Result;
+		}
+	};
+
+	template<qualifier Q>
 	struct compute_determinant<4, 4, float, Q, true>
 	{
 		GLM_FUNC_QUALIFIER static float call(mat<4, 4, float, Q> const& m)
@@ -220,11 +231,11 @@ namespace detail
 			float32x4_t Vec0 = neon::copy_lane(neon::dupq_lane(m0, 0), 0, m1, 0); // (m[1][0], m[0][0], m[0][0], m[0][0]);
 			float32x4_t Vec1 = neon::copy_lane(neon::dupq_lane(m0, 1), 0, m1, 1); // (m[1][1], m[0][1], m[0][1], m[0][1]);
 			float32x4_t Vec2 = neon::copy_lane(neon::dupq_lane(m0, 2), 0, m1, 2); // (m[1][2], m[0][2], m[0][2], m[0][2]);
-			float32x4_t glm::vec3 = neon::copy_lane(neon::dupq_lane(m0, 3), 0, m1, 3); // (m[1][3], m[0][3], m[0][3], m[0][3]);
+			float32x4_t Vec3 = neon::copy_lane(neon::dupq_lane(m0, 3), 0, m1, 3); // (m[1][3], m[0][3], m[0][3], m[0][3]);
 
-			float32x4_t Inv0 = Vec1 * Fac0 - Vec2 * Fac1 + glm::vec3 * Fac2;
-			float32x4_t Inv1 = Vec0 * Fac0 - Vec2 * Fac3 + glm::vec3 * Fac4;
-			float32x4_t Inv2 = Vec0 * Fac1 - Vec1 * Fac3 + glm::vec3 * Fac5;
+			float32x4_t Inv0 = Vec1 * Fac0 - Vec2 * Fac1 + Vec3 * Fac2;
+			float32x4_t Inv1 = Vec0 * Fac0 - Vec2 * Fac3 + Vec3 * Fac4;
+			float32x4_t Inv2 = Vec0 * Fac1 - Vec1 * Fac3 + Vec3 * Fac5;
 			float32x4_t Inv3 = Vec0 * Fac2 - Vec1 * Fac4 + Vec2 * Fac5;
 
 			float32x4_t r0 = float32x4_t{-1, +1, -1, +1} * Inv0;

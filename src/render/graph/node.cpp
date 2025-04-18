@@ -1,6 +1,10 @@
-#include "node.h"
+module;
 
 #include "src/render/vk/pipeline.hpp"
+
+module Cinder.Render.Graph;
+
+import Cinder.Utils;
 
 namespace zrx {
 void RenderPassContext::bind_pipeline(const ResourceHandle pipeline_handle) {

@@ -1,8 +1,11 @@
 #include "gui.hpp"
 
+import ImGuIZMOquat;
+import glm;
+
 namespace zrx {
 GuiRenderer::GuiRenderer(GLFWwindow *w, ImGui_ImplVulkan_InitInfo &imgui_init_info) : window(w) {
-    IMGUI_CHECKVERSION();
+    // IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO &io = ImGui::GetIO();
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;

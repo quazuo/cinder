@@ -1,12 +1,11 @@
 #include "pipeline.hpp"
 
-#include <fstream>
-#include <SPIRV-Reflect/spirv_reflect.h>
-
 #include "src/render/mesh/vertex.hpp"
 #include "ctx.hpp"
 #include "buffer.hpp"
-#include "src/utils/spirv.hpp"
+
+import SpirvReflect;
+import Cinder.Utils;
 
 namespace zrx {
 static vk::raii::ShaderModule create_shader_module(const RendererContext &ctx, const std::filesystem::path &path) {
@@ -495,17 +494,17 @@ RtPipelineBuilder::build_sbt(const RendererContext &ctx, const vk::raii::Pipelin
     uint32_t handle_index = 0;
 
     uint8_t *rgen_data = sbt_buffer_mapped;
-    memcpy(rgen_data, get_handle_ptr(handle_index++), handle_size);
+    std::memcpy(rgen_data, get_handle_ptr(handle_index++), handle_size);
 
     uint8_t *miss_data = sbt_buffer_mapped + rgen_region.size;
     for (uint32_t i = 0; i < miss_count; i++) {
-        memcpy(miss_data, get_handle_ptr(handle_index++), handle_size);
+        std::memcpy(miss_data, get_handle_ptr(handle_index++), handle_size);
         miss_data += miss_region.stride;
     }
 
     uint8_t *hit_data = sbt_buffer_mapped + rgen_region.size + miss_region.size;
     for (uint32_t i = 0; i < hit_count; i++) {
-        memcpy(hit_data, get_handle_ptr(handle_index++), handle_size);
+        std::memcpy(hit_data, get_handle_ptr(handle_index++), handle_size);
         hit_data += hit_region.stride;
     }
 
