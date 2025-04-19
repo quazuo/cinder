@@ -1,16 +1,16 @@
 module;
 
-#include "src/render/mesh/model.hpp"
-#include "src/render/vk/image.hpp"
-#include "src/render/vk/buffer.hpp"
-#include "src/render/resource-manager.hpp"
-
 export module Cinder.Render.Graph;
 
 export import :Node;
 export import :Resource;
+export import :ResourceManager;
 
 import std;
+
+import Cinder.Render.Vulkan;
+import Cinder.Render.Mesh;
+import Cinder.Globals;
 
 export namespace zrx {
 struct FrameBeginActionContext {
@@ -20,26 +20,35 @@ struct FrameBeginActionContext {
 using FrameBeginCallback = std::function<void(const FrameBeginActionContext &)>;
 
 class RenderGraph {
-    std::map<RenderNodeHandle, RenderNode> nodes;
+    std::map<RenderNodeHandle, RenderNode> nodes_;
     std::map<RenderNodeHandle, std::set<RenderNodeHandle> > dependency_graph;
 
-    std::map<ResourceHandle, VertexBufferResourceDesc> vertex_buffers;
-    std::map<ResourceHandle, UniformBufferResourceDesc> uniform_buffers;
-    std::map<ResourceHandle, ExternalTextureResourceDesc> external_tex_resources;
-    std::map<ResourceHandle, TargetTextureResourceDesc> empty_tex_resources;
-    std::map<ResourceHandle, TransientTextureResourceDesc> transient_tex_resources;
-    std::map<ResourceHandle, ModelResourceDesc> model_resources;
-    std::map<ResourceHandle, GraphicsPipelineDesc> graphics_pipelines;
-    std::map<ResourceHandle, ComputePipelineDesc> compute_pipelines;
+    std::map<ResourceHandle, VertexBufferResourceDesc> vertex_buffers_;
+    std::map<ResourceHandle, UniformBufferResourceDesc> uniform_buffers_;
+    std::map<ResourceHandle, ExternalTextureResourceDesc> external_tex_resources_;
+    std::map<ResourceHandle, TargetTextureResourceDesc> empty_tex_resources_;
+    std::map<ResourceHandle, TransientTextureResourceDesc> transient_tex_resources_;
+    std::map<ResourceHandle, ModelResourceDesc> model_resources_;
+    std::map<ResourceHandle, GraphicsPipelineDesc> graphics_pipelines_;
+    std::map<ResourceHandle, ComputePipelineDesc> compute_pipelines_;
 
     std::set<ResourceHandle> produced_resources;
     std::map<ResourceHandle, string> resource_names;
 
-    vector<FrameBeginCallback> frame_begin_callbacks;
-
-    friend class VulkanRenderer;
+    vector<FrameBeginCallback> frame_begin_callbacks_;
 
 public:
+    [[nodiscard]] const auto &nodes()                   const { return nodes_; }
+    [[nodiscard]] const auto &vertex_buffers()          const { return vertex_buffers_; }
+    [[nodiscard]] const auto &uniform_buffers()         const { return uniform_buffers_; }
+    [[nodiscard]] const auto &external_tex_resources()  const { return external_tex_resources_; }
+    [[nodiscard]] const auto &empty_tex_resources()     const { return empty_tex_resources_; }
+    [[nodiscard]] const auto &transient_tex_resources() const { return transient_tex_resources_; }
+    [[nodiscard]] const auto &model_resources()         const { return model_resources_; }
+    [[nodiscard]] const auto &graphics_pipelines()      const { return graphics_pipelines_; }
+    [[nodiscard]] const auto &compute_pipelines()       const { return compute_pipelines_; }
+    [[nodiscard]] const auto &frame_begin_callbacks()   const { return frame_begin_callbacks_; }
+
     [[nodiscard]] vector<RenderNodeHandle> get_topo_sorted() const;
 
     RenderNodeHandle add_node(const RenderNode &node);
@@ -58,7 +67,7 @@ public:
 
     template<typename T>
         requires ResourceLike<T>
-    [[nodiscard]] vector<ResourceHandle> add_repeated_resource(const uint32_t count, T&& resource) {
+    [[nodiscard]] vector<ResourceHandle> add_repeated_resource(const uint32_t count, T &&resource) {
         vector<ResourceHandle> handles;
 
         for (uint32_t i = 0; i < count; i++) {

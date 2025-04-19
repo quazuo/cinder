@@ -1,28 +1,29 @@
-#include "render/camera.hpp"
-#include "render/renderer.hpp"
-#include "render/resource-manager.hpp"
-#include "render/gui/gui.hpp"
-
+import Imgui;
 import ImGuIZMOquat;
 import ImFileBrowser;
-import Cinder.Utils;
-import Cinder.Render.Graph;
 import std;
 import glfw;
 import glm;
-
 import vulkan_hpp;
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+import Cinder.Utils;
+import Cinder.Render;
+import Cinder.Render.Graph;
+import Cinder.Render.Vulkan;
+import Cinder.Render.Gui;
+import Cinder.Render.Mesh;
+import Cinder.Globals;
 
-#define GLFW_EXPOSE_NATIVE_WIN32
-#define NOMINMAX 1
-#include <GLFW/glfw3native.h>
+// #define GLFW_INCLUDE_VULKAN
+// #include <GLFW/glfw3.h>
+//
+// #define GLFW_EXPOSE_NATIVE_WIN32
+// #define NOMINMAX 1
+// #include <GLFW/glfw3native.h>
 
-#define VULKAN_HPP_ENABLE_STD_MODULE
-#define VULKAN_HPP_STD_MODULE
-#include <vulkan/vulkan_hpp_macros.hpp>
+// #define VULKAN_HPP_ENABLE_STD_MODULE
+// #define VULKAN_HPP_STD_MODULE
+// #include <vulkan/vulkan_hpp_macros.hpp>
 
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
@@ -411,14 +412,14 @@ private:
     }
 
     void bind_key_actions() {
-        input_manager->bind_callback(GLFW_KEY_GRAVE_ACCENT, EActivationType::PRESS_ONCE, [&](const float delta_time) {
+        input_manager->bind_callback(ZRX_GLFW_KEY_GRAVE_ACCENT, EActivationType::PRESS_ONCE, [&](const float delta_time) {
             (void) delta_time;
             is_gui_enabled = !is_gui_enabled;
         });
     }
 
     void bind_mouse_drag_actions() {
-        input_manager->bind_mouse_drag_callback(GLFW_MOUSE_BUTTON_RIGHT, [&](const double dx, const double dy) {
+        input_manager->bind_mouse_drag_callback(ZRX_GLFW_MOUSE_BUTTON_RIGHT, [&](const double dx, const double dy) {
             static constexpr float speed = 0.002;
             const float camera_distance  = glm::length(camera->get_pos());
 
@@ -638,18 +639,18 @@ private:
 }
 
 static void show_error_box(const string &message) {
-    MessageBox(
-        nullptr,
-        static_cast<LPCSTR>(message.c_str()),
-        static_cast<LPCSTR>("Error"),
-        MB_OK
-    );
+    // MessageBox(
+    //     nullptr,
+    //     static_cast<LPCSTR>(message.c_str()),
+    //     static_cast<LPCSTR>("Error"),
+    //     MB_OK
+    // );
 }
 
 int main() {
     if (!glfwInit()) {
         show_error_box("Fatal error: GLFW initialization failed.");
-        return EXIT_FAILURE;
+        return 1; //EXIT_FAILURE;
     }
 
 #ifdef NDEBUG
@@ -668,5 +669,5 @@ int main() {
 
     glfwTerminate();
 
-    return EXIT_SUCCESS;
+    return 0; // EXIT_SUCCESS;
 }

@@ -1,11 +1,17 @@
-#pragma once
+module;
 
-#include "image.hpp"
-#include "src/render/libs.hpp"
+export module Cinder.Render.Vulkan:Swapchain;
 
-struct GLFWwindow;
+import vulkan_hpp;
+import std;
+import glfw;
 
-namespace zrx {
+import :Image;
+import :Context;
+
+import Cinder.Globals;
+
+export namespace zrx {
 /**
  * Helper structure holding details about supported features of the swap chain.
  */
@@ -17,7 +23,6 @@ struct SwapChainSupportDetails {
     SwapChainSupportDetails(const vk::raii::PhysicalDevice &physical_device, const vk::raii::SurfaceKHR &surface);
 };
 
-struct RendererContext;
 struct QueueFamilyIndices;
 
 struct SwapChainRenderTargets {

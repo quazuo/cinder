@@ -1,7 +1,10 @@
-#include "gui.hpp"
+module;
+
+module Cinder.Render.Gui;
 
 import ImGuIZMOquat;
 import glm;
+import glfw;
 
 namespace zrx {
 GuiRenderer::GuiRenderer(GLFWwindow *w, ImGui_ImplVulkan_InitInfo &imgui_init_info) : window(w) {

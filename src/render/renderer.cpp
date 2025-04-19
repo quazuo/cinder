@@ -1,26 +1,20 @@
-#include "renderer.hpp"
+module;
 
-#include "camera.hpp"
-#include "resource-manager.hpp"
-#include "gui/gui.hpp"
-#include "mesh/model.hpp"
-#include "mesh/vertex.hpp"
 #include "src/utils/glfw_statics.hpp"
-#include "vk/image.hpp"
-#include "vk/buffer.hpp"
-#include "vk/swapchain.hpp"
-#include "vk/cmd.hpp"
-#include "vk/descriptor.hpp"
-#include "vk/pipeline.hpp"
-#include "vk/accel-struct.hpp"
-#include "vk/ctx.hpp"
+
+module Cinder.Render;
 
 import SpirvReflect;
-import Cinder.Utils;
 import glfw;
+import std;
+import Imgui;
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+import Cinder.Utils;
+import Cinder.Render.Vulkan;
+import Cinder.Render.Gui;
+import Cinder.Render.Graph;
+import Cinder.Render.Mesh;
+import Cinder.Globals;
 
 /**
  * Information held in the fragment shader's uniform buffer.
@@ -65,7 +59,7 @@ VulkanRenderer::VulkanRenderer() {
     constexpr int INIT_WINDOW_WIDTH = 1200;
     constexpr int INIT_WINDOW_HEIGHT = 800;
 
-    glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
+    glfwWindowHint(ZRX_GLFW_CLIENT_API, ZRX_GLFW_NO_API);
     window = glfwCreateWindow(INIT_WINDOW_WIDTH, INIT_WINDOW_HEIGHT, "Cinder", nullptr, nullptr);
 
     init_glfw_user_pointer(window);
@@ -136,7 +130,7 @@ vkb::Instance VulkanRenderer::create_instance() {
             std::cout << ss.str() << std::endl;
         }
 
-        return VK_FALSE;
+        return vk::False;
     };
 
     auto instance_result = vkb::InstanceBuilder()
@@ -165,7 +159,7 @@ vector<const char *> VulkanRenderer::get_required_extensions() {
     vector extensions(glfw_extensions, glfw_extensions + glfw_extension_count);
 
     if (ENABLE_VALIDATION_LAYERS) {
-        extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        extensions.push_back(ZRX_VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
     return extensions;
@@ -419,7 +413,7 @@ unique_ptr<Buffer> VulkanRenderer::create_local_buffer(const void *data, const v
     };
 
     void *staging_data = staging_buffer.map();
-    memcpy(staging_data, data, static_cast<size_t>(size));
+    std::memcpy(staging_data, data, static_cast<size_t>(size));
     staging_buffer.unmap();
 
     auto result_buffer = make_unique<Buffer>(
@@ -564,23 +558,23 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
         });
     }
 
-    repeated_frame_begin_actions = render_graph_info.render_graph->frame_begin_callbacks;
+    repeated_frame_begin_actions = render_graph_info.render_graph->frame_begin_callbacks();
 }
 
 void VulkanRenderer::create_render_graph_resources() {
-    for (const auto &[handle, description]: render_graph_info.render_graph->model_resources) {
+    for (const auto &[handle, description]: render_graph_info.render_graph->model_resources()) {
         auto model = make_unique<Model>(ctx, description.path, false);
         resource_manager->add(handle, std::move(model));
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->vertex_buffers) {
+    for (const auto &[handle, description]: render_graph_info.render_graph->vertex_buffers()) {
         resource_manager->add(
             handle,
             create_local_buffer(description.data, description.size, vk::BufferUsageFlagBits::eVertexBuffer)
         );
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->uniform_buffers) {
+    for (const auto &[handle, description]: render_graph_info.render_graph->uniform_buffers()) {
         resource_manager->add(handle, utils::buf::create_uniform_buffer(ctx, description.size));
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
@@ -588,7 +582,7 @@ void VulkanRenderer::create_render_graph_resources() {
         bindless_descriptor_set->update_binding<1>(buffer, bindless_handle);
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->external_tex_resources) {
+    for (const auto &[handle, description]: render_graph_info.render_graph->external_tex_resources()) {
         auto builder = TextureBuilder()
                 .with_flags(description.flags)
                 .from_paths(description.paths)
@@ -610,7 +604,7 @@ void VulkanRenderer::create_render_graph_resources() {
         bindless_descriptor_set->update_binding<0>(texture, bindless_handle);
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->empty_tex_resources) {
+    for (const auto &[handle, description]: render_graph_info.render_graph->empty_tex_resources()) {
         auto extent = description.extent;
         if (extent.width == 0 && extent.height == 0) {
             extent = swap_chain->get_extent();
@@ -632,7 +626,7 @@ void VulkanRenderer::create_render_graph_resources() {
         bindless_descriptor_set->update_binding<0>(texture, bindless_handle);
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->transient_tex_resources) {
+    for (const auto &[handle, description]: render_graph_info.render_graph->transient_tex_resources()) {
         auto extent = description.extent;
         if (extent.width == 0 && extent.height == 0) {
             extent = swap_chain->get_extent();
@@ -652,12 +646,12 @@ void VulkanRenderer::create_render_graph_resources() {
         bindless_descriptor_set->update_binding<0>(texture, bindless_handle);
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->graphics_pipelines) {
+    for (const auto &[handle, description]: render_graph_info.render_graph->graphics_pipelines()) {
         auto builder = create_graph_gfx_pipeline_builder(handle);
         graphics_pipelines.emplace(handle, builder.create(ctx));
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->compute_pipelines) {
+    for (const auto &[handle, description]: render_graph_info.render_graph->compute_pipelines()) {
         auto builder = create_graph_compute_pipeline_builder(handle);
         compute_pipelines.emplace(handle, builder.create(ctx));
     }
@@ -665,7 +659,7 @@ void VulkanRenderer::create_render_graph_resources() {
 
 GraphicsPipelineBuilder
 VulkanRenderer::create_graph_gfx_pipeline_builder(const ResourceHandle pipeline_handle) const {
-    const auto &pipeline_info = render_graph_info.render_graph->graphics_pipelines.at(pipeline_handle);
+    const auto &pipeline_info = render_graph_info.render_graph->graphics_pipelines().at(pipeline_handle);
 
     vector<vk::Format> color_formats;
     for (const auto &format_variant: pipeline_info.color_formats) {
@@ -726,7 +720,7 @@ VulkanRenderer::create_graph_gfx_pipeline_builder(const ResourceHandle pipeline_
 
 ComputePipelineBuilder
 VulkanRenderer::create_graph_compute_pipeline_builder(const ResourceHandle pipeline_handle) const {
-    const auto &pipeline_info = render_graph_info.render_graph->compute_pipelines.at(pipeline_handle);
+    const auto &pipeline_info = render_graph_info.render_graph->compute_pipelines().at(pipeline_handle);
 
     vector<vk::DescriptorSetLayout> descriptor_set_layouts;
     descriptor_set_layouts.push_back(*bindless_descriptor_set->get_layout());
@@ -773,7 +767,7 @@ void VulkanRenderer::queue_set_update_with_handle(DescriptorSet &descriptor_set,
 }
 
 vector<RenderInfo> VulkanRenderer::create_node_render_infos(const RenderNodeHandle node_handle) const {
-    const auto &node_info = render_graph_info.render_graph->nodes.at(node_handle);
+    const auto &node_info = render_graph_info.render_graph->nodes().at(node_handle);
     vector<RenderInfo> render_infos;
 
     if (has_swapchain_target(node_handle)) {
@@ -856,7 +850,7 @@ void VulkanRenderer::record_graph_commands() const {
 
 void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resources) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    const auto &node = render_graph_info.render_graph->nodes.at(node_resources.handle);
+    const auto &node = render_graph_info.render_graph->nodes().at(node_resources.handle);
 
     Logger::debug("recording node: {}", node.name);
 
@@ -882,7 +876,7 @@ void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resour
 
 void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &node_resources) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    const auto &node_info = render_graph_info.render_graph->nodes.at(node_resources.handle);
+    const auto &node_info = render_graph_info.render_graph->nodes().at(node_resources.handle);
 
     utils::cmd::set_dynamic_states(command_buffer, get_node_target_extent(node_resources));
 
@@ -898,7 +892,7 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &n
 
 void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeResources &node_resources) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    const auto &node = render_graph_info.render_graph->nodes.at(node_resources.handle);
+    const auto &node = render_graph_info.render_graph->nodes().at(node_resources.handle);
 
     for (const auto color_target: node.color_targets) {
         if (color_target == FINAL_IMAGE_RESOURCE_HANDLE) continue;
@@ -918,7 +912,7 @@ void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeResource
 
 void VulkanRenderer::record_pre_sample_commands(const RenderNodeResources &node_resources) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    const auto &node = render_graph_info.render_graph->nodes.at(node_resources.handle);
+    const auto &node = render_graph_info.render_graph->nodes().at(node_resources.handle);
 
     for (const auto color_target: node.color_targets) {
         if (color_target == FINAL_IMAGE_RESOURCE_HANDLE) continue;
@@ -948,7 +942,7 @@ void VulkanRenderer::record_pre_sample_commands(const RenderNodeResources &node_
 }
 
 bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle handle) const {
-    return render_graph_info.render_graph->nodes.at(handle)
+    return render_graph_info.render_graph->nodes().at(handle)
             .get_all_targets_set()
             .contains(FINAL_IMAGE_RESOURCE_HANDLE);
 }
@@ -964,12 +958,12 @@ bool VulkanRenderer::is_first_node_targetting_final_image(const RenderNodeHandle
 }
 
 bool VulkanRenderer::should_run_node_pass(const RenderNodeHandle handle) const {
-    const auto &node = render_graph_info.render_graph->nodes.at(handle);
+    const auto &node = render_graph_info.render_graph->nodes().at(handle);
     return node.should_run_predicate ? (*node.should_run_predicate)() : true;
 }
 
 vk::Extent2D VulkanRenderer::get_node_target_extent(const RenderNodeResources &node_resources) const {
-    const auto &node_info = render_graph_info.render_graph->nodes.at(node_resources.handle);
+    const auto &node_info = render_graph_info.render_graph->nodes().at(node_resources.handle);
 
     return has_swapchain_target(node_resources.handle)
            ? swap_chain->get_extent()
@@ -1029,7 +1023,7 @@ bool VulkanRenderer::start_frame() {
         .pValues = wait_semaphore_values.data(),
     };
 
-    if (ctx.device->waitSemaphores(wait_info, UINT64_MAX) != vk::Result::eSuccess) {
+    if (ctx.device->waitSemaphores(wait_info, std::numeric_limits<uint64_t>::max()) != vk::Result::eSuccess) {
         Logger::error("waitSemaphores on renderFinishedTimeline failed");
     }
 

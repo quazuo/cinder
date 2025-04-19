@@ -1,10 +1,13 @@
 module;
 
-#include "src/render/mesh/model.hpp"
-#include "src/render/vk/image.hpp"
-#include "src/render/vk/buffer.hpp"
-
 export module Cinder.Render.Graph:Resource;
+
+import std;
+import vulkan_hpp;
+
+import Cinder.Render.Vulkan;
+import Cinder.Render.Mesh;
+import Cinder.Globals;
 
 export namespace zrx {
 constexpr ResourceHandle FINAL_IMAGE_RESOURCE_HANDLE  = -1;

@@ -1,18 +1,15 @@
-#pragma once
+module;
 
-#include "vertex.hpp"
-#include "src/render/libs.hpp"
-#include "src/render/globals.hpp"
-#include "src/render/vk/accel-struct.hpp"
+export module Cinder.Render.Mesh:Model;
 
 import Assimp;
 import std;
 
-namespace zrx {
-struct RendererContext;
-class Texture;
-class Buffer;
+import Cinder.Render.Vulkan;
+import Cinder.Globals;
+import :Vertex;
 
+export namespace zrx {
 struct Mesh {
     vector<ModelVertex> vertices;
     vector<uint32_t> indices;

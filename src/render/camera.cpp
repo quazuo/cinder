@@ -1,14 +1,15 @@
-#include "camera.hpp"
+module;
 
-#include "gui/gui.hpp"
 #include "src/utils/glfw_statics.hpp"
 
-#define GLFW_INCLUDE_VULKAN
-#include <GLFW/glfw3.h>
+module Cinder.Render;
 
 import glfw;
-import Cinder.Utils;
 import glm;
+import Imgui;
+
+import Cinder.Utils;
+import Cinder.Render.Gui;
 
 namespace zrx {
 Rotator &Rotator::operator=(const glm::vec2 other) {
@@ -182,7 +183,7 @@ void Camera::scroll_callback(GLFWwindow *window, const double dx, const double d
 }
 
 void Camera::bind_camera_lock_key() {
-    input_manager->bind_callback(GLFW_KEY_F1, EActivationType::PRESS_ONCE, [&](const float deltaTime) {
+    input_manager->bind_callback(ZRX_GLFW_KEY_F1, EActivationType::PRESS_ONCE, [&](const float deltaTime) {
         (void) deltaTime;
         if (is_locked_cam) {
             return;
@@ -197,7 +198,7 @@ void Camera::bind_camera_lock_key() {
 }
 
 void Camera::bind_mouse_drag_callback() {
-    input_manager->bind_mouse_drag_callback(GLFW_MOUSE_BUTTON_LEFT, [&](const double dx, const double dy) {
+    input_manager->bind_mouse_drag_callback(ZRX_GLFW_MOUSE_BUTTON_LEFT, [&](const double dx, const double dy) {
         if (is_locked_cam) {
             static constexpr float speed = 0.003;
 
@@ -210,25 +211,25 @@ void Camera::bind_mouse_drag_callback() {
 }
 
 void Camera::bind_freecam_rotation_keys() {
-    input_manager->bind_callback(GLFW_KEY_UP, EActivationType::PRESS_ANY, [&](const float delta_time) {
+    input_manager->bind_callback(ZRX_GLFW_KEY_UP, EActivationType::PRESS_ANY, [&](const float delta_time) {
         if (!is_locked_cam) {
             rotator += glm::vec2(0, delta_time * rotation_speed);
         }
     });
 
-    input_manager->bind_callback(GLFW_KEY_DOWN, EActivationType::PRESS_ANY, [&](const float delta_time) {
+    input_manager->bind_callback(ZRX_GLFW_KEY_DOWN, EActivationType::PRESS_ANY, [&](const float delta_time) {
         if (!is_locked_cam) {
             rotator -= glm::vec2(0, delta_time * rotation_speed);
         }
     });
 
-    input_manager->bind_callback(GLFW_KEY_RIGHT, EActivationType::PRESS_ANY, [&](const float delta_time) {
+    input_manager->bind_callback(ZRX_GLFW_KEY_RIGHT, EActivationType::PRESS_ANY, [&](const float delta_time) {
         if (!is_locked_cam) {
             rotator -= glm::vec2(delta_time * rotation_speed, 0);
         }
     });
 
-    input_manager->bind_callback(GLFW_KEY_LEFT, EActivationType::PRESS_ANY, [&](const float delta_time) {
+    input_manager->bind_callback(ZRX_GLFW_KEY_LEFT, EActivationType::PRESS_ANY, [&](const float delta_time) {
         if (!is_locked_cam) {
             rotator += glm::vec2(delta_time * rotation_speed, 0);
         }
@@ -236,37 +237,37 @@ void Camera::bind_freecam_rotation_keys() {
 }
 
 void Camera::bind_freecam_movement_keys() {
-    input_manager->bind_callback(GLFW_KEY_W, EActivationType::PRESS_ANY, [&](const float delta_time) {
+    input_manager->bind_callback(ZRX_GLFW_KEY_W, EActivationType::PRESS_ANY, [&](const float delta_time) {
         if (!is_locked_cam) {
             pos += front * delta_time * movement_speed; // Move forward
         }
     });
 
-    input_manager->bind_callback(GLFW_KEY_S, EActivationType::PRESS_ANY, [&](const float delta_time) {
+    input_manager->bind_callback(ZRX_GLFW_KEY_S, EActivationType::PRESS_ANY, [&](const float delta_time) {
         if (!is_locked_cam) {
             pos -= front * delta_time * movement_speed; // Move backward
         }
     });
 
-    input_manager->bind_callback(GLFW_KEY_D, EActivationType::PRESS_ANY, [&](const float delta_time) {
+    input_manager->bind_callback(ZRX_GLFW_KEY_D, EActivationType::PRESS_ANY, [&](const float delta_time) {
         if (!is_locked_cam) {
             pos += right * delta_time * movement_speed; // Strafe right
         }
     });
 
-    input_manager->bind_callback(GLFW_KEY_A, EActivationType::PRESS_ANY, [&](const float delta_time) {
+    input_manager->bind_callback(ZRX_GLFW_KEY_A, EActivationType::PRESS_ANY, [&](const float delta_time) {
         if (!is_locked_cam) {
             pos -= right * delta_time * movement_speed; // Strafe left
         }
     });
 
-    input_manager->bind_callback(GLFW_KEY_SPACE, EActivationType::PRESS_ANY, [&](const float delta_time) {
+    input_manager->bind_callback(ZRX_GLFW_KEY_SPACE, EActivationType::PRESS_ANY, [&](const float delta_time) {
         if (!is_locked_cam) {
             pos += glm::vec3(0, 1, 0) * delta_time * movement_speed; // Fly upwards
         }
     });
 
-    input_manager->bind_callback(GLFW_KEY_LEFT_SHIFT, EActivationType::PRESS_ANY, [&](const float delta_time) {
+    input_manager->bind_callback(ZRX_GLFW_KEY_LEFT_SHIFT, EActivationType::PRESS_ANY, [&](const float delta_time) {
         if (!is_locked_cam) {
             pos -= glm::vec3(0, 1, 0) * delta_time * movement_speed; // Fly downwards
         }

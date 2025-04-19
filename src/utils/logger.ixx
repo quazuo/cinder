@@ -1,10 +1,10 @@
 module;
 
-#include "src/render/globals.hpp"
-
 export module Cinder.Utils:Logger;
 
 import std;
+
+import Cinder.Globals;
 
 export namespace zrx {
 enum class LogLevel : uint8_t {

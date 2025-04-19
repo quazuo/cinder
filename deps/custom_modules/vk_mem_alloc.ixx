@@ -5,6 +5,8 @@ module;
 export module VkMemAlloc;
 
 export {
+    using ::VmaAllocator_T;
+    using ::VmaAllocation_T;
     using ::VmaAllocator;
     using ::VmaAllocation;
 

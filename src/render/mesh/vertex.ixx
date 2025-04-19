@@ -1,13 +1,14 @@
-#pragma once
+module;
 
-#include "src/render/libs.hpp"
-#include "src/render/globals.hpp"
+export module Cinder.Render.Mesh:Vertex;
 
 import std;
 import glm;
 import vulkan_hpp;
 
-namespace zrx {
+import Cinder.Globals;
+
+export namespace zrx {
 template<typename T>
 concept VertexLike = requires {
     { T::get_binding_descriptions() } -> std::same_as<vector<vk::VertexInputBindingDescription>>;
@@ -44,7 +45,7 @@ struct SkyboxVertex {
 
 // vertices of the skybox cube.
 // might change this to be generated in a more smart way... but it's good enough for now
-static const vector<SkyboxVertex> skybox_vertices = {
+const vector<SkyboxVertex> skybox_vertices = {
     {{-1.0f, 1.0f, -1.0f}},
     {{-1.0f, -1.0f, -1.0f}},
     {{1.0f, -1.0f, -1.0f}},
@@ -97,7 +98,7 @@ struct ScreenSpaceQuadVertex {
     static vector<vk::VertexInputAttributeDescription> get_attribute_descriptions();
 };
 
-static const vector<ScreenSpaceQuadVertex> screen_space_quad_vertices = {
+const vector<ScreenSpaceQuadVertex> screen_space_quad_vertices = {
     {{-1, -1}, {0, 1}},
     {{1, -1}, {1, 1}},
     {{1, 1}, {1, 0}},

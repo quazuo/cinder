@@ -1,8 +1,12 @@
-#include "resource-manager.hpp"
+module;
 
-#include "vk/buffer.hpp"
-#include "vk/image.hpp"
-#include "mesh/model.hpp"
+module Cinder.Render.Graph;
+
+import std;
+
+import Cinder.Render.Vulkan;
+import Cinder.Render.Mesh;
+import Cinder.Globals;
 
 namespace zrx {
 ResourceManager::ResourceManager(const uint32_t max_bindless_handles) {

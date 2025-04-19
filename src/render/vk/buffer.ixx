@@ -1,13 +1,17 @@
-#pragma once
+module;
 
-#include "src/render/libs.hpp"
-#include "src/render/globals.hpp"
-#include "ctx.hpp"
+export module Cinder.Render.Vulkan:Buffer;
 
 import VkMemAlloc;
-import Cinder.Utils;
+import std;
+import cvulkan;
 
-namespace zrx {
+import Cinder.Utils;
+import :Context;
+
+import Cinder.Globals;
+
+export namespace zrx {
 /**
  * Abstraction over a Vulkan buffer, making it easier to manage by hiding all the Vulkan API calls.
  * These buffers are allocated using VMA and are currently suited mostly for two scenarios: first,

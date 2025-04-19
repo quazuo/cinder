@@ -1,12 +1,12 @@
-#include "image.hpp"
+module;
 
-#include "buffer.hpp"
-#include "cmd.hpp"
-#include "ctx.hpp"
+module Cinder.Render.Vulkan;
 
-import StbImage;
-import vulkan_hpp;
 import std;
+import vulkan_hpp;
+import StbImage;
+
+import Cinder.Globals;
 
 struct ImageBarrierInfo {
     vk::AccessFlagBits src_access_mask;

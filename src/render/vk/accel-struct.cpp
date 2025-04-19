@@ -1,10 +1,9 @@
-#include "accel-struct.hpp"
+module;
 
-#include "buffer.hpp"
+module Cinder.Render.Vulkan;
+
+import :Buffer;
 
 namespace zrx {
-AccelerationStructure::AccelerationStructure(unique_ptr<vk::raii::AccelerationStructureKHR> &&handle,
-                                             unique_ptr<Buffer> &&buffer)
-    : handle(std::move(handle)), buffer(std::move(buffer)) {
-}
-}
+
+} // zrx

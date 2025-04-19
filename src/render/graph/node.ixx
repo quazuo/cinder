@@ -1,19 +1,16 @@
 module;
 
-#include "src/render/mesh/model.hpp"
-#include "src/render/vk/image.hpp"
-#include "src/render/vk/buffer.hpp"
-#include "src/render/resource-manager.hpp"
-
 export module Cinder.Render.Graph:Node;
 
+import std;
+
+import Cinder.Render.Vulkan;
+import Cinder.Render.Mesh;
+import Cinder.Globals;
 import :Resource;
+import :ResourceManager;
 
 export namespace zrx {
-class DescriptorSet;
-class GraphicsPipeline;
-class ComputePipeline;
-
 using RenderNodeHandle = uint32_t;
 
 class RenderPassContext {

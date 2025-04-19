@@ -1,7 +1,12 @@
-#include "buffer.hpp"
+module;
 
-#include "src/render/mesh/vertex.hpp"
-#include "cmd.hpp"
+module Cinder.Render.Vulkan;
+
+import vulkan_hpp;
+import cvulkan;
+
+import Cinder.Render.Mesh;
+import :Command;
 
 namespace zrx {
 Buffer::Buffer(const VmaAllocator _allocator, const vk::DeviceSize size, const vk::BufferUsageFlags usage,

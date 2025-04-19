@@ -1,11 +1,11 @@
 module;
 
-#include "src/render/globals.hpp"
-
 export module Cinder.Utils:Spirv;
 
 import SpirvReflect;
 import std;
+
+import Cinder.Globals;
 
 export namespace zrx {
 class SpirvReflectModuleWrapper {

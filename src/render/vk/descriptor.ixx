@@ -1,17 +1,18 @@
-#pragma once
+module;
 
-#include "src/render/libs.hpp"
-#include "src/render/globals.hpp"
-#include "buffer.hpp"
-#include "image.hpp"
-#include "accel-struct.hpp"
-#include "ctx.hpp"
+export module Cinder.Render.Vulkan:Descriptor;
 
+import vulkan_hpp;
 import std;
-import Cinder.Utils;
-import Cinder.Render.Graph;
 
-namespace zrx {
+import :Image;
+import :Buffer;
+import :AccelStruct;
+import :Context;
+
+import Cinder.Globals;
+
+export namespace zrx {
 template<typename ResourceType>
 struct DefaultDescriptorType {
 };

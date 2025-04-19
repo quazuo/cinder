@@ -1,11 +1,13 @@
-#pragma once
+module;
 
-#include "src/render/libs.hpp"
-#include "src/render/globals.hpp"
+export module Cinder.Render.Vulkan:Command;
 
 import vulkan_hpp;
+import std;
 
-namespace zrx {
+import Cinder.Globals;
+
+export namespace zrx {
 struct RendererContext;
 
 struct SecondaryCommandBuffer {

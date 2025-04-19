@@ -1,10 +1,10 @@
-#include "model.hpp"
+module;
 
-#include "vertex.hpp"
-#include "src/render/renderer.hpp"
-#include "src/render/vk/image.hpp"
-#include "src/render/vk/buffer.hpp"
-#include "src/render/vk/cmd.hpp"
+module Cinder.Render.Mesh;
+
+import Cinder.Utils;
+import Cinder.Render.Vulkan;
+import :Vertex;
 
 namespace zrx {
 static glm::vec3 assimp_vec_to_glm(const aiVector3D &v) {

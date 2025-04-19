@@ -1,14 +1,14 @@
-#pragma once
+module;
 
-#include "globals.hpp"
+export module Cinder.Render.Graph:ResourceManager;
 
 import std;
 
-namespace zrx {
-class Buffer;
-class Texture;
-class Model;
+import Cinder.Render.Vulkan;
+import Cinder.Render.Mesh;
+import Cinder.Globals;
 
+export namespace zrx {
 class ResourceManager {
     std::map<ResourceHandle, unique_ptr<Buffer> > buffers;
     std::map<ResourceHandle, unique_ptr<Texture> > textures;

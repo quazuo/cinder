@@ -1,14 +1,17 @@
-#pragma once
+module;
 
-#include "src/render/libs.hpp"
-#include "src/render/globals.hpp"
-#include "src/render/mesh/vertex.hpp"
+export module Cinder.Render.Vulkan:Pipeline;
 
-namespace zrx {
-class SpirvReflectModuleWrapper;
-struct RendererContext;
-class Buffer;
+import vulkan_hpp;
+import std;
 
+import Cinder.Utils;
+import Cinder.Globals;
+import :Buffer;
+import :Image;
+import :Context;
+
+export namespace zrx {
 /**
  * Convenience wrappers around Vulkan pipelines, mainly to pair them together with related layouts.
  * Might be extended in the future as it's very bare-bones at this moment.

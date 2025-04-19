@@ -1,8 +1,14 @@
-#include "ctx.hpp"
+module;
 
-#include <vulkan/vulkan_core.h>
+module Cinder.Render.Vulkan;
+
+import std;
+import vulkan_hpp;
+import cvulkan;
 
 import VkMemAlloc;
+
+import Cinder.Globals;
 
 namespace zrx {
 VmaAllocatorWrapper::VmaAllocatorWrapper(const vk::PhysicalDevice physical_device, const vk::Device device,

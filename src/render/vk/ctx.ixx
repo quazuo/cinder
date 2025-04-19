@@ -1,13 +1,14 @@
-#pragma once
+module;
 
-#include "src/render/libs.hpp"
-#include "src/render/globals.hpp"
+export module Cinder.Render.Vulkan:Context;
 
+import VkMemAlloc;
 import vulkan_hpp;
+import std;
 
-struct VmaAllocator_T;
+import Cinder.Globals;
 
-namespace zrx {
+export namespace zrx {
 /**
  * Simple RAII-preserving wrapper class for the VMA allocator.
  */
@@ -36,10 +37,10 @@ public:
  * to get access to these.
  */
 struct RendererContext {
-    unique_ptr<vk::raii::PhysicalDevice> physical_device;
-    unique_ptr<vk::raii::Device> device;
-    unique_ptr<vk::raii::CommandPool> command_pool;
-    unique_ptr<vk::raii::Queue> graphics_queue;
-    unique_ptr<VmaAllocatorWrapper> allocator;
+    unique_ptr<vk::raii::PhysicalDevice> physical_device{};
+    unique_ptr<vk::raii::Device> device{};
+    unique_ptr<vk::raii::CommandPool> command_pool{};
+    unique_ptr<vk::raii::Queue> graphics_queue{};
+    unique_ptr<VmaAllocatorWrapper> allocator{};
 };
 } // zrx

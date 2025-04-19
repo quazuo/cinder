@@ -1,12 +1,12 @@
 module;
 
-#include "src/render/libs.hpp"
-
 export module Cinder.Utils:InputManager;
 
 import glm;
 import std;
 import glfw;
+
+import Cinder.Globals;
 
 export namespace zrx {
 enum class EActivationType {

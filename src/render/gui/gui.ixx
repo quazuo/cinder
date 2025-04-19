@@ -1,12 +1,12 @@
-#pragma once
+module;
 
-#include "src/render/libs.hpp"
+export module Cinder.Render.Gui;
 
 import Imgui;
 import vulkan_hpp;
 import glfw;
 
-namespace zrx {
+export namespace zrx {
 class GuiRenderer {
     GLFWwindow *window;
 

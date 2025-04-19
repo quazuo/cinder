@@ -1,4 +1,6 @@
-#include "vertex.hpp"
+module;
+
+module Cinder.Render.Mesh;
 
 #define offsetof(s,m) ((::size_t)&reinterpret_cast<char const volatile&>((((s*)0)->m)))
 

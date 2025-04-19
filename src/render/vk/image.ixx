@@ -1,26 +1,30 @@
-#pragma once
+module;
 
 #define VULKAN_HPP_ENABLE_STD_MODULE
 #define VULKAN_HPP_STD_MODULE
 #include <vulkan/vulkan_hpp_macros.hpp>
 
-#include "src/render/libs.hpp"
-#include "src/render/globals.hpp"
+export module Cinder.Render.Vulkan:Image;
 
 import VkMemAlloc;
-import std;
 import vulkan_hpp;
+import std;
+
+import :Buffer;
+import :Context;
+
+import Cinder.Globals;
 
 // for these bits, we're leveraging the already available flag system from vulkan-hpp.
 // for this reason, the following code needs to be in the vulkan-hpp namespace.
-namespace VULKAN_HPP_NAMESPACE {
+export namespace VULKAN_HPP_NAMESPACE {
 enum class TextureFlagBitsZRX : uint32_t {
     CUBEMAP = 1 << 0,
     HDR     = 1 << 1,
     MIPMAPS = 1 << 2,
 };
 
-using TextureFlagsZRX = Flags<TextureFlagBitsZRX>;
+using TextureFlagsZRX = vk::Flags<TextureFlagBitsZRX>;
 
 template<>
 struct FlagTraits<TextureFlagBitsZRX> {
@@ -28,9 +32,9 @@ struct FlagTraits<TextureFlagBitsZRX> {
     static VULKAN_HPP_CONST_OR_CONSTEXPR TextureFlagsZRX allFlags =
             TextureFlagBitsZRX::CUBEMAP | TextureFlagBitsZRX::HDR | TextureFlagBitsZRX::MIPMAPS;
 };
-}
+} // VULKAN_HPP_NAMESPACE
 
-namespace zrx {
+export namespace zrx {
 /**
  * Parameters defining which mip levels and layers of a given image are available for a given view.
  * This struct is used mainly for caching views to eliminate creating multiple identical views.
@@ -62,10 +66,7 @@ struct std::hash<zrx::ViewParams> {
     }
 };
 
-namespace zrx {
-class Buffer;
-struct RendererContext;
-
+export namespace zrx {
 /**
  * Abstraction over a Vulkan image, making it easier to manage by hiding all the Vulkan API calls.
  * These images are allocated using VMA and as such are not suited for swap chain images.
@@ -223,7 +224,7 @@ enum class SwizzleComponent {
 
 using SwizzleDesc = std::array<SwizzleComponent, 4>;
 
-static constexpr SwizzleDesc default_swizzle = {
+constexpr SwizzleDesc default_swizzle = {
     SwizzleComponent::R,
     SwizzleComponent::G,
     SwizzleComponent::B,

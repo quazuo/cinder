@@ -1,11 +1,17 @@
-#include "pipeline.hpp"
+module;
 
-#include "src/render/mesh/vertex.hpp"
-#include "ctx.hpp"
-#include "buffer.hpp"
+module Cinder.Render.Vulkan;
 
+import std;
+import vulkan_hpp;
 import SpirvReflect;
+
 import Cinder.Utils;
+import :Buffer;
+import :Image;
+import :Context;
+
+import Cinder.Globals;
 
 namespace zrx {
 static vk::raii::ShaderModule create_shader_module(const RendererContext &ctx, const std::filesystem::path &path) {

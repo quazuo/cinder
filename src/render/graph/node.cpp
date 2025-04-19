@@ -1,10 +1,10 @@
 module;
 
-#include "src/render/vk/pipeline.hpp"
-
 module Cinder.Render.Graph;
 
 import Cinder.Utils;
+import Cinder.Render;
+import Cinder.Render.Vulkan;
 
 namespace zrx {
 void RenderPassContext::bind_pipeline(const ResourceHandle pipeline_handle) {

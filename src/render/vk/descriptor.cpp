@@ -1,8 +1,16 @@
-#include "descriptor.hpp"
+module;
 
-#include "src/render/renderer.hpp"
-#include "buffer.hpp"
-#include "image.hpp"
+module Cinder.Render.Vulkan;
+
+import std;
+import vulkan_hpp;
+
+import :Context;
+import :Image;
+import :Buffer;
+import :AccelStruct;
+
+import Cinder.Globals;
 
 namespace zrx {
 DescriptorLayoutBuilder &

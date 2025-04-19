@@ -1,14 +1,16 @@
-#pragma once
+module;
 
-#include "libs.hpp"
-#include "globals.hpp"
+export module Cinder.Render:Camera;
+
+import glm;
+import std;
+import glfw;
 
 import Cinder.Utils;
-import glm;
 
-struct GLFWwindow;
+import Cinder.Globals;
 
-namespace zrx {
+export namespace zrx {
 class Rotator {
     glm::vec2 rot = {0, 0};
 

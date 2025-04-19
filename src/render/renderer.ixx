@@ -1,63 +1,38 @@
-#pragma once
+module;
 
-#include <vulkan/vulkan_core.h>
-
-#include "libs.hpp"
-#include "globals.hpp"
-#include "vk/image.hpp"
-#include "vk/pipeline.hpp"
-#include "vk/ctx.hpp"
-#include "vk/descriptor.hpp"
+export module Cinder.Render:Renderer;
 
 import VkBootstrap;
-import Cinder.Render.Graph;
 import vulkan_hpp;
+import std;
+import glfw;
+import cvulkan;
 
-struct GLFWwindow;
+import Cinder.Utils;
+import Cinder.Render.Graph;
+import Cinder.Render.Vulkan;
+import Cinder.Render.Gui;
+import Cinder.Globals;
 
-static const vector device_extensions{
-    VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-    VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
-    VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
-    VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-    VK_KHR_MULTIVIEW_EXTENSION_NAME,
-    VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
-    VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
-    VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-    VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
+export const vector device_extensions{
+    ZRX_VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+    ZRX_VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
+    ZRX_VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
+    ZRX_VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
+    ZRX_VK_KHR_MULTIVIEW_EXTENSION_NAME,
+    ZRX_VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
+    ZRX_VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
+    ZRX_VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
+    ZRX_VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME
 };
 
 #ifdef NDEBUG
-constexpr bool ENABLE_VALIDATION_LAYERS = false;
+export constexpr bool ENABLE_VALIDATION_LAYERS = false;
 #else
-constexpr bool ENABLE_VALIDATION_LAYERS = true;
+export constexpr bool ENABLE_VALIDATION_LAYERS = true;
 #endif
 
-namespace zrx {
-class RenderTarget;
-class InputManager;
-class Model;
-class Buffer;
-class GraphicsPipeline;
-class SwapChain;
-class GuiRenderer;
-class AccelerationStructure;
-class Camera;
-class ResourceManager;
-
-struct QueueFamilyIndices {
-    std::optional<uint32_t> graphics_compute_family;
-    std::optional<uint32_t> present_family;
-
-    [[nodiscard]] bool isComplete() const {
-        return graphics_compute_family.has_value() && present_family.has_value();
-    }
-};
-
-struct ScenePushConstants {
-    uint32_t material_id;
-};
-
+export namespace zrx {
 class RenderInfo {
     vector<RenderTarget> color_targets;
     std::optional<RenderTarget> depth_target;
@@ -120,7 +95,7 @@ class VulkanRenderer {
 
     // other resources
 
-    using TimelineSemValueType = std::uint64_t;
+    using TimelineSemValueType = uint64_t;
 
     struct FrameResources {
         struct {

@@ -1,9 +1,14 @@
-#include "swapchain.hpp"
+module;
 
-#include "src/render/renderer.hpp"
-#include "ctx.hpp"
+module Cinder.Render.Vulkan;
 
+import std;
+import vulkan_hpp;
 import glfw;
+
+import :Queue;
+
+import Cinder.Globals;
 
 namespace zrx {
 SwapChainSupportDetails::SwapChainSupportDetails(const vk::raii::PhysicalDevice &physical_device,
@@ -122,7 +127,7 @@ void SwapChain::transition_to_present_layout(const vk::raii::CommandBuffer &comm
 
 std::pair<vk::Result, uint32_t> SwapChain::acquire_next_image(const vk::raii::Semaphore &semaphore) {
     try {
-        const auto &[result, image_index] = swap_chain->acquireNextImage(UINT64_MAX, *semaphore);
+        const auto &[result, image_index] = swap_chain->acquireNextImage(std::numeric_limits<uint64_t>::max(), *semaphore);
         current_image_index = image_index;
         return {result, image_index};
     } catch (...) {

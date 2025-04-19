@@ -1,11 +1,12 @@
 module;
 
-#include "src/render/globals.hpp"
-
 export module Cinder.Utils:FileType;
 
 import std;
+
 import :Logger;
+
+import Cinder.Globals;
 
 export namespace zrx {
 enum class FileType {

@@ -1,6 +1,6 @@
 #pragma once
 
-struct GLFWwindow;
+import glfw;
 
 namespace zrx {
 struct GlfwStaticUserData {

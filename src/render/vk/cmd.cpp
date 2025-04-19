@@ -1,6 +1,11 @@
-#include "cmd.hpp"
+module;
 
-#include "ctx.hpp"
+module Cinder.Render.Vulkan;
+
+import std;
+import vulkan_hpp;
+
+import :Context;
 
 namespace zrx {
 namespace utils::cmd {

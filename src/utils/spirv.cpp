@@ -1,12 +1,13 @@
 module;
 
-#include "src/render/globals.hpp"
-
 module Cinder.Utils;
 
 import std;
 import SpirvReflect;
+
 import :Logger;
+
+import Cinder.Globals;
 
 namespace zrx {
 static vector<char> read_file(const std::filesystem::path &path) {
