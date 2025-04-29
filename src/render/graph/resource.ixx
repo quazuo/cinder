@@ -19,46 +19,47 @@ concept ResourceLike = requires(T t) {
 };
 
 struct VertexBufferResourceDesc {
-    string name;
-    vk::DeviceSize size;
+    string name{};
+    vk::DeviceSize size = 0;
     const void *data;
 };
 
 struct UniformBufferResourceDesc {
-    string name;
-    vk::DeviceSize size;
+    string name{};
+    vk::DeviceSize size = 0;
 };
 
 struct ExternalTextureResourceDesc {
-    string name;
-    vector<std::filesystem::path> paths;
-    vk::Format format;
+    string name{};
+    vector<std::filesystem::path> paths{};
+    vk::Format format{};
     vk::TextureFlagsZRX flags = vk::TextureFlagBitsZRX::MIPMAPS;
     std::optional<SwizzleDesc> swizzle{};
 };
 
 struct TargetTextureResourceDesc {
-    string name;
-    vk::Format format;
+    string name{};
+    vk::Format format{};
     vk::Extent2D extent = {0, 0}; // {0, 0} means we're using the swapchain image's extent
     vk::TextureFlagsZRX flags = vk::TextureFlagBitsZRX::MIPMAPS;
 };
 
 struct TransientTextureResourceDesc {
-    string name;
-    vk::Format format;
+    string name{};
+    vk::Format format{};
     vk::Extent2D extent = {0, 0}; // {0, 0} means we're using the swapchain image's extent
     vk::TextureFlagsZRX flags{};
 };
 
 struct ModelResourceDesc {
-    string name;
-    std::filesystem::path path;
+    string name{};
+    std::filesystem::path path{};
 };
 
 // basically same purpose as std::monostate but with a specific name
-struct FinalImageFormatPlaceholder {
-};
+struct FinalImageFormatPlaceholder {};
+
+constexpr auto FINAL_FORMAT = FinalImageFormatPlaceholder();
 
 enum class ShaderBindingType {
     Empty,

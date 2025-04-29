@@ -14,21 +14,6 @@ import Cinder.Render.Gui;
 import Cinder.Render.Mesh;
 import Cinder.Globals;
 
-// #define GLFW_INCLUDE_VULKAN
-// #include <GLFW/glfw3.h>
-//
-// #define GLFW_EXPOSE_NATIVE_WIN32
-// #define NOMINMAX 1
-// #include <GLFW/glfw3native.h>
-
-// #define VULKAN_HPP_ENABLE_STD_MODULE
-// #define VULKAN_HPP_STD_MODULE
-// #include <vulkan/vulkan_hpp_macros.hpp>
-
-#if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1
-VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
-#endif
-
 struct GraphicsUBO {
     struct WindowRes {
         uint32_t window_width;
@@ -277,8 +262,8 @@ private:
             .fragment_path = "../shaders/obj/skybox-frag.spv",
             .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
             .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
-            .color_formats = {FinalImageFormatPlaceholder()},
-            .depth_format = FinalImageFormatPlaceholder(),
+            .color_formats = {FINAL_FORMAT},
+            .depth_format = FINAL_FORMAT,
             .custom_properties = {
                 .depth_compare_op = vk::CompareOp::eLessOrEqual,
             }
@@ -289,8 +274,8 @@ private:
             .fragment_path = "../shaders/obj/main-frag.spv",
             .binding_descriptions = ModelVertex::get_binding_descriptions(),
             .attr_descriptions = ModelVertex::get_attribute_descriptions(),
-            .color_formats = {FinalImageFormatPlaceholder()},
-            .depth_format = FinalImageFormatPlaceholder()
+            .color_formats = {FINAL_FORMAT},
+            .depth_format = FINAL_FORMAT
         });
 
         // ================== nodes ==================
@@ -337,12 +322,25 @@ private:
 
         render_graph.add_node({
             .name = "main",
-            .bound_resources = {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture, skybox_texture},
+            .bound_resources = {
+                uniform_buffer,
+                ssao_texture,
+                base_color_texture,
+                normal_texture,
+                orm_texture,
+                skybox_texture
+            },
             .color_targets = {FINAL_IMAGE_RESOURCE_HANDLE},
             .depth_target = FINAL_IMAGE_RESOURCE_HANDLE,
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(main_shaders);
-                ctx.bind_resources({uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture});
+                ctx.bind_resources({
+                    uniform_buffer,
+                    ssao_texture,
+                    base_color_texture,
+                    normal_texture,
+                    orm_texture
+                });
                 ctx.draw_model(scene_model);
 
                 ctx.bind_pipeline(skybox_shaders);
@@ -408,7 +406,7 @@ private:
             graphics_ubo.matrices.cubemap_capture_views[i] = cubemap_face_views[i];
         }
 
-        memcpy(buffer.map(), &graphics_ubo, sizeof(graphics_ubo));
+        std::memcpy(buffer.map(), &graphics_ubo, sizeof(graphics_ubo));
     }
 
     void bind_key_actions() {
@@ -639,18 +637,18 @@ private:
 }
 
 static void show_error_box(const string &message) {
-    // MessageBox(
-    //     nullptr,
-    //     static_cast<LPCSTR>(message.c_str()),
-    //     static_cast<LPCSTR>("Error"),
-    //     MB_OK
-    // );
+    MessageBoxA(
+        nullptr,
+        static_cast<LPCSTR>(message.c_str()),
+        static_cast<LPCSTR>("Error"),
+        WIN_MB_OK
+    );
 }
 
 int main() {
     if (!glfwInit()) {
         show_error_box("Fatal error: GLFW initialization failed.");
-        return 1; //EXIT_FAILURE;
+        return WIN_EXIT_FAILURE;
     }
 
 #ifdef NDEBUG
@@ -660,7 +658,7 @@ int main() {
     } catch (std::exception &e) {
         show_error_box(string("Fatal error: ") + e.what());
         glfw_terminate();
-        return EXIT_FAILURE;
+        return WIN_EXIT_FAILURE;
     }
 #else
     zrx::Engine engine;
@@ -669,5 +667,5 @@ int main() {
 
     glfwTerminate();
 
-    return 0; // EXIT_SUCCESS;
+    return WIN_EXIT_SUCCESS;
 }

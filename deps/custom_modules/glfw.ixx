@@ -180,4 +180,14 @@ export {
     constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_LEFT = GLFW_MOUSE_BUTTON_LEFT;
     constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_RIGHT = GLFW_MOUSE_BUTTON_RIGHT;
     constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_MIDDLE = GLFW_MOUSE_BUTTON_MIDDLE;
+
+    /* Windows */
+
+    using ::LPCSTR;
+    using ::MessageBoxA;
+
+    /* Other macros */
+    constexpr uint32_t WIN_MB_OK = MB_OK;
+    constexpr uint32_t WIN_EXIT_FAILURE = EXIT_FAILURE;
+    constexpr uint32_t WIN_EXIT_SUCCESS = EXIT_SUCCESS;
 }
