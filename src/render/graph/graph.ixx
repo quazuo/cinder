@@ -51,6 +51,8 @@ public:
 
     [[nodiscard]] vector<RenderNodeHandle> get_topo_sorted() const;
 
+    [[nodiscard]] vector<vector<RenderNodeHandle>> get_partitioned() const;
+
     RenderNodeHandle add_node(const RenderNode &node);
 
     [[nodiscard]] ResourceHandle add_resource(VertexBufferResourceDesc &&resource);

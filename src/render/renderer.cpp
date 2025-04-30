@@ -16,44 +16,6 @@ import Cinder.Render.Graph;
 import Cinder.Render.Mesh;
 import Cinder.Globals;
 
-/**
- * Information held in the fragment shader's uniform buffer.
- * This (obviously) has to exactly match the corresponding definition in the fragment shader.
- */
-struct GraphicsUBO {
-    struct WindowRes {
-        uint32_t window_width;
-        uint32_t window_height;
-    };
-
-    struct Matrices {
-        glm::mat4 model;
-        glm::mat4 view;
-        glm::mat4 proj;
-        glm::mat4 view_inverse;
-        glm::mat4 proj_inverse;
-        glm::mat4 vp_inverse;
-        glm::mat4 static_view;
-        glm::mat4 cubemap_capture_views[6];
-        glm::mat4 cubemap_capture_proj;
-    };
-
-    struct MiscData {
-        float debug_number;
-        float z_near;
-        float z_far;
-        uint32_t use_ssao;
-        float light_intensity;
-        glm::vec3 light_dir;
-        glm::vec3 light_color;
-        glm::vec3 camera_pos;
-    };
-
-    alignas(16) WindowRes window{};
-    alignas(16) Matrices matrices{};
-    alignas(16) MiscData misc{};
-};
-
 namespace zrx {
 VulkanRenderer::VulkanRenderer() {
     constexpr int INIT_WINDOW_WIDTH = 1200;
@@ -281,8 +243,10 @@ void VulkanRenderer::recreate_swap_chain() {
         get_msaa_sample_count()
     );
 
-    for (auto& node: render_graph_info.topo_sorted_nodes) {
-        node.render_infos = create_node_render_infos(node.handle);
+    for (auto& partition: render_graph_info.partitioned_nodes) {
+        for (auto& node_resources: partition) {
+            node_resources.render_infos = create_node_render_infos(node_resources.handle);
+        }
     }
 }
 
@@ -545,17 +509,20 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
 
     create_render_graph_resources();
 
-    const auto topo_sorted_handles = render_graph_info.render_graph->get_topo_sorted();
-    const uint32_t n_nodes = topo_sorted_handles.size();
+    const auto partitioned_handles = render_graph_info.render_graph->get_partitioned();
+    const uint32_t n_nodes = render_graph_info.render_graph->nodes().size();
 
-    for (uint32_t i = 0; i < n_nodes; i++) {
-        const auto node_handle = topo_sorted_handles[i];
-        auto render_infos = create_node_render_infos(node_handle);
+    for (const auto& partition: partitioned_handles) {
+        vector<RenderNodeResources> node_resources;
 
-        render_graph_info.topo_sorted_nodes.emplace_back(RenderNodeResources{
-            .handle = node_handle,
-            .render_infos = std::move(render_infos),
-        });
+        for (const auto& handle: partition) {
+            node_resources.emplace_back(RenderNodeResources{
+                .handle = handle,
+                .render_infos = create_node_render_infos(handle),
+            });
+        }
+
+        render_graph_info.partitioned_nodes.emplace_back(std::move(node_resources));
     }
 
     repeated_frame_begin_actions = render_graph_info.render_graph->frame_begin_callbacks();
@@ -837,9 +804,17 @@ void VulkanRenderer::record_graph_commands() const {
 
     swap_chain->transition_to_attachment_layout(command_buffer);
 
-    for (const auto &node_resources: render_graph_info.topo_sorted_nodes) {
-        if (should_run_node_pass(node_resources.handle)) {
-            record_node_commands(node_resources);
+    for (size_t i = 0; i < render_graph_info.partitioned_nodes.size(); i++) {
+        const auto& curr_partition = render_graph_info.partitioned_nodes[i];
+
+        if (i != 0) {
+            record_pre_partition_commands(curr_partition);
+        }
+
+        for (const auto &node_resources: curr_partition) {
+            if (should_run_node_pass(node_resources.handle)) {
+                record_node_commands(node_resources);
+            }
         }
     }
 
@@ -941,6 +916,41 @@ void VulkanRenderer::record_pre_sample_commands(const RenderNodeResources &node_
     }
 }
 
+void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeResources> &partition) const {
+    // todo
+
+    const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
+
+    // todo: these need to be elevated somewhere bcs of dangling pointers (maybe held in some renderer per-frame state)
+    vector<vk::MemoryBarrier2> memory_barriers;
+    vector<vk::BufferMemoryBarrier2> buffer_memory_barriers;
+    vector<vk::ImageMemoryBarrier2> image_memory_barriers;
+
+    vector<ResourceHandle> sampled_resources;
+    for (const auto& node_resources: partition) {
+        const auto& node_info = render_graph_info.render_graph->nodes().at(node_resources.handle);
+
+        for (const auto color_target: node_info.bound_resources) {
+            sampled_resources.emplace_back(color_target);
+        }
+    }
+
+    for (const auto& sampled_resource: sampled_resources) {
+        // todo
+    }
+
+    command_buffer.pipelineBarrier2(vk::DependencyInfo{
+        .memoryBarrierCount = static_cast<uint32_t>(memory_barriers.size()),
+        .pMemoryBarriers = memory_barriers.data(),
+        .bufferMemoryBarrierCount = static_cast<uint32_t>(buffer_memory_barriers.size()),
+        .pBufferMemoryBarriers = buffer_memory_barriers.data(),
+        .imageMemoryBarrierCount = static_cast<uint32_t>(image_memory_barriers.size()),
+        .pImageMemoryBarriers = image_memory_barriers.data(),
+    });
+
+    Logger::error("unimplemented");
+}
+
 bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle handle) const {
     return render_graph_info.render_graph->nodes().at(handle)
             .get_all_targets_set()
@@ -950,11 +960,13 @@ bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle handle) const {
 bool VulkanRenderer::is_first_node_targetting_final_image(const RenderNodeHandle handle) const {
     if (!has_swapchain_target(handle)) return false;
 
-    auto first_it = std::ranges::find_if(render_graph_info.topo_sorted_nodes, [&](const RenderNodeResources &res) {
+    const auto flattened = std::ranges::join_view(render_graph_info.partitioned_nodes);
+
+    auto first_it = std::ranges::find_if(flattened, [&](const RenderNodeResources &res) {
         return has_swapchain_target(res.handle);
     });
 
-    return first_it == render_graph_info.topo_sorted_nodes.end() || first_it->handle == handle;
+    return first_it == flattened.end() || first_it->handle == handle;
 }
 
 bool VulkanRenderer::should_run_node_pass(const RenderNodeHandle handle) const {

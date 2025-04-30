@@ -43,21 +43,53 @@ vector<RenderNodeHandle> RenderGraph::get_topo_sorted() const {
     return result;
 }
 
+vector<vector<RenderNodeHandle>> RenderGraph::get_partitioned() const {
+    vector<vector<RenderNodeHandle>> partitions;
+
+    std::set<RenderNodeHandle> processed;
+    std::set<RenderNodeHandle> remaining;
+
+    for (const auto &[handle, _]: nodes_) {
+        remaining.emplace(handle);
+    }
+
+    while (!remaining.empty()) {
+        vector<RenderNodeHandle> next_partition;
+
+        for (const auto &handle: remaining) {
+            if (std::ranges::all_of(dependency_graph.at(handle), [&](const RenderNodeHandle &dep) {
+                return processed.contains(dep);
+            })) {
+                next_partition.emplace_back(handle);
+            }
+        }
+
+        for (const auto& handle: next_partition) {
+            remaining.erase(handle);
+            processed.emplace(handle);
+        }
+
+        partitions.emplace_back(std::move(next_partition));
+    }
+
+    return partitions;
+}
+
 RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
-    const auto handle = get_new_node_handle();
-    nodes_.emplace(handle, node);
+    const auto new_handle = get_new_node_handle();
+    nodes_.emplace(new_handle, node);
 
-    const auto targets_set = node.get_all_targets_set();
+    const auto new_targets_set = node.get_all_targets_set();
 
-    if (!detail::empty_intersection(targets_set, node.bound_resources)) {
+    if (!detail::empty_intersection(new_targets_set, node.bound_resources)) {
         Logger::error("invalid render node: cannot simultaneously use a target as a shader resource!");
     }
 
-    if (!detail::empty_intersection(targets_set, produced_resources)) {
+    if (!detail::empty_intersection(new_targets_set, produced_resources)) {
         Logger::error("invalid render node: each target can only be produced once!");
     }
 
-    for (const auto& res: targets_set) {
+    for (const auto& res: new_targets_set) {
         if (res != FINAL_IMAGE_RESOURCE_HANDLE && !empty_tex_resources_.contains(res)) {
             Logger::error("invalid render node: resource <{}> with invalid type specified as target for node <{}>",
                           resource_names.at(res), node.name);
@@ -76,8 +108,8 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
 
         // ...if any of the new node's targets is sampled in A,
         // then the new node is A's dependency.
-        if (!detail::empty_intersection(targets_set, other_node.bound_resources)) {
-            dependency_graph.at(other_handle).emplace(handle);
+        if (!detail::empty_intersection(new_targets_set, other_node.bound_resources)) {
+            dependency_graph.at(other_handle).emplace(new_handle);
         }
 
         // and if the new node samples any of A's targets,
@@ -87,11 +119,11 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
         }
     }
 
-    dependency_graph.emplace(handle, std::move(dependencies));
+    dependency_graph.emplace(new_handle, std::move(dependencies));
 
     check_dependency_cycles();
 
-    return handle;
+    return new_handle;
 }
 
 ResourceHandle RenderGraph::add_resource(VertexBufferResourceDesc &&resource) {

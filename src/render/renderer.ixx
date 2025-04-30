@@ -86,7 +86,7 @@ class VulkanRenderer {
 
     struct {
         unique_ptr<RenderGraph> render_graph;
-        vector<RenderNodeResources> topo_sorted_nodes;
+        vector<vector<RenderNodeResources>> partitioned_nodes;
     } render_graph_info;
 
     unique_ptr<ResourceManager> resource_manager;
@@ -235,6 +235,8 @@ private:
     void record_regenerate_mipmaps_commands(const RenderNodeResources &node_resources) const;
 
     void record_pre_sample_commands(const RenderNodeResources &node_resources) const;
+
+    void record_pre_partition_commands(const vector<RenderNodeResources> &partition) const;
 
     [[nodiscard]] bool has_swapchain_target(RenderNodeHandle handle) const;
 
