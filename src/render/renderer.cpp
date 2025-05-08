@@ -797,7 +797,7 @@ void VulkanRenderer::run_render_graph() {
     }
 }
 
-void VulkanRenderer::record_graph_commands() const {
+void VulkanRenderer::record_graph_commands() {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
 
     command_buffer.begin({});
@@ -916,15 +916,12 @@ void VulkanRenderer::record_pre_sample_commands(const RenderNodeResources &node_
     }
 }
 
-void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeResources> &partition) const {
-    // todo
-
+void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeResources> &partition) {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
 
     // todo: these need to be elevated somewhere bcs of dangling pointers (maybe held in some renderer per-frame state)
-    vector<vk::MemoryBarrier2> memory_barriers;
-    vector<vk::BufferMemoryBarrier2> buffer_memory_barriers;
-    vector<vk::ImageMemoryBarrier2> image_memory_barriers;
+    cached_barriers.emplace_back();
+    auto& barriers = cached_barriers.back();
 
     vector<ResourceHandle> sampled_resources;
     for (const auto& node_resources: partition) {
@@ -937,16 +934,11 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeResour
 
     for (const auto& sampled_resource: sampled_resources) {
         // todo
+
+        barriers.insert(...);
     }
 
-    command_buffer.pipelineBarrier2(vk::DependencyInfo{
-        .memoryBarrierCount = static_cast<uint32_t>(memory_barriers.size()),
-        .pMemoryBarriers = memory_barriers.data(),
-        .bufferMemoryBarrierCount = static_cast<uint32_t>(buffer_memory_barriers.size()),
-        .pBufferMemoryBarriers = buffer_memory_barriers.data(),
-        .imageMemoryBarrierCount = static_cast<uint32_t>(image_memory_barriers.size()),
-        .pImageMemoryBarriers = image_memory_barriers.data(),
-    });
+    barriers.record_cmd(command_buffer);
 
     Logger::error("unimplemented");
 }
@@ -1050,6 +1042,8 @@ bool VulkanRenderer::start_frame() {
     if (result != vk::Result::eSuccess && result != vk::Result::eSuboptimalKHR) {
         Logger::error("failed to acquire swap chain image!");
     }
+
+    cached_barriers.clear();
 
     return true;
 }

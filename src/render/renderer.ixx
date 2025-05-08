@@ -93,6 +93,8 @@ class VulkanRenderer {
     std::map<ResourceHandle, GraphicsPipeline> graphics_pipelines;
     std::map<ResourceHandle, ComputePipeline> compute_pipelines;
 
+    vector<PipelineBarrierWrapper> cached_barriers;
+
     // other resources
 
     using TimelineSemValueType = uint64_t;
@@ -226,7 +228,7 @@ private:
 
     [[nodiscard]] vector<RenderInfo> create_node_render_infos(RenderNodeHandle node_handle) const;
 
-    void record_graph_commands() const;
+    void record_graph_commands();
 
     void record_node_commands(const RenderNodeResources &node_resources) const;
 
@@ -236,7 +238,7 @@ private:
 
     void record_pre_sample_commands(const RenderNodeResources &node_resources) const;
 
-    void record_pre_partition_commands(const vector<RenderNodeResources> &partition) const;
+    void record_pre_partition_commands(const vector<RenderNodeResources> &partition);
 
     [[nodiscard]] bool has_swapchain_target(RenderNodeHandle handle) const;
 

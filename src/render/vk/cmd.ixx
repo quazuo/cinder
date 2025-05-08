@@ -17,6 +17,18 @@ struct SecondaryCommandBuffer {
     vk::raii::CommandBuffer& operator*() const { return *buffer; }
 };
 
+struct PipelineBarrierWrapper {
+    vector<vk::MemoryBarrier2> memory_barriers;
+    vector<vk::BufferMemoryBarrier2> buffer_memory_barriers;
+    vector<vk::ImageMemoryBarrier2> image_memory_barriers;
+
+    void insert(vk::MemoryBarrier2&& barrier)       { memory_barriers.emplace_back(barrier); }
+    void insert(vk::BufferMemoryBarrier2&& barrier) { buffer_memory_barriers.emplace_back(barrier); }
+    void insert(vk::ImageMemoryBarrier2&& barrier)  { image_memory_barriers.emplace_back(barrier); }
+
+    void record_cmd(const vk::raii::CommandBuffer& command_buffer) const;
+};
+
 namespace utils::cmd {
     /**
     * Allocates and begins a new command buffer which is supposed to be recorded once
@@ -25,8 +37,7 @@ namespace utils::cmd {
     * @param ctx Renderer context.
     * @return The created single-use command buffer.
     */
-    [[nodiscard]] vk::raii::CommandBuffer
-    begin_single_time_commands(const RendererContext& ctx);
+    [[nodiscard]] vk::raii::CommandBuffer begin_single_time_commands(const RendererContext& ctx);
 
     /**
     * Ends a single-time command buffer created beforehand by `beginSingleTimeCommands`.
@@ -44,7 +55,7 @@ namespace utils::cmd {
      * @param func Lambda containing commands with which the command buffer will be filled.
      */
     void do_single_time_commands(const RendererContext& ctx,
-                              const std::function<void(const vk::raii::CommandBuffer &)> &func);
+                                 const std::function<void(const vk::raii::CommandBuffer &)> &func);
 
     /**
      * Shorthand function to set all dynamic states used in rendering.

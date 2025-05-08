@@ -8,6 +8,17 @@ import vulkan_hpp;
 import :Context;
 
 namespace zrx {
+void PipelineBarrierWrapper::record_cmd(const vk::raii::CommandBuffer &command_buffer) const {
+    command_buffer.pipelineBarrier2(vk::DependencyInfo{
+        .memoryBarrierCount = static_cast<uint32_t>(memory_barriers.size()),
+        .pMemoryBarriers = memory_barriers.data(),
+        .bufferMemoryBarrierCount = static_cast<uint32_t>(buffer_memory_barriers.size()),
+        .pBufferMemoryBarriers = buffer_memory_barriers.data(),
+        .imageMemoryBarrierCount = static_cast<uint32_t>(image_memory_barriers.size()),
+        .pImageMemoryBarriers = image_memory_barriers.data(),
+    });
+}
+
 namespace utils::cmd {
     [[nodiscard]]
     vk::raii::CommandBuffer begin_single_time_commands(const RendererContext &ctx) {
