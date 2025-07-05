@@ -14,6 +14,21 @@ import Cinder.Render.Gui;
 import Cinder.Render.Mesh;
 import Cinder.Globals;
 
+// #define GLFW_INCLUDE_VULKAN
+// #include <GLFW/glfw3.h>
+//
+// #define GLFW_EXPOSE_NATIVE_WIN32
+// #define NOMINMAX 1
+// #include <GLFW/glfw3native.h>
+
+// #define VULKAN_HPP_ENABLE_STD_MODULE
+// #define VULKAN_HPP_STD_MODULE
+// #include <vulkan/vulkan_hpp_macros.hpp>
+
+#if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1
+VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
+#endif
+
 struct GraphicsUBO {
     struct WindowRes {
         uint32_t window_width;
@@ -56,9 +71,10 @@ class Engine {
 
     unique_ptr<Camera> camera;
 
+    float curr_delta_time = 0.0f;
     float last_time = 0.0f;
 
-    bool is_gui_enabled  = false;
+    bool is_gui_enabled  = true;
     bool show_debug_quad = false;
 
     ImGui::FileBrowser file_browser;
@@ -110,6 +126,7 @@ private:
         const auto current_time = static_cast<float>(glfwGetTime());
         const float delta_time  = current_time - last_time;
         last_time               = current_time;
+        curr_delta_time         = delta_time;
 
         input_manager->tick(delta_time);
         renderer.tick(delta_time);
@@ -262,8 +279,8 @@ private:
             .fragment_path = "../shaders/obj/skybox-frag.spv",
             .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
             .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
-            .color_formats = {FINAL_FORMAT},
-            .depth_format = FINAL_FORMAT,
+            .color_formats = {FinalImageFormatPlaceholder()},
+            .depth_format = FinalImageFormatPlaceholder(),
             .custom_properties = {
                 .depth_compare_op = vk::CompareOp::eLessOrEqual,
             }
@@ -274,8 +291,8 @@ private:
             .fragment_path = "../shaders/obj/main-frag.spv",
             .binding_descriptions = ModelVertex::get_binding_descriptions(),
             .attr_descriptions = ModelVertex::get_attribute_descriptions(),
-            .color_formats = {FINAL_FORMAT},
-            .depth_format = FINAL_FORMAT
+            .color_formats = {FinalImageFormatPlaceholder()},
+            .depth_format = FinalImageFormatPlaceholder()
         });
 
         // ================== nodes ==================
@@ -320,27 +337,14 @@ private:
             .should_run_predicate = [&] { return use_ssao; }
         });
 
-        render_graph.add_node({
+        const auto main_node = render_graph.add_node({
             .name = "main",
-            .bound_resources = {
-                uniform_buffer,
-                ssao_texture,
-                base_color_texture,
-                normal_texture,
-                orm_texture,
-                skybox_texture
-            },
+            .bound_resources = {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture, skybox_texture},
             .color_targets = {FINAL_IMAGE_RESOURCE_HANDLE},
             .depth_target = FINAL_IMAGE_RESOURCE_HANDLE,
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(main_shaders);
-                ctx.bind_resources({
-                    uniform_buffer,
-                    ssao_texture,
-                    base_color_texture,
-                    normal_texture,
-                    orm_texture
-                });
+                ctx.bind_resources({uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture});
                 ctx.draw_model(scene_model);
 
                 ctx.bind_pipeline(skybox_shaders);
@@ -349,6 +353,21 @@ private:
             },
         });
 
+        render_graph.add_node({
+            .name = "gui",
+            .bound_resources = {},
+            .color_targets = {FINAL_IMAGE_RESOURCE_HANDLE},
+            .body = [=](const RenderPassContext &ctx) {
+                renderer.get_gui_renderer().begin_rendering();
+                render_gui_section(curr_delta_time);
+                renderer.get_gui_renderer().end_rendering(ctx.get_raw_cmd_buffer());
+            },
+            .should_run_predicate = [&] { return is_gui_enabled; },
+            .explicit_dependencies = { main_node },
+        });
+
+        auto partitioned = render_graph.get_partitioned();
+        auto topo_sorted = render_graph.get_topo_sorted();
         renderer.register_render_graph(render_graph);
     }
 
@@ -637,18 +656,18 @@ private:
 }
 
 static void show_error_box(const string &message) {
-    MessageBoxA(
-        nullptr,
-        static_cast<LPCSTR>(message.c_str()),
-        static_cast<LPCSTR>("Error"),
-        WIN_MB_OK
-    );
+    // MessageBox(
+    //     nullptr,
+    //     static_cast<LPCSTR>(message.c_str()),
+    //     static_cast<LPCSTR>("Error"),
+    //     MB_OK
+    // );
 }
 
 int main() {
     if (!glfwInit()) {
         show_error_box("Fatal error: GLFW initialization failed.");
-        return WIN_EXIT_FAILURE;
+        return 1; //EXIT_FAILURE;
     }
 
 #ifdef NDEBUG
@@ -658,7 +677,7 @@ int main() {
     } catch (std::exception &e) {
         show_error_box(string("Fatal error: ") + e.what());
         glfw_terminate();
-        return WIN_EXIT_FAILURE;
+        return EXIT_FAILURE;
     }
 #else
     zrx::Engine engine;
@@ -667,5 +686,5 @@ int main() {
 
     glfwTerminate();
 
-    return WIN_EXIT_SUCCESS;
+    return 0; // EXIT_SUCCESS;
 }

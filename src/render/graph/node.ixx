@@ -33,6 +33,9 @@ public:
           bindless_set(bindless_set) {
     }
 
+    [[nodiscard]]
+    const vk::raii::CommandBuffer& get_raw_cmd_buffer() const { return command_buffer.get(); }
+
     void bind_pipeline(ResourceHandle pipeline_handle);
 
     void bind_resources(const std::vector<ResourceHandle>& handles);
@@ -58,6 +61,7 @@ struct RenderNode {
     std::optional<ResourceHandle> depth_target;
     RenderNodeBodyFn body;
     std::optional<ShouldRunPredicate> should_run_predicate;
+    std::vector<RenderNodeHandle> explicit_dependencies;
 
     struct CustomProperties {
         uint32_t multiview_count = 1;

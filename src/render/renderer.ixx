@@ -93,7 +93,7 @@ class VulkanRenderer {
     std::map<ResourceHandle, GraphicsPipeline> graphics_pipelines;
     std::map<ResourceHandle, ComputePipeline> compute_pipelines;
 
-    vector<PipelineBarrierWrapper> cached_barriers;
+    vector<PipelineBarrierPack> cached_barriers;
 
     // other resources
 

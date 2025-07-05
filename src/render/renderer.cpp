@@ -919,7 +919,6 @@ void VulkanRenderer::record_pre_sample_commands(const RenderNodeResources &node_
 void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeResources> &partition) {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
 
-    // todo: these need to be elevated somewhere bcs of dangling pointers (maybe held in some renderer per-frame state)
     cached_barriers.emplace_back();
     auto& barriers = cached_barriers.back();
 
@@ -935,7 +934,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeResour
     for (const auto& sampled_resource: sampled_resources) {
         // todo
 
-        barriers.insert(...);
+        // barriers.insert(...);
     }
 
     barriers.record_cmd(command_buffer);

@@ -119,6 +119,10 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
         }
     }
 
+    for (const auto& explicit_dep : node.explicit_dependencies) {
+        dependencies.emplace(explicit_dep);
+    }
+
     dependency_graph.emplace(new_handle, std::move(dependencies));
 
     check_dependency_cycles();

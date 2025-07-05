@@ -8,7 +8,7 @@ import vulkan_hpp;
 import :Context;
 
 namespace zrx {
-void PipelineBarrierWrapper::record_cmd(const vk::raii::CommandBuffer &command_buffer) const {
+void PipelineBarrierPack::record_cmd(const vk::raii::CommandBuffer &command_buffer) const {
     command_buffer.pipelineBarrier2(vk::DependencyInfo{
         .memoryBarrierCount = static_cast<uint32_t>(memory_barriers.size()),
         .pMemoryBarriers = memory_barriers.data(),

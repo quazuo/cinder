@@ -10,14 +10,7 @@ import Cinder.Globals;
 export namespace zrx {
 struct RendererContext;
 
-struct SecondaryCommandBuffer {
-    unique_ptr<vk::raii::CommandBuffer> buffer;
-    bool was_recorded_this_frame = false;
-
-    vk::raii::CommandBuffer& operator*() const { return *buffer; }
-};
-
-struct PipelineBarrierWrapper {
+struct PipelineBarrierPack {
     vector<vk::MemoryBarrier2> memory_barriers;
     vector<vk::BufferMemoryBarrier2> buffer_memory_barriers;
     vector<vk::ImageMemoryBarrier2> image_memory_barriers;
