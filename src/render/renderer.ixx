@@ -93,6 +93,7 @@ class VulkanRenderer {
     std::map<ResourceHandle, GraphicsPipeline> graphics_pipelines;
     std::map<ResourceHandle, ComputePipeline> compute_pipelines;
 
+    std::set<ResourceHandle> unbarriered_targets;
     vector<PipelineBarrierPack> cached_barriers;
 
     // other resources
@@ -251,6 +252,8 @@ private:
     [[nodiscard]] vk::Format get_target_color_format(ResourceHandle handle) const;
 
     [[nodiscard]] vk::Format get_target_depth_format(ResourceHandle handle) const;
+
+    [[nodiscard]] vector<ResourceHandle> get_target_handles(RenderNodeHandle node_handle) const;
 
     // ==================== render loop ====================
 

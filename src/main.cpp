@@ -366,8 +366,6 @@ private:
             .explicit_dependencies = { main_node },
         });
 
-        auto partitioned = render_graph.get_partitioned();
-        auto topo_sorted = render_graph.get_topo_sorted();
         renderer.register_render_graph(render_graph);
     }
 

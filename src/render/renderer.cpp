@@ -815,6 +815,11 @@ void VulkanRenderer::record_graph_commands() {
             if (should_run_node_pass(node_resources.handle)) {
                 record_node_commands(node_resources);
             }
+
+            for (const auto &target: get_target_handles(node_resources.handle)) {
+                // todo - ignore FINAL_IMAGE maybe??
+                unbarriered_targets.insert(target);
+            }
         }
     }
 
@@ -932,9 +937,24 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeResour
     }
 
     for (const auto& sampled_resource: sampled_resources) {
-        // todo
+        if (unbarriered_targets.contains(sampled_resource)) {
+            barriers.insert(vk::ImageMemoryBarrier2 {
+                .srcStageMask =
+                .srcAccessMask =
+                .dstStageMask =
+                .dstAccessMask =
+                .oldLayout =
+                .newLayout =
+                .image = *resource_manager->get_texture(sampled_resource).get_image(),
+                .subresourceRange = {
+                    .aspectMask = vk::ImageAspectFlagBits::eColor,
+                    .levelCount = 1,
+                    .layerCount = 1,
+                }
+            });
 
-        // barriers.insert(...);
+            unbarriered_targets.erase(sampled_resource);
+        }
     }
 
     barriers.record_cmd(command_buffer);
@@ -987,6 +1007,13 @@ vk::Format VulkanRenderer::get_target_depth_format(const ResourceHandle handle) 
         return swap_chain->get_depth_format();
     }
     return resource_manager->get_texture(handle).get_format();
+}
+
+vector<ResourceHandle> VulkanRenderer::get_target_handles(const RenderNodeHandle node_handle) const {
+    const auto& node = render_graph_info.render_graph->nodes().at(node_handle);
+    vector<ResourceHandle> handles = node.color_targets;
+    if (node.depth_target) handles.emplace_back(*node.depth_target);
+    return handles;
 }
 
 // ==================== render loop ====================
@@ -1042,6 +1069,7 @@ bool VulkanRenderer::start_frame() {
         Logger::error("failed to acquire swap chain image!");
     }
 
+    unbarriered_targets.clear();
     cached_barriers.clear();
 
     return true;

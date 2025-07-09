@@ -478,8 +478,8 @@ RtPipelineBuilder::build_sbt(const RendererContext &ctx, const vk::raii::Pipelin
     const uint32_t data_size = handle_count * handle_size;
     vector handles      = pipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>(0, handle_count, data_size);
 
-    const VkDeviceSize sbt_size = rgen_region.size + miss_region.size + hit_region.size;
-    auto sbt_buffer             = make_unique<Buffer>(
+    const vk::DeviceSize sbt_size = rgen_region.size + miss_region.size + hit_region.size;
+    auto sbt_buffer = make_unique<Buffer>(
         **ctx.allocator,
         sbt_size,
         vk::BufferUsageFlagBits::eShaderBindingTableKHR
@@ -490,9 +490,9 @@ RtPipelineBuilder::build_sbt(const RendererContext &ctx, const vk::raii::Pipelin
     );
 
     const vk::DeviceAddress sbt_address = ctx.device->getBufferAddress({.buffer = **sbt_buffer});
-    rgen_region.deviceAddress           = sbt_address;
-    miss_region.deviceAddress           = rgen_region.deviceAddress + rgen_region.size;
-    hit_region.deviceAddress            = miss_region.deviceAddress + miss_region.size;
+    rgen_region.deviceAddress = sbt_address;
+    miss_region.deviceAddress = rgen_region.deviceAddress + rgen_region.size;
+    hit_region.deviceAddress  = miss_region.deviceAddress + miss_region.size;
 
     auto get_handle_ptr     = [&](const uint32_t i) { return handles.data() + i * handle_size; };
     auto *sbt_buffer_mapped = static_cast<uint8_t *>(sbt_buffer->map());
