@@ -85,12 +85,13 @@ vkb::Instance VulkanRenderer::create_instance() {
 
         std::stringstream ss;
         ss << "[VALIDATION LAYER / " << severity << " / " << type << "]\n" << pCallbackData->pMessage << "\n";
+        std::cout << ss.str() << std::endl;
 
-        if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-            std::cerr << ss.str() << std::endl;
-        } else {
-            std::cout << ss.str() << std::endl;
-        }
+        // if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
+        //     std::cerr << ss.str() << std::endl;
+        // } else {
+        //     std::cout << ss.str() << std::endl;
+        // }
 
         return vk::False;
     };
@@ -531,18 +532,19 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
 void VulkanRenderer::create_render_graph_resources() {
     for (const auto &[handle, description]: render_graph_info.render_graph->model_resources()) {
         auto model = make_unique<Model>(ctx, description.path, false);
-        resource_manager->add(handle, std::move(model));
+        resource_manager->add(handle, std::move(model), description.name);
     }
 
     for (const auto &[handle, description]: render_graph_info.render_graph->vertex_buffers()) {
         resource_manager->add(
             handle,
-            create_local_buffer(description.data, description.size, vk::BufferUsageFlagBits::eVertexBuffer)
+            create_local_buffer(description.data, description.size, vk::BufferUsageFlagBits::eVertexBuffer),
+            description.name
         );
     }
 
     for (const auto &[handle, description]: render_graph_info.render_graph->uniform_buffers()) {
-        resource_manager->add(handle, utils::buf::create_uniform_buffer(ctx, description.size));
+        resource_manager->add(handle, utils::buf::create_uniform_buffer(ctx, description.size), description.name);
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& buffer = resource_manager->get_buffer(handle);
@@ -552,6 +554,7 @@ void VulkanRenderer::create_render_graph_resources() {
     for (const auto &[handle, description]: render_graph_info.render_graph->external_tex_resources()) {
         auto builder = TextureBuilder()
                 .with_flags(description.flags)
+                .with_name(description.name.c_str())
                 .from_paths(description.paths)
                 .use_format(description.format)
                 .use_usage(vk::ImageUsageFlagBits::eTransferSrc
@@ -564,14 +567,14 @@ void VulkanRenderer::create_render_graph_resources() {
         if (description.swizzle)
             builder.with_swizzle(*description.swizzle);
 
-        resource_manager->add(handle, builder.create(ctx));
+        resource_manager->add(handle, builder.create(ctx), description.name);
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get_texture(handle);
         bindless_descriptor_set->update_binding<0>(texture, bindless_handle);
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->empty_tex_resources()) {
+    for (const auto &[handle, description]: render_graph_info.render_graph->target_tex_resources()) {
         auto extent = description.extent;
         if (extent.width == 0 && extent.height == 0) {
             extent = swap_chain->get_extent();
@@ -579,14 +582,18 @@ void VulkanRenderer::create_render_graph_resources() {
 
         auto builder = TextureBuilder()
                 .with_flags(description.flags)
+                .with_name(description.name.c_str())
                 .as_uninitialized({extent.width, extent.height, 1u})
                 .use_format(description.format)
+                .use_layout(utils::img::is_depth_format(description.format)
+                            ? vk::ImageLayout::eDepthStencilAttachmentOptimal
+                            : vk::ImageLayout::eColorAttachmentOptimal)
                 .use_usage(vk::ImageUsageFlagBits::eTransferSrc
                            | vk::ImageUsageFlagBits::eTransferDst
                            | vk::ImageUsageFlagBits::eSampled
                            | utils::img::get_format_attachment_type(description.format));
 
-        resource_manager->add(handle, builder.create(ctx));
+        resource_manager->add(handle, builder.create(ctx), description.name);
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get_texture(handle);
@@ -601,12 +608,13 @@ void VulkanRenderer::create_render_graph_resources() {
 
         auto builder = TextureBuilder()
                 .with_flags(description.flags)
+                .with_name(description.name.c_str())
                 .as_uninitialized({extent.width, extent.height, 1u})
                 .use_format(description.format)
                 .use_usage(vk::ImageUsageFlagBits::eTransientAttachment
                            | utils::img::get_format_attachment_type(description.format));
 
-        resource_manager->add(handle, builder.create(ctx));
+        resource_manager->add(handle, builder.create(ctx), description.name);
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get_texture(handle);
@@ -814,11 +822,11 @@ void VulkanRenderer::record_graph_commands() {
         for (const auto &node_resources: curr_partition) {
             if (should_run_node_pass(node_resources.handle)) {
                 record_node_commands(node_resources);
-            }
 
-            for (const auto &target: get_target_handles(node_resources.handle)) {
-                // todo - ignore FINAL_IMAGE maybe??
-                unbarriered_targets.insert(target);
+                for (const auto &target: get_target_handles(node_resources.handle)) {
+                    // todo - ignore FINAL_IMAGE maybe??
+                    unbarriered_targets.insert(target);
+                }
             }
         }
     }
@@ -839,6 +847,8 @@ void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resour
     const size_t subresource_index = node_resources.render_infos.size() == 1 ? 0 : current_frame_idx;
     const auto &node_render_info = node_resources.render_infos[subresource_index];
 
+    command_buffer.debugMarkerBeginEXT(vk::DebugMarkerMarkerInfoEXT { .pMarkerName = node.name.c_str(), });
+
     command_buffer.beginRendering(node_render_info.get(
             get_node_target_extent(node_resources),
             node.custom_properties.multiview_count)
@@ -849,9 +859,7 @@ void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resour
     // regenerate mipmaps for each target that had them
     record_regenerate_mipmaps_commands(node_resources);
 
-    // todo - this should have more refined logic
-    // add barrier to the target image if it will be sampled
-    // record_pre_sample_commands(node_resources);
+    command_buffer.debugMarkerEndEXT();
 }
 
 void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &node_resources) const {
@@ -890,37 +898,6 @@ void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeResource
     }
 }
 
-void VulkanRenderer::record_pre_sample_commands(const RenderNodeResources &node_resources) const {
-    const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    const auto &node = render_graph_info.render_graph->nodes().at(node_resources.handle);
-
-    for (const auto color_target: node.color_targets) {
-        if (color_target == FINAL_IMAGE_RESOURCE_HANDLE) continue;
-
-        const auto &target_texture = resource_manager->get_texture(color_target);
-
-        const vk::ImageMemoryBarrier2 image_memory_barrier{
-            .srcStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
-            .srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
-            .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
-            .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
-            .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
-            .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
-            .image = **target_texture.get_image(),
-            .subresourceRange = {
-                .aspectMask = vk::ImageAspectFlagBits::eColor,
-                .levelCount = 1,
-                .layerCount = 1,
-            }
-        };
-
-        command_buffer.pipelineBarrier2(vk::DependencyInfo{
-            .imageMemoryBarrierCount = 1,
-            .pImageMemoryBarriers = &image_memory_barrier,
-        });
-    }
-}
-
 void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeResources> &partition) {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
 
@@ -937,29 +914,35 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeResour
     }
 
     for (const auto& sampled_resource: sampled_resources) {
-        if (unbarriered_targets.contains(sampled_resource)) {
-            barriers.insert(vk::ImageMemoryBarrier2 {
-                .srcStageMask =
-                .srcAccessMask =
-                .dstStageMask =
-                .dstAccessMask =
-                .oldLayout =
-                .newLayout =
-                .image = *resource_manager->get_texture(sampled_resource).get_image(),
-                .subresourceRange = {
-                    .aspectMask = vk::ImageAspectFlagBits::eColor,
-                    .levelCount = 1,
-                    .layerCount = 1,
-                }
-            });
+        if (!unbarriered_targets.contains(sampled_resource)) continue;
 
-            unbarriered_targets.erase(sampled_resource);
-        }
+        Logger::debug("inserting pre-partition barrier for texture: {}", resource_manager->get_name(sampled_resource));
+
+        const Texture& sampled_texture = resource_manager->get_texture(sampled_resource);
+
+        barriers.insert(vk::ImageMemoryBarrier2 {
+            .srcStageMask = vk::PipelineStageFlagBits2::eAllGraphics,
+            .srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
+            .dstStageMask = vk::PipelineStageFlagBits2::eAllGraphics,
+            .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
+            .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
+            .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+            .image = *sampled_texture.get_image(),
+            .subresourceRange = {
+                .aspectMask = utils::img::is_depth_format(sampled_texture.get_image().get_format())
+                              ? vk::ImageAspectFlagBits::eDepth
+                              : vk::ImageAspectFlagBits::eColor,
+                .levelCount = 1,
+                .layerCount = 1,
+            }
+        });
+
+        unbarriered_targets.erase(sampled_resource);
     }
 
     barriers.record_cmd(command_buffer);
 
-    Logger::error("unimplemented");
+    // Logger::error("unimplemented");
 }
 
 bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle handle) const {

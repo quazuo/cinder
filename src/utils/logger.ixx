@@ -43,9 +43,9 @@ public:
 private:
     template<typename T, typename... Ts>
     static void log(std::ostream& stream, const LogLevel level, const T& fmt_str, Ts... args) {
-        stream << "[LOG / " << to_string(level) << "]\n";
+        stream << "[LOG / " << to_string(level) << "] ";
         stream << std::vformat(fmt_str, std::make_format_args(args...));
-        stream << "\n\n";
+        stream << "\n";
     }
 
     [[nodiscard]] static string to_string(const LogLevel level) {

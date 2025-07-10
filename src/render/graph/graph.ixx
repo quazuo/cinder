@@ -26,7 +26,7 @@ class RenderGraph {
     std::map<ResourceHandle, VertexBufferResourceDesc> vertex_buffers_;
     std::map<ResourceHandle, UniformBufferResourceDesc> uniform_buffers_;
     std::map<ResourceHandle, ExternalTextureResourceDesc> external_tex_resources_;
-    std::map<ResourceHandle, TargetTextureResourceDesc> empty_tex_resources_;
+    std::map<ResourceHandle, TargetTextureResourceDesc> target_tex_resources_;
     std::map<ResourceHandle, TransientTextureResourceDesc> transient_tex_resources_;
     std::map<ResourceHandle, ModelResourceDesc> model_resources_;
     std::map<ResourceHandle, GraphicsPipelineDesc> graphics_pipelines_;
@@ -42,7 +42,7 @@ public:
     [[nodiscard]] const auto &vertex_buffers()          const { return vertex_buffers_; }
     [[nodiscard]] const auto &uniform_buffers()         const { return uniform_buffers_; }
     [[nodiscard]] const auto &external_tex_resources()  const { return external_tex_resources_; }
-    [[nodiscard]] const auto &empty_tex_resources()     const { return empty_tex_resources_; }
+    [[nodiscard]] const auto &target_tex_resources()     const { return target_tex_resources_; }
     [[nodiscard]] const auto &transient_tex_resources() const { return transient_tex_resources_; }
     [[nodiscard]] const auto &model_resources()         const { return model_resources_; }
     [[nodiscard]] const auto &graphics_pipelines()      const { return graphics_pipelines_; }

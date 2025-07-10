@@ -19,6 +19,8 @@ struct ImageBarrierInfo {
  * List of stages and access masks for image layout transitions.
  * Currently there's no need for more fine-grained customization of these parameters during transitions,
  * so they're defined statically and used depeneding on the transition's start and end layouts.
+ *
+ * todo: remove this altogether and do it all properly.
  */
 static const std::map<std::pair<vk::ImageLayout, vk::ImageLayout>, ImageBarrierInfo> transition_barrier_schemes{
     {
@@ -55,6 +57,24 @@ static const std::map<std::pair<vk::ImageLayout, vk::ImageLayout>, ImageBarrierI
             .dst_access_mask = vk::AccessFlagBits::eTransferRead,
             .src_stage = vk::PipelineStageFlagBits::eTopOfPipe,
             .dst_stage = vk::PipelineStageFlagBits::eTransfer,
+        }
+    },
+    {
+        {vk::ImageLayout::eUndefined, vk::ImageLayout::eColorAttachmentOptimal},
+        {
+            .src_access_mask = {},
+            .dst_access_mask = vk::AccessFlagBits::eColorAttachmentWrite,
+            .src_stage = vk::PipelineStageFlagBits::eTopOfPipe,
+            .dst_stage = vk::PipelineStageFlagBits::eAllGraphics,
+        }
+    },
+    {
+        {vk::ImageLayout::eUndefined, vk::ImageLayout::eDepthStencilAttachmentOptimal},
+        {
+            .src_access_mask = {},
+            .dst_access_mask = vk::AccessFlagBits::eDepthStencilAttachmentWrite,
+            .src_stage = vk::PipelineStageFlagBits::eTopOfPipe,
+            .dst_stage = vk::PipelineStageFlagBits::eAllGraphics,
         }
     },
     {
@@ -632,6 +652,11 @@ TextureBuilder &TextureBuilder::with_swizzle(const SwizzleDesc &sw) {
     return *this;
 }
 
+TextureBuilder &TextureBuilder::with_name(const char *n) {
+    name = n;
+    return *this;
+}
+
 TextureBuilder &TextureBuilder::from_paths(const vector<std::filesystem::path> &sources) {
     paths = sources;
     return *this;
@@ -745,6 +770,14 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
         if (tex_flags & vk::TextureFlagBitsZRX::MIPMAPS) {
             texture->generate_mipmaps(ctx, layout);
         }
+    }
+
+    if (name) {
+        ctx.device->setDebugUtilsObjectNameEXT(vk::DebugUtilsObjectNameInfoEXT {
+            .objectType = vk::ObjectType::eImage,
+            .objectHandle = reinterpret_cast<uint64_t>(static_cast<VkImage>(***texture->image)),
+            .pObjectName = name,
+        });
     }
 
     return texture;

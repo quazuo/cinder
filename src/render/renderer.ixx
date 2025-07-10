@@ -237,8 +237,6 @@ private:
 
     void record_regenerate_mipmaps_commands(const RenderNodeResources &node_resources) const;
 
-    void record_pre_sample_commands(const RenderNodeResources &node_resources) const;
-
     void record_pre_partition_commands(const vector<RenderNodeResources> &partition);
 
     [[nodiscard]] bool has_swapchain_target(RenderNodeHandle handle) const;

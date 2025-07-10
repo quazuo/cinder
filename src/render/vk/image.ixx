@@ -256,6 +256,8 @@ class TextureBuilder {
     void *memory_source = nullptr;
     bool is_from_swizzle_fill = false;
 
+    const char *name = nullptr;
+
     struct LoadedTextureData {
         vector<void *> sources;
         vk::Extent3D extent;
@@ -278,6 +280,8 @@ public:
     TextureBuilder &as_uninitialized(vk::Extent3D extent);
 
     TextureBuilder &with_swizzle(const SwizzleDesc &sw);
+
+    TextureBuilder &with_name(const char *n);
 
     /**
      * Designates the texture's contents to be initialized with data stored in a given file.

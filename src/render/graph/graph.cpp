@@ -90,7 +90,7 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
     }
 
     for (const auto& res: new_targets_set) {
-        if (res != FINAL_IMAGE_RESOURCE_HANDLE && !empty_tex_resources_.contains(res)) {
+        if (res != FINAL_IMAGE_RESOURCE_HANDLE && !target_tex_resources_.contains(res)) {
             Logger::error("invalid render node: resource <{}> with invalid type specified as target for node <{}>",
                           resource_names.at(res), node.name);
         }
@@ -143,7 +143,7 @@ ResourceHandle RenderGraph::add_resource(ExternalTextureResourceDesc &&resource)
 }
 
 ResourceHandle RenderGraph::add_resource(TargetTextureResourceDesc &&resource) {
-    return add_resource_generic(std::move(resource), empty_tex_resources_);
+    return add_resource_generic(std::move(resource), target_tex_resources_);
 }
 
 ResourceHandle RenderGraph::add_resource(TransientTextureResourceDesc &&resource) {
