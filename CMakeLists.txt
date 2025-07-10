@@ -11,7 +11,7 @@ project(cinder LANGUAGES CXX)
 # add_compile_options(-fsanitize=address)
 # add_link_options(-fsanitize=address)
 
-# Vulkan
+# ========================= Vulkan =========================
 
 find_package(Vulkan REQUIRED)
 
@@ -34,30 +34,14 @@ target_compile_definitions(VulkanHppModule PUBLIC
 target_compile_features(VulkanHppModule PUBLIC cxx_std_20)
 target_link_libraries(VulkanHppModule PUBLIC Vulkan::Vulkan)
 
-include_directories(
-        deps/
-        deps/assimp/include/
-        deps/glfw/include/
-        deps/glm/
-        deps/imGuIZMO.quat/
-        cmake-build-debug/deps/assimp/include/
-        .
-)
-
-set(ALL_LIBS
-        Vulkan::Vulkan
-        glfw
-        assimp
-)
-
-# glfw
+# ========================= GLFW =========================
 
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "GLFW build documentation" FORCE)
 set(GLFW_BUILD_TESTS OFF CACHE BOOL "GLFW build documentation" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "GLFW build documentation" FORCE)
 add_subdirectory(deps/glfw)
 
-# imgui
+# ========================= ImGUI =========================
 
 file(GLOB IMGUI_SRCS
         "deps/imgui/*.h"
@@ -77,7 +61,7 @@ set_source_files_properties(
         PROPERTIES COMPILE_FLAGS "-w"
 )
 
-# assimp
+# ========================= Assimp =========================
 
 set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
 set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "Assimp build tests" FORCE)
@@ -85,19 +69,19 @@ set(ASSIMP_INSTALL OFF CACHE BOOL "Assimp install" FORCE)
 set(ASSIMP_INSTALL_PDB OFF CACHE BOOL "Assimp install PDB" FORCE)
 add_subdirectory(deps/assimp)
 
-# imguizmo.quat
+# ========================= imGuIZMO.quat =========================
 
 set(IMGUIZMO_QUAT_SRCS
         deps/imGuIZMO.quat/imGuIZMO.quat/imGuIZMOquat.cpp
 )
 
-# vk-bootstrap
+# ========================= vk-bootstrap =========================
 
 set(VK_BOOTSTRAP_SRCS
         deps/vk-bootstrap/VkBootstrap.cpp
 )
 
-# glm
+# ========================= glm =========================
 
 FetchContent_Declare(
         glm
@@ -107,7 +91,35 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(glm)
 
-# header-only deps
+# ========================= PIX =========================
+
+add_library(PIX_LIBRARY SHARED IMPORTED)
+set_target_properties(PIX_LIBRARY PROPERTIES
+        IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/deps/pix/bin/x64/WinPixEventRuntime.dll"
+        IMPORTED_IMPLIB "${CMAKE_CURRENT_SOURCE_DIR}/deps/pix/bin/x64/WinPixEventRuntime.lib"
+)
+
+# ========================= General =========================
+
+include_directories(
+        cmake-build-debug/deps/assimp/include/
+        deps/
+        deps/assimp/include/
+        deps/glfw/include/
+        deps/glm/
+        deps/imGuIZMO.quat/
+        deps/pix/Include/
+        .
+)
+
+set(ALL_LIBS
+        assimp
+        glfw
+        glm::glm
+        Vulkan::Vulkan
+        VulkanHppModule
+        PIX_LIBRARY
+)
 
 file(GLOB HEADER_ONLY_DEPS_SRCS
         "deps/stb/*"
@@ -115,13 +127,9 @@ file(GLOB HEADER_ONLY_DEPS_SRCS
         "deps/SPIRV-Reflect/spirv_reflect.cpp"
 )
 
-# deps custom module wrappers
-
 file(GLOB DEPS_CUSTOM_MODULES
         "deps/custom_modules/*.ixx"
 )
-
-# source files
 
 file(GLOB CINDER_SRCS
         "src/*.cpp"
@@ -160,7 +168,7 @@ target_sources(cinder
             ${VK_BOOTSTRAP_SRCS}
             ${HEADER_ONLY_DEPS_SRCS})
 
-target_link_libraries(cinder PRIVATE ${ALL_LIBS} glm::glm VulkanHppModule)
+target_link_libraries(cinder PRIVATE ${ALL_LIBS})
 
 #find_package(glm CONFIG REQUIRED)
 #target_link_libraries(main PRIVATE glm::glm)
