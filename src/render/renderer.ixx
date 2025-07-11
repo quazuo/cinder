@@ -68,14 +68,12 @@ class VulkanRenderer {
     // render graph stuff
 
     struct RenderNodeResources {
-        RenderNodeHandle handle;
         vector<RenderInfo> render_infos;
     };
 
-    struct {
-        unique_ptr<RenderGraph> render_graph;
-        vector<vector<RenderNodeResources>> partitioned_nodes;
-    } render_graph_info;
+    unique_ptr<RenderGraph> render_graph;
+    vector<vector<RenderNodeHandle>> partitioned_nodes;
+    map<RenderNodeHandle, RenderNodeResources> node_resources;
 
     unique_ptr<ResourceManager> resource_manager;
     map<ResourceHandle, GraphicsPipeline> graphics_pipelines;
@@ -219,27 +217,27 @@ private:
 
     void record_graph_commands();
 
-    void record_node_commands(const RenderNodeResources &node_resources) const;
+    void record_node_commands(RenderNodeHandle node_handle) const;
 
-    void record_node_rendering_commands(const RenderNodeResources &node_resources) const;
+    void record_node_rendering_commands(RenderNodeHandle node_handle) const;
 
-    void record_regenerate_mipmaps_commands(const RenderNodeResources &node_resources) const;
+    void record_regenerate_mipmaps_commands(RenderNodeHandle node_handle) const;
 
-    void record_pre_partition_commands(const vector<RenderNodeResources> &partition);
+    void record_pre_partition_commands(const vector<RenderNodeHandle> &partition);
 
-    [[nodiscard]] bool has_swapchain_target(RenderNodeHandle handle) const;
+    [[nodiscard]] bool has_swapchain_target(RenderNodeHandle node_handle) const;
 
-    [[nodiscard]] bool is_first_node_targetting_final_image(RenderNodeHandle handle) const;
+    [[nodiscard]] bool is_first_node_targetting_final_image(RenderNodeHandle node_handle) const;
 
-    [[nodiscard]] bool should_run_node_pass(RenderNodeHandle handle) const;
+    [[nodiscard]] bool should_run_node_pass(RenderNodeHandle node_handle) const;
 
-    [[nodiscard]] vk::Extent2D get_node_target_extent(const RenderNodeResources &node_resources) const;
+    [[nodiscard]] vk::Extent2D get_node_target_extent(RenderNodeHandle node_handle) const;
 
-    [[nodiscard]] vk::Format get_target_color_format(ResourceHandle handle) const;
+    [[nodiscard]] vk::Format get_target_color_format(ResourceHandle resource_handle) const;
 
-    [[nodiscard]] vk::Format get_target_depth_format(ResourceHandle handle) const;
+    [[nodiscard]] vk::Format get_target_depth_format(ResourceHandle resource_handle) const;
 
-    [[nodiscard]] vector<ResourceHandle> get_target_handles(RenderNodeHandle node_handle) const;
+    [[nodiscard]] vector<ResourceHandle> get_node_target_handles(RenderNodeHandle node_handle) const;
 
     // ==================== render loop ====================
 

@@ -256,10 +256,8 @@ void VulkanRenderer::recreate_swap_chain() {
         get_msaa_sample_count()
     );
 
-    for (auto& partition: render_graph_info.partitioned_nodes) {
-        for (auto& node_resources: partition) {
-            node_resources.render_infos = create_node_render_infos(node_resources.handle);
-        }
+    for (auto& [node_handle, resources]: node_resources) {
+        resources.render_infos = create_node_render_infos(node_handle);
     }
 }
 
@@ -518,36 +516,18 @@ void VulkanRenderer::render_gui_section() {
 // ==================== render graph ====================
 
 void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
-    render_graph_info.render_graph = make_unique<RenderGraph>(graph);
-
+    render_graph = make_unique<RenderGraph>(graph);
     create_render_graph_resources();
-
-    const auto partitioned_handles = render_graph_info.render_graph->get_partitioned();
-    const uint32_t n_nodes = render_graph_info.render_graph->nodes().size();
-
-    for (const auto& partition: partitioned_handles) {
-        vector<RenderNodeResources> node_resources;
-
-        for (const auto& handle: partition) {
-            node_resources.emplace_back(RenderNodeResources{
-                .handle = handle,
-                .render_infos = create_node_render_infos(handle),
-            });
-        }
-
-        render_graph_info.partitioned_nodes.emplace_back(std::move(node_resources));
-    }
-
-    repeated_frame_begin_actions = render_graph_info.render_graph->frame_begin_callbacks();
+    repeated_frame_begin_actions = render_graph->frame_begin_callbacks();
 }
 
 void VulkanRenderer::create_render_graph_resources() {
-    for (const auto &[handle, description]: render_graph_info.render_graph->model_resources()) {
+    for (const auto &[handle, description]: render_graph->model_resources()) {
         auto model = make_unique<Model>(ctx, description.path, false);
         resource_manager->add(handle, std::move(model), description.name);
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->vertex_buffers()) {
+    for (const auto &[handle, description]: render_graph->vertex_buffers()) {
         resource_manager->add(
             handle,
             create_local_buffer(description.data, description.size, vk::BufferUsageFlagBits::eVertexBuffer),
@@ -555,7 +535,7 @@ void VulkanRenderer::create_render_graph_resources() {
         );
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->uniform_buffers()) {
+    for (const auto &[handle, description]: render_graph->uniform_buffers()) {
         resource_manager->add(handle, utils::buf::create_uniform_buffer(ctx, description.size), description.name);
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
@@ -563,7 +543,7 @@ void VulkanRenderer::create_render_graph_resources() {
         bindless_descriptor_set->update_binding<1>(buffer, bindless_handle);
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->external_tex_resources()) {
+    for (const auto &[handle, description]: render_graph->external_tex_resources()) {
         auto builder = TextureBuilder()
                 .with_flags(description.flags)
                 .with_name(description.name.c_str())
@@ -586,7 +566,7 @@ void VulkanRenderer::create_render_graph_resources() {
         bindless_descriptor_set->update_binding<0>(texture, bindless_handle);
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->target_tex_resources()) {
+    for (const auto &[handle, description]: render_graph->target_tex_resources()) {
         auto extent = description.extent;
         if (extent.width == 0 && extent.height == 0) {
             extent = swap_chain->get_extent();
@@ -612,7 +592,7 @@ void VulkanRenderer::create_render_graph_resources() {
         bindless_descriptor_set->update_binding<0>(texture, bindless_handle);
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->transient_tex_resources()) {
+    for (const auto &[handle, description]: render_graph->transient_tex_resources()) {
         auto extent = description.extent;
         if (extent.width == 0 && extent.height == 0) {
             extent = swap_chain->get_extent();
@@ -633,12 +613,12 @@ void VulkanRenderer::create_render_graph_resources() {
         bindless_descriptor_set->update_binding<0>(texture, bindless_handle);
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->graphics_pipelines()) {
+    for (const auto &[handle, description]: render_graph->graphics_pipelines()) {
         auto builder = create_graph_gfx_pipeline_builder(handle);
         graphics_pipelines.emplace(handle, builder.create(ctx));
     }
 
-    for (const auto &[handle, description]: render_graph_info.render_graph->compute_pipelines()) {
+    for (const auto &[handle, description]: render_graph->compute_pipelines()) {
         auto builder = create_graph_compute_pipeline_builder(handle);
         compute_pipelines.emplace(handle, builder.create(ctx));
     }
@@ -646,7 +626,7 @@ void VulkanRenderer::create_render_graph_resources() {
 
 GraphicsPipelineBuilder
 VulkanRenderer::create_graph_gfx_pipeline_builder(const ResourceHandle pipeline_handle) const {
-    const auto &pipeline_info = render_graph_info.render_graph->graphics_pipelines().at(pipeline_handle);
+    const auto &pipeline_info = render_graph->graphics_pipelines().at(pipeline_handle);
 
     vector<vk::Format> color_formats;
     for (const auto &format_variant: pipeline_info.color_formats) {
@@ -707,7 +687,7 @@ VulkanRenderer::create_graph_gfx_pipeline_builder(const ResourceHandle pipeline_
 
 ComputePipelineBuilder
 VulkanRenderer::create_graph_compute_pipeline_builder(const ResourceHandle pipeline_handle) const {
-    const auto &pipeline_info = render_graph_info.render_graph->compute_pipelines().at(pipeline_handle);
+    const auto &pipeline_info = render_graph->compute_pipelines().at(pipeline_handle);
 
     vector<vk::DescriptorSetLayout> descriptor_set_layouts;
     descriptor_set_layouts.push_back(*bindless_descriptor_set->get_layout());
@@ -754,7 +734,7 @@ void VulkanRenderer::queue_set_update_with_handle(DescriptorSet &descriptor_set,
 }
 
 vector<RenderInfo> VulkanRenderer::create_node_render_infos(const RenderNodeHandle node_handle) const {
-    const auto &node_info = render_graph_info.render_graph->nodes().at(node_handle);
+    const auto &node_info = render_graph->nodes().at(node_handle);
     vector<RenderInfo> render_infos;
 
     if (has_swapchain_target(node_handle)) {
@@ -812,6 +792,17 @@ vector<RenderInfo> VulkanRenderer::create_node_render_infos(const RenderNodeHand
 
 void VulkanRenderer::run_render_graph() {
     if (start_frame()) {
+        Logger::debug("starting frame");
+
+        partitioned_nodes = render_graph->get_partitioned();
+
+        node_resources.clear();
+        for (const auto& [node_handle, _]: render_graph->nodes()) {
+            node_resources.emplace(node_handle, RenderNodeResources{
+                .render_infos = create_node_render_infos(node_handle),
+            });
+        }
+
         record_graph_commands();
         end_frame();
     }
@@ -824,21 +815,18 @@ void VulkanRenderer::record_graph_commands() {
 
     swap_chain->transition_to_attachment_layout(command_buffer);
 
-    for (size_t i = 0; i < render_graph_info.partitioned_nodes.size(); i++) {
-        const auto& curr_partition = render_graph_info.partitioned_nodes[i];
+    for (size_t i = 0; i < partitioned_nodes.size(); i++) {
+        const auto& curr_partition = partitioned_nodes[i];
 
         if (i != 0) {
             record_pre_partition_commands(curr_partition);
         }
 
-        for (const auto &node_resources: curr_partition) {
-            if (should_run_node_pass(node_resources.handle)) {
-                record_node_commands(node_resources);
+        for (const auto &node_handle: curr_partition) {
+            record_node_commands(node_handle);
 
-                for (const auto &target: get_target_handles(node_resources.handle)) {
-                    // todo - ignore FINAL_IMAGE maybe??
-                    unbarriered_targets.insert(target);
-                }
+            for (const auto &target: get_node_target_handles(node_handle)) {
+                unbarriered_targets.insert(target); // todo - ignore FINAL_IMAGE maybe??
             }
         }
     }
@@ -848,37 +836,38 @@ void VulkanRenderer::record_graph_commands() {
     command_buffer.end();
 }
 
-void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resources) const {
+void VulkanRenderer::record_node_commands(const RenderNodeHandle node_handle) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    const auto &node = render_graph_info.render_graph->nodes().at(node_resources.handle);
+    const auto &node = render_graph->nodes().at(node_handle);
 
     Logger::debug("recording node: {}", node.name);
 
     // if size > 1, then this means that this pass (node) draws to the swapchain image
     // and thus benefits from double or triple buffering
-    const size_t subresource_index = node_resources.render_infos.size() == 1 ? 0 : current_frame_idx;
-    const auto &node_render_info = node_resources.render_infos[subresource_index];
+    const auto &[render_infos] = node_resources.at(node_handle);
+    const size_t subresource_index = render_infos.size() == 1 ? 0 : current_frame_idx;
+    const auto &node_render_info = render_infos[subresource_index];
 
     // command_buffer.debugMarkerBeginEXT(vk::DebugMarkerMarkerInfoEXT { .pMarkerName = node.name.c_str(), });
 
     command_buffer.beginRendering(node_render_info.get(
-            get_node_target_extent(node_resources),
+            get_node_target_extent(node_handle),
             node.custom_properties.multiview_count)
     );
-    record_node_rendering_commands(node_resources);
+    record_node_rendering_commands(node_handle);
     command_buffer.endRendering();
 
     // regenerate mipmaps for each target that had them
-    record_regenerate_mipmaps_commands(node_resources);
+    record_regenerate_mipmaps_commands(node_handle);
 
     // command_buffer.debugMarkerEndEXT();
 }
 
-void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &node_resources) const {
+void VulkanRenderer::record_node_rendering_commands(const RenderNodeHandle node_handle) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    const auto &node_info = render_graph_info.render_graph->nodes().at(node_resources.handle);
+    const auto &node_info = render_graph->nodes().at(node_handle);
 
-    utils::cmd::set_dynamic_states(command_buffer, get_node_target_extent(node_resources));
+    utils::cmd::set_dynamic_states(command_buffer, get_node_target_extent(node_handle));
 
     RenderPassContext ctx{
         command_buffer,
@@ -890,9 +879,9 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &n
     node_info.body(ctx);
 }
 
-void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeResources &node_resources) const {
+void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeHandle node_handle) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    const auto &node = render_graph_info.render_graph->nodes().at(node_resources.handle);
+    const auto &node = render_graph->nodes().at(node_handle);
 
     for (const auto color_target: node.color_targets) {
         if (color_target == FINAL_IMAGE_RESOURCE_HANDLE) continue;
@@ -910,15 +899,15 @@ void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeResource
     }
 }
 
-void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeResources> &partition) {
+void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle> &partition) {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
 
     cached_barriers.emplace_back();
     auto& barriers = cached_barriers.back();
 
     vector<ResourceHandle> sampled_resources;
-    for (const auto& node_resources: partition) {
-        const auto& node_info = render_graph_info.render_graph->nodes().at(node_resources.handle);
+    for (const auto& node_handle: partition) {
+        const auto& node_info = render_graph->nodes().at(node_handle);
 
         for (const auto color_target: node_info.bound_resources) {
             sampled_resources.emplace_back(color_target);
@@ -931,19 +920,20 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeResour
         Logger::debug("inserting pre-partition barrier for texture: {}", resource_manager->get_name(sampled_resource));
 
         const Texture& sampled_texture = resource_manager->get_texture(sampled_resource);
+        const bool is_depth_texture = utils::img::is_depth_format(sampled_texture.get_image().get_format());
 
         barriers.insert(vk::ImageMemoryBarrier2 {
             .srcStageMask = vk::PipelineStageFlagBits2::eAllGraphics,
-            .srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
+            .srcAccessMask = is_depth_texture
+                             ? vk::AccessFlagBits2::eDepthStencilAttachmentWrite
+                             : vk::AccessFlagBits2::eColorAttachmentWrite,
             .dstStageMask = vk::PipelineStageFlagBits2::eAllGraphics,
             .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
-            .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
+            .oldLayout = is_depth_texture ? vk::ImageLayout::eDepthAttachmentOptimal : vk::ImageLayout::eColorAttachmentOptimal,
             .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
             .image = *sampled_texture.get_image(),
             .subresourceRange = {
-                .aspectMask = utils::img::is_depth_format(sampled_texture.get_image().get_format())
-                              ? vk::ImageAspectFlagBits::eDepth
-                              : vk::ImageAspectFlagBits::eColor,
+                .aspectMask = is_depth_texture ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor,
                 .levelCount = 1,
                 .layerCount = 1,
             }
@@ -953,59 +943,57 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeResour
     }
 
     barriers.record_cmd(command_buffer);
-
-    // Logger::error("unimplemented");
 }
 
-bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle handle) const {
-    return render_graph_info.render_graph->nodes().at(handle)
+bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle node_handle) const {
+    return render_graph->nodes().at(node_handle)
             .get_all_targets_set()
             .contains(FINAL_IMAGE_RESOURCE_HANDLE);
 }
 
-bool VulkanRenderer::is_first_node_targetting_final_image(const RenderNodeHandle handle) const {
-    if (!has_swapchain_target(handle)) return false;
+bool VulkanRenderer::is_first_node_targetting_final_image(const RenderNodeHandle node_handle) const {
+    if (!has_swapchain_target(node_handle)) return false;
 
-    const auto flattened = std::ranges::join_view(render_graph_info.partitioned_nodes);
+    const auto flattened = std::ranges::join_view(partitioned_nodes);
 
-    auto first_it = std::ranges::find_if(flattened, [&](const RenderNodeResources &res) {
-        return has_swapchain_target(res.handle);
+    auto first_it = std::ranges::find_if(flattened, [&](const RenderNodeHandle &handle) {
+        return has_swapchain_target(handle);
     });
 
-    return first_it == flattened.end() || first_it->handle == handle;
+    return first_it == flattened.end() || *first_it == node_handle;
 }
 
-bool VulkanRenderer::should_run_node_pass(const RenderNodeHandle handle) const {
-    const auto &node = render_graph_info.render_graph->nodes().at(handle);
+bool VulkanRenderer::should_run_node_pass(const RenderNodeHandle node_handle) const {
+    const auto &node = render_graph->nodes().at(node_handle);
     return node.should_run_predicate ? (*node.should_run_predicate)() : true;
 }
 
-vk::Extent2D VulkanRenderer::get_node_target_extent(const RenderNodeResources &node_resources) const {
-    const auto &node_info = render_graph_info.render_graph->nodes().at(node_resources.handle);
+vk::Extent2D VulkanRenderer::get_node_target_extent(const RenderNodeHandle node_handle) const {
+    const auto &node_info = render_graph->nodes().at(node_handle);
 
-    return has_swapchain_target(node_resources.handle)
+    return has_swapchain_target(node_handle)
            ? swap_chain->get_extent()
            : resource_manager->get_texture(node_info.color_targets[0])
            .get_image()
            .get_extent_2d();
 }
 
-vk::Format VulkanRenderer::get_target_color_format(const ResourceHandle handle) const {
-    if (handle == FINAL_IMAGE_RESOURCE_HANDLE) {
+vk::Format VulkanRenderer::get_target_color_format(const ResourceHandle resource_handle) const {
+    if (resource_handle == FINAL_IMAGE_RESOURCE_HANDLE) {
         return swap_chain->get_image_format();
     }
-    return resource_manager->get_texture(handle).get_format();
+    return resource_manager->get_texture(resource_handle).get_format();
 }
 
-vk::Format VulkanRenderer::get_target_depth_format(const ResourceHandle handle) const {
-    if (handle == FINAL_IMAGE_RESOURCE_HANDLE) {
+vk::Format VulkanRenderer::get_target_depth_format(const ResourceHandle resource_handle) const {
+    if (resource_handle == FINAL_IMAGE_RESOURCE_HANDLE) {
         return swap_chain->get_depth_format();
     }
-    return resource_manager->get_texture(handle).get_format();
+    return resource_manager->get_texture(resource_handle).get_format();
 }
 
-vector<ResourceHandle> VulkanRenderer::get_target_handles(const RenderNodeHandle node_handle) const {
-    const auto& node = render_graph_info.render_graph->nodes().at(node_handle);
+vector<ResourceHandle> VulkanRenderer::get_node_target_handles(const RenderNodeHandle node_handle) const {
+    const auto& node = render_graph->nodes().at(node_handle);
     vector<ResourceHandle> handles = node.color_targets;
     if (node.depth_target) handles.emplace_back(*node.depth_target);
     return handles;

@@ -46,11 +46,16 @@ vector<RenderNodeHandle> RenderGraph::get_topo_sorted() const {
 vector<vector<RenderNodeHandle>> RenderGraph::get_partitioned() const {
     vector<vector<RenderNodeHandle>> partitions;
 
+    set<RenderNodeHandle> ignored;
     set<RenderNodeHandle> processed;
     set<RenderNodeHandle> remaining;
 
-    for (const auto &[handle, _]: nodes_) {
-        remaining.emplace(handle);
+    for (const auto &[node_handle, node_info]: nodes_) {
+        if (!node_info.should_run_predicate || (*node_info.should_run_predicate)()) {
+            remaining.emplace(node_handle);
+        } else {
+            ignored.emplace(node_handle);
+        }
     }
 
     while (!remaining.empty()) {
@@ -58,7 +63,7 @@ vector<vector<RenderNodeHandle>> RenderGraph::get_partitioned() const {
 
         for (const auto &handle: remaining) {
             if (std::ranges::all_of(dependency_graph.at(handle), [&](const RenderNodeHandle &dep) {
-                return processed.contains(dep);
+                return processed.contains(dep) || ignored.contains(dep);
             })) {
                 next_partition.emplace_back(handle);
             }
