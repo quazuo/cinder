@@ -13,7 +13,13 @@ export {
     using std::make_shared;
     using std::reference_wrapper;
     using std::vector;
+    using std::array;
+    using std::map;
+    using std::set;
     using std::string;
+    using std::optional;
+    using std::pair;
+    using std::numeric_limits;
 
     using std::uint64_t;
     using std::uint32_t;

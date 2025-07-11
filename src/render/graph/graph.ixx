@@ -20,20 +20,20 @@ struct FrameBeginActionContext {
 using FrameBeginCallback = std::function<void(const FrameBeginActionContext &)>;
 
 class RenderGraph {
-    std::map<RenderNodeHandle, RenderNode> nodes_;
-    std::map<RenderNodeHandle, std::set<RenderNodeHandle> > dependency_graph;
+    map<RenderNodeHandle, RenderNode> nodes_;
+    map<RenderNodeHandle, set<RenderNodeHandle> > dependency_graph;
 
-    std::map<ResourceHandle, VertexBufferResourceDesc> vertex_buffers_;
-    std::map<ResourceHandle, UniformBufferResourceDesc> uniform_buffers_;
-    std::map<ResourceHandle, ExternalTextureResourceDesc> external_tex_resources_;
-    std::map<ResourceHandle, TargetTextureResourceDesc> target_tex_resources_;
-    std::map<ResourceHandle, TransientTextureResourceDesc> transient_tex_resources_;
-    std::map<ResourceHandle, ModelResourceDesc> model_resources_;
-    std::map<ResourceHandle, GraphicsPipelineDesc> graphics_pipelines_;
-    std::map<ResourceHandle, ComputePipelineDesc> compute_pipelines_;
+    map<ResourceHandle, VertexBufferResourceDesc> vertex_buffers_;
+    map<ResourceHandle, UniformBufferResourceDesc> uniform_buffers_;
+    map<ResourceHandle, ExternalTextureResourceDesc> external_tex_resources_;
+    map<ResourceHandle, TargetTextureResourceDesc> target_tex_resources_;
+    map<ResourceHandle, TransientTextureResourceDesc> transient_tex_resources_;
+    map<ResourceHandle, ModelResourceDesc> model_resources_;
+    map<ResourceHandle, GraphicsPipelineDesc> graphics_pipelines_;
+    map<ResourceHandle, ComputePipelineDesc> compute_pipelines_;
 
-    std::set<ResourceHandle> produced_resources;
-    std::map<ResourceHandle, string> resource_names;
+    set<ResourceHandle> produced_resources;
+    map<ResourceHandle, string> resource_names;
 
     vector<FrameBeginCallback> frame_begin_callbacks_;
 
@@ -88,8 +88,8 @@ public:
     void add_frame_begin_action(FrameBeginCallback &&callback);
 
 private:
-    void cycles_helper(RenderNodeHandle handle, std::set<RenderNodeHandle> &discovered,
-                       std::set<RenderNodeHandle> &finished) const;
+    void cycles_helper(RenderNodeHandle handle, set<RenderNodeHandle> &discovered,
+                       set<RenderNodeHandle> &finished) const;
 
     void check_dependency_cycles() const;
 
@@ -99,7 +99,7 @@ private:
 
     template<typename ResourceType>
     [[nodiscard]] ResourceHandle
-    add_resource_generic(ResourceType &&resource, std::map<ResourceHandle, ResourceType> &resource_map) {
+    add_resource_generic(ResourceType &&resource, map<ResourceHandle, ResourceType> &resource_map) {
         const auto handle = get_new_resource_handle();
         resource_map.emplace(handle, resource);
         if constexpr (ResourceLike<ResourceType>) {

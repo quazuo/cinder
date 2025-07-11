@@ -22,7 +22,7 @@ struct ImageBarrierInfo {
  *
  * todo: remove this altogether and do it all properly.
  */
-static const std::map<std::pair<vk::ImageLayout, vk::ImageLayout>, ImageBarrierInfo> transition_barrier_schemes{
+static const map<pair<vk::ImageLayout, vk::ImageLayout>, ImageBarrierInfo> transition_barrier_schemes{
     {
         {vk::ImageLayout::eUndefined, vk::ImageLayout::eTransferSrcOptimal},
         {
@@ -505,14 +505,14 @@ void Texture::generate_mipmaps(const RendererContext &ctx, const vk::ImageLayout
             curr_barrier
         );
 
-        const std::array<vk::Offset3D, 2> src_offsets = {
+        const array<vk::Offset3D, 2> src_offsets = {
             {
                 {0, 0, 0},
                 {mip_width, mip_height, 1},
             }
         };
 
-        const std::array<vk::Offset3D, 2> dst_offsets = {
+        const array<vk::Offset3D, 2> dst_offsets = {
             {
                 {0, 0, 0},
                 {mip_width > 1 ? mip_width / 2 : 1, mip_height > 1 ? mip_height / 2 : 1, 1},
@@ -1095,10 +1095,10 @@ void TextureBuilder::perform_swizzle(uint8_t *data, const size_t size) const {
                     data[COMPONENT_COUNT * i + comp] = 1;
                     break;
                 case SwizzleComponent::MAX:
-                    data[COMPONENT_COUNT * i + comp] = std::numeric_limits<uint8_t>::max();
+                    data[COMPONENT_COUNT * i + comp] = numeric_limits<uint8_t>::max();
                     break;
                 case SwizzleComponent::HALF_MAX:
-                    data[COMPONENT_COUNT * i + comp] = std::numeric_limits<uint8_t>::max() / 2;
+                    data[COMPONENT_COUNT * i + comp] = numeric_limits<uint8_t>::max() / 2;
                     break;
             }
         }

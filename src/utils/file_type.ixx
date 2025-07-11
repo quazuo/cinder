@@ -79,7 +79,7 @@ enum class FileType {
 
 struct FileLoadScheme {
     string name;
-    std::set<FileType> requirements;
+    set<FileType> requirements;
 };
 
 const vector<FileLoadScheme> file_load_schemes{

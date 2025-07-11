@@ -126,7 +126,7 @@ GraphicsPipeline GraphicsPipelineBuilder::create(const RendererContext &ctx) con
         .topology = vk::PrimitiveTopology::eTriangleList,
     };
 
-    static constexpr std::array dynamic_states = {
+    static constexpr array dynamic_states = {
         vk::DynamicState::eViewport,
         vk::DynamicState::eScissor,
     };
@@ -241,10 +241,10 @@ void GraphicsPipelineBuilder::check_params() const {
     }
 }
 
-std::vector<vk::PushConstantRange>
+vector<vk::PushConstantRange>
 GraphicsPipelineBuilder::eval_push_constant_ranges(const SpirvReflectModuleWrapper& vertex_spirv_reflect_module,
                                                    const SpirvReflectModuleWrapper& fragment_spirv_reflect_module) {
-    std::vector<vk::PushConstantRange> result;
+    vector<vk::PushConstantRange> result;
 
     const auto vertex_push_constant_blocks = vertex_spirv_reflect_module.push_constant_blocks();
     const auto fragment_push_constant_blocks = fragment_spirv_reflect_module.push_constant_blocks();
@@ -361,7 +361,7 @@ void RtPipelineBuilder::check_params() const {
     }
 }
 
-std::pair<vk::raii::Pipeline, vk::raii::PipelineLayout>
+pair<vk::raii::Pipeline, vk::raii::PipelineLayout>
 RtPipelineBuilder::build_pipeline(const RendererContext &ctx) const {
     enum StageIndices {
         eRaygen = 0,
@@ -374,7 +374,7 @@ RtPipelineBuilder::build_pipeline(const RendererContext &ctx) const {
     const vk::raii::ShaderModule miss_shader_module        = create_shader_module(ctx, miss_shader_path);
     const vk::raii::ShaderModule closest_hit_shader_module = create_shader_module(ctx, closest_hit_shader_path);
 
-    std::array<vk::PipelineShaderStageCreateInfo, eShaderGroupCount> shader_stages;
+    array<vk::PipelineShaderStageCreateInfo, eShaderGroupCount> shader_stages;
 
     shader_stages[eRaygen] = {
         .stage = vk::ShaderStageFlagBits::eRaygenKHR,

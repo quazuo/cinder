@@ -125,9 +125,9 @@ void SwapChain::transition_to_present_layout(const vk::raii::CommandBuffer &comm
     );
 }
 
-std::pair<vk::Result, uint32_t> SwapChain::acquire_next_image(const vk::raii::Semaphore &semaphore) {
+pair<vk::Result, uint32_t> SwapChain::acquire_next_image(const vk::raii::Semaphore &semaphore) {
     try {
-        const auto &[result, image_index] = swap_chain->acquireNextImage(std::numeric_limits<uint64_t>::max(), *semaphore);
+        const auto &[result, image_index] = swap_chain->acquireNextImage(numeric_limits<uint64_t>::max(), *semaphore);
         current_image_index = image_index;
         return {result, image_index};
     } catch (...) {
@@ -136,7 +136,7 @@ std::pair<vk::Result, uint32_t> SwapChain::acquire_next_image(const vk::raii::Se
 }
 
 vk::Extent2D SwapChain::choose_extent(const vk::SurfaceCapabilitiesKHR &capabilities, GLFWwindow *window) {
-    if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max()) {
+    if (capabilities.currentExtent.width != numeric_limits<uint32_t>::max()) {
         return capabilities.currentExtent;
     }
 

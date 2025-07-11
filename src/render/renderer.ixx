@@ -23,10 +23,10 @@ export constexpr bool ENABLE_VALIDATION_LAYERS = true;
 export namespace zrx {
 class RenderInfo {
     vector<RenderTarget> color_targets;
-    std::optional<RenderTarget> depth_target;
+    optional<RenderTarget> depth_target;
 
     vector<vk::RenderingAttachmentInfo> color_attachments;
-    std::optional<vk::RenderingAttachmentInfo> depth_attachment;
+    optional<vk::RenderingAttachmentInfo> depth_attachment;
 
     vector<vk::Format> cached_color_attachment_formats;
 
@@ -78,10 +78,10 @@ class VulkanRenderer {
     } render_graph_info;
 
     unique_ptr<ResourceManager> resource_manager;
-    std::map<ResourceHandle, GraphicsPipeline> graphics_pipelines;
-    std::map<ResourceHandle, ComputePipeline> compute_pipelines;
+    map<ResourceHandle, GraphicsPipeline> graphics_pipelines;
+    map<ResourceHandle, ComputePipeline> compute_pipelines;
 
-    std::set<ResourceHandle> unbarriered_targets;
+    set<ResourceHandle> unbarriered_targets;
     vector<PipelineBarrierPack> cached_barriers;
 
     // other resources
@@ -104,7 +104,7 @@ class VulkanRenderer {
     };
 
     static constexpr size_t MAX_FRAMES_IN_FLIGHT = 3;
-    std::array<FrameResources, MAX_FRAMES_IN_FLIGHT> frame_resources;
+    array<FrameResources, MAX_FRAMES_IN_FLIGHT> frame_resources;
 
     // gui stuff
 

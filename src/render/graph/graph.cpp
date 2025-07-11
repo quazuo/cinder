@@ -11,7 +11,7 @@ import Cinder.Globals;
 
 namespace detail {
 template<typename T>
-[[nodiscard]] bool empty_intersection(const std::set<T> &a, std::ranges::forward_range auto b) {
+[[nodiscard]] bool empty_intersection(const set<T> &a, std::ranges::forward_range auto b) {
     return std::ranges::all_of(b, [&](const T &elem) {
         return !a.contains(elem);
     });
@@ -22,7 +22,7 @@ namespace zrx {
 vector<RenderNodeHandle> RenderGraph::get_topo_sorted() const {
     vector<RenderNodeHandle> result;
 
-    std::set<RenderNodeHandle> remaining;
+    set<RenderNodeHandle> remaining;
 
     for (const auto &[handle, _]: nodes_) {
         remaining.emplace(handle);
@@ -46,8 +46,8 @@ vector<RenderNodeHandle> RenderGraph::get_topo_sorted() const {
 vector<vector<RenderNodeHandle>> RenderGraph::get_partitioned() const {
     vector<vector<RenderNodeHandle>> partitions;
 
-    std::set<RenderNodeHandle> processed;
-    std::set<RenderNodeHandle> remaining;
+    set<RenderNodeHandle> processed;
+    set<RenderNodeHandle> remaining;
 
     for (const auto &[handle, _]: nodes_) {
         remaining.emplace(handle);
@@ -100,7 +100,7 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
         }
     }
 
-    std::set<RenderNodeHandle> dependencies;
+    set<RenderNodeHandle> dependencies;
 
     // for each existing node A...
     for (const auto &[other_handle, other_node]: nodes_) {
@@ -166,8 +166,8 @@ void RenderGraph::add_frame_begin_action(FrameBeginCallback &&callback) {
     frame_begin_callbacks_.emplace_back(std::move(callback));
 }
 
-void RenderGraph::cycles_helper(const RenderNodeHandle handle, std::set<RenderNodeHandle> &discovered,
-                                std::set<RenderNodeHandle> &finished) const {
+void RenderGraph::cycles_helper(const RenderNodeHandle handle, set<RenderNodeHandle> &discovered,
+                                set<RenderNodeHandle> &finished) const {
     discovered.emplace(handle);
 
     for (const auto &neighbour: dependency_graph.at(handle)) {
@@ -185,7 +185,7 @@ void RenderGraph::cycles_helper(const RenderNodeHandle handle, std::set<RenderNo
 };
 
 void RenderGraph::check_dependency_cycles() const {
-    std::set<RenderNodeHandle> discovered, finished;
+    set<RenderNodeHandle> discovered, finished;
 
     for (const auto &[handle, _]: nodes_) {
         if (!discovered.contains(handle) && !finished.contains(handle)) {

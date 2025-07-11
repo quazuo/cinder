@@ -34,7 +34,7 @@ struct ExternalTextureResourceDesc {
     vector<std::filesystem::path> paths{};
     vk::Format format{};
     vk::TextureFlagsZRX flags = vk::TextureFlagBitsZRX::MIPMAPS;
-    std::optional<SwizzleDesc> swizzle{};
+    optional<SwizzleDesc> swizzle{};
 };
 
 struct TargetTextureResourceDesc {
@@ -77,7 +77,7 @@ struct GraphicsPipelineDesc {
     vector<vk::VertexInputBindingDescription> binding_descriptions;
     vector<vk::VertexInputAttributeDescription> attr_descriptions;
     vector<AttachmentFormat> color_formats;
-    std::optional<AttachmentFormat> depth_format;
+    optional<AttachmentFormat> depth_format;
 
     struct CustomProperties {
         bool use_msaa                  = false;

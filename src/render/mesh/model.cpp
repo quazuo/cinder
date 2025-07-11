@@ -3,6 +3,7 @@ module;
 module Cinder.Render.Mesh;
 
 import Cinder.Utils;
+import Cinder.Render;
 import Cinder.Render.Vulkan;
 import :Vertex;
 

@@ -1,7 +1,5 @@
 module;
 
-#include "src/utils/glfw_statics.hpp"
-
 module Cinder.Render;
 
 import spirv_reflect;
@@ -9,12 +7,13 @@ import glfw;
 import std;
 import imgui;
 
+import :GlfwStatics;
+import Cinder.Globals;
 import Cinder.Utils;
 import Cinder.Render.Vulkan;
 import Cinder.Render.Gui;
 import Cinder.Render.Graph;
 import Cinder.Render.Mesh;
-import Cinder.Globals;
 
 namespace zrx {
 VulkanRenderer::VulkanRenderer() {
@@ -787,7 +786,7 @@ vector<RenderInfo> VulkanRenderer::create_node_render_infos(const RenderNodeHand
         }
     } else {
         vector<RenderTarget> color_targets;
-        std::optional<RenderTarget> depth_target;
+        optional<RenderTarget> depth_target;
 
         for (auto color_target_handle: node_info.color_targets) {
             const auto &target_texture = resource_manager->get_texture(color_target_handle);
@@ -1049,7 +1048,7 @@ bool VulkanRenderer::start_frame() {
         .pValues = wait_semaphore_values.data(),
     };
 
-    if (ctx.device->waitSemaphores(wait_info, std::numeric_limits<uint64_t>::max()) != vk::Result::eSuccess) {
+    if (ctx.device->waitSemaphores(wait_info, numeric_limits<uint64_t>::max()) != vk::Result::eSuccess) {
         Logger::error("waitSemaphores on renderFinishedTimeline failed");
     }
 
@@ -1087,7 +1086,7 @@ void VulkanRenderer::end_frame() {
         vk::PipelineStageFlagBits::eVertexInput,
     };
 
-    const std::array signal_semaphores = {
+    const array signal_semaphores = {
         **sync.render_finished_timeline.semaphore,
         **sync.ready_to_present_semaphore
     };
@@ -1123,9 +1122,9 @@ void VulkanRenderer::end_frame() {
         throw;
     }
 
-    const std::array present_wait_semaphores = {**sync.ready_to_present_semaphore};
+    const array present_wait_semaphores = {**sync.ready_to_present_semaphore};
 
-    const std::array image_indices = {swap_chain->get_current_image_index()};
+    const array image_indices = {swap_chain->get_current_image_index()};
 
     const vk::PresentInfoKHR present_info{
         .waitSemaphoreCount = present_wait_semaphores.size(),

@@ -97,8 +97,8 @@ void RenderPassContext::push_constants() const {
     }
 }
 
-std::set<ResourceHandle> RenderNode::get_all_targets_set() const {
-    std::set result(color_targets.begin(), color_targets.end());
+set<ResourceHandle> RenderNode::get_all_targets_set() const {
+    set result(color_targets.begin(), color_targets.end());
     if (depth_target) result.insert(*depth_target);
     return result;
 }

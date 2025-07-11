@@ -10,16 +10,16 @@ import Cinder.Globals;
 
 export namespace zrx {
 class ResourceManager {
-    std::map<ResourceHandle, unique_ptr<Buffer> > buffers;
-    std::map<ResourceHandle, unique_ptr<Texture> > textures;
-    std::map<ResourceHandle, unique_ptr<Model> > models;
+    map<ResourceHandle, unique_ptr<Buffer> > buffers;
+    map<ResourceHandle, unique_ptr<Texture> > textures;
+    map<ResourceHandle, unique_ptr<Model> > models;
 
     using HandlePrioQueue = std::priority_queue<BindlessHandle, std::vector<BindlessHandle>, std::greater<>>;
 
-    std::map<ResourceHandle, BindlessHandle> bindless_handle_mapping;
+    map<ResourceHandle, BindlessHandle> bindless_handle_mapping;
     HandlePrioQueue free_bindless_handles;
 
-    std::map<ResourceHandle, std::string> resource_names;
+    map<ResourceHandle, std::string> resource_names;
 
     template<typename T>
     struct is_valid_resource_type : std::disjunction<
@@ -61,7 +61,7 @@ public:
 private:
     template <typename T>
         requires is_valid_resource_type<T>::value
-    std::map<ResourceHandle, unique_ptr<T> >& get_resource_map() {
+    map<ResourceHandle, unique_ptr<T> >& get_resource_map() {
         if constexpr (std::is_same_v<T, Buffer>) {
             return buffers;
         } else if constexpr (std::is_same_v<T, Texture>) {

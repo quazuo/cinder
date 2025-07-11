@@ -1,13 +1,12 @@
 module;
 
-#include "src/utils/glfw_statics.hpp"
-
 module Cinder.Render;
 
 import glfw;
 import glm;
 import imgui;
 
+import :GlfwStatics;
 import Cinder.Utils;
 import Cinder.Render.Gui;
 
@@ -163,8 +162,8 @@ void Camera::render_gui_section() {
         ImGui::SliderFloat("Field of view", &field_of_view, 20.0f, 160.0f, "%.0f");
 
         if (!is_locked_cam) {
-            ImGui::DragFloat("Rotation speed", &rotation_speed, 0.01f, 0.0f, std::numeric_limits<float>::max(), "%.2f");
-            ImGui::DragFloat("Movement speed", &movement_speed, 0.01f, 0.0f, std::numeric_limits<float>::max(), "%.2f");
+            ImGui::DragFloat("Rotation speed", &rotation_speed, 0.01f, 0.0f, numeric_limits<float>::max(), "%.2f");
+            ImGui::DragFloat("Movement speed", &movement_speed, 0.01f, 0.0f, numeric_limits<float>::max(), "%.2f");
         }
     }
 }

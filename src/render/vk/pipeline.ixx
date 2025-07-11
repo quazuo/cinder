@@ -12,6 +12,16 @@ import :Image;
 import :Context;
 
 export namespace zrx {
+class GraphicsPipelineBuilder;
+class ComputePipelineBuilder;
+class RtPipelineBuilder;
+
+template<typename T>
+concept VertexLike = requires {
+    { T::get_binding_descriptions() } -> std::same_as<vector<vk::VertexInputBindingDescription>>;
+    { T::get_attribute_descriptions() } -> std::same_as<vector<vk::VertexInputAttributeDescription>>;
+};
+
 /**
  * Convenience wrappers around Vulkan pipelines, mainly to pair them together with related layouts.
  * Might be extended in the future as it's very bare-bones at this moment.
@@ -33,7 +43,7 @@ public:
 class GraphicsPipeline : public Pipeline {
     vk::SampleCountFlagBits rasterization_samples;
 
-    friend class GraphicsPipelineBuilder;
+    friend GraphicsPipelineBuilder;
 
     GraphicsPipeline(vk::raii::Pipeline&& pipeline, vk::raii::PipelineLayout&& layout,
                      const vk::SampleCountFlagBits samples = {})
@@ -44,7 +54,7 @@ public:
 };
 
 class ComputePipeline : public Pipeline {
-    friend class ComputePipelineBuilder;
+    friend ComputePipelineBuilder;
 
     ComputePipeline(vk::raii::Pipeline&& pipeline, vk::raii::PipelineLayout&& layout)
         : Pipeline(std::move(pipeline), std::move(layout)) {}
@@ -63,7 +73,7 @@ public:
 private:
     ShaderBindingTable sbt;
 
-    friend class RtPipelineBuilder;
+    friend RtPipelineBuilder;
 
     RtPipeline(vk::raii::Pipeline&& pipeline, vk::raii::PipelineLayout&& layout, ShaderBindingTable&& sbt)
         : Pipeline(std::move(pipeline), std::move(layout)), sbt(std::move(sbt)) {}
@@ -84,13 +94,13 @@ class GraphicsPipelineBuilder {
 
     vector<vk::DescriptorSetLayout> descriptor_set_layouts;
 
-    std::optional<vk::PipelineRasterizationStateCreateInfo> rasterizer_override;
-    std::optional<vk::PipelineMultisampleStateCreateInfo> multisampling_override;
-    std::optional<vk::PipelineDepthStencilStateCreateInfo> depth_stencil_override;
+    optional<vk::PipelineRasterizationStateCreateInfo> rasterizer_override;
+    optional<vk::PipelineMultisampleStateCreateInfo> multisampling_override;
+    optional<vk::PipelineDepthStencilStateCreateInfo> depth_stencil_override;
 
     uint32_t multiview_count = 1;
     vector<vk::Format> color_attachment_formats;
-    std::optional<vk::Format> depth_attachment_format;
+    optional<vk::Format> depth_attachment_format;
 
 public:
     GraphicsPipelineBuilder &with_vertex_shader(const std::filesystem::path &path);
@@ -130,7 +140,7 @@ public:
 private:
     void check_params() const;
 
-    [[nodiscard]] static std::vector<vk::PushConstantRange>
+    [[nodiscard]] static vector<vk::PushConstantRange>
     eval_push_constant_ranges(const SpirvReflectModuleWrapper& vertex_spirv_reflect_module,
                               const SpirvReflectModuleWrapper& fragment_spirv_reflect_module);
 };
@@ -175,7 +185,7 @@ public:
 private:
     void check_params() const;
 
-    [[nodiscard]] std::pair<vk::raii::Pipeline, vk::raii::PipelineLayout>
+    [[nodiscard]] pair<vk::raii::Pipeline, vk::raii::PipelineLayout>
     build_pipeline(const RendererContext &ctx) const;
 
     [[nodiscard]] RtPipeline::ShaderBindingTable

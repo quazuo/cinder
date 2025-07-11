@@ -62,6 +62,8 @@ public:
 
     [[nodiscard]] const Buffer &get_mesh_descriptions_buffer() const { return *mesh_descriptions_buffer; }
 
+    [[nodiscard]] const AccelerationStructure &get_blas() const { return *blas; }
+
     [[nodiscard]] vector<ModelVertex> get_vertices() const;
 
     [[nodiscard]] vector<uint32_t> get_indices() const;
@@ -69,8 +71,6 @@ public:
     [[nodiscard]] vector<glm::mat4> get_instance_transforms() const;
 
     [[nodiscard]] vector<MeshDescription> get_mesh_descriptions() const;
-
-    [[nodiscard]] const vk::raii::AccelerationStructureKHR &get_blas() const { return **blas; }
 
     void bind_buffers(const vk::raii::CommandBuffer &command_buffer) const;
 

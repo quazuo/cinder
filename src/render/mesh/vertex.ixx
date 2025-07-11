@@ -9,12 +9,6 @@ import vulkan_hpp;
 import Cinder.Globals;
 
 export namespace zrx {
-template<typename T>
-concept VertexLike = requires {
-    { T::get_binding_descriptions() } -> std::same_as<vector<vk::VertexInputBindingDescription>>;
-    { T::get_attribute_descriptions() } -> std::same_as<vector<vk::VertexInputAttributeDescription>>;
-};
-
 struct ModelVertex {
     glm::vec3 pos;
     glm::vec2 tex_coord;

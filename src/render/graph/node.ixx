@@ -16,17 +16,17 @@ using RenderNodeHandle = uint32_t;
 class RenderPassContext {
     reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
     reference_wrapper<ResourceManager> resource_manager;
-    reference_wrapper<const std::map<ResourceHandle, GraphicsPipeline>> graphics_pipelines;
-    reference_wrapper<const std::map<ResourceHandle, ComputePipeline>> compute_pipelines;
+    reference_wrapper<const map<ResourceHandle, GraphicsPipeline>> graphics_pipelines;
+    reference_wrapper<const map<ResourceHandle, ComputePipeline>> compute_pipelines;
     reference_wrapper<const vk::raii::DescriptorSet> bindless_set;
 
-    std::optional<ResourceHandle> last_bound_pipeline;
+    optional<ResourceHandle> last_bound_pipeline;
     std::vector<ResourceHandle> bound_resource_ids;
 
 public:
     explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, ResourceManager &rm,
-                               const std::map<ResourceHandle, GraphicsPipeline> &graphics_pipelines,
-                               const std::map<ResourceHandle, ComputePipeline> &compute_pipelines,
+                               const map<ResourceHandle, GraphicsPipeline> &graphics_pipelines,
+                               const map<ResourceHandle, ComputePipeline> &compute_pipelines,
                                const vk::raii::DescriptorSet &bindless_set)
         : command_buffer(cmd_buf), resource_manager(rm),
           graphics_pipelines(graphics_pipelines), compute_pipelines(compute_pipelines),
@@ -58,15 +58,15 @@ struct RenderNode {
     string name;
     vector<ResourceHandle> bound_resources;
     vector<ResourceHandle> color_targets;
-    std::optional<ResourceHandle> depth_target;
+    optional<ResourceHandle> depth_target;
     RenderNodeBodyFn body;
-    std::optional<ShouldRunPredicate> should_run_predicate;
+    optional<ShouldRunPredicate> should_run_predicate;
     std::vector<RenderNodeHandle> explicit_dependencies;
 
     struct CustomProperties {
         uint32_t multiview_count = 1;
     } custom_properties;
 
-    [[nodiscard]] std::set<ResourceHandle> get_all_targets_set() const;
+    [[nodiscard]] set<ResourceHandle> get_all_targets_set() const;
 };
 } // zrx

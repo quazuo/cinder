@@ -6,9 +6,8 @@ import glm;
 import std;
 import glfw;
 
-import Cinder.Utils;
-
 import Cinder.Globals;
+import Cinder.Utils;
 
 export namespace zrx {
 class Rotator {

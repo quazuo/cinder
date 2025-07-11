@@ -48,7 +48,7 @@ struct is_valid_for_resource : std::disjunction<
 template<typename T>
     requires is_valid_for_resource<T>::value
 struct ResourcePack final {
-    using ResourceSlot = std::optional<reference_wrapper<const T> >;
+    using ResourceSlot = optional<reference_wrapper<const T> >;
 
     vk::ShaderStageFlags scope;
     vk::DescriptorType type;

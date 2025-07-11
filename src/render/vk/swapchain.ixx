@@ -83,7 +83,7 @@ public:
      * @param semaphore Semaphore which should be signalled after completion.
      * @return Result code and index of the new image.
      */
-    [[nodiscard]] std::pair<vk::Result, uint32_t> acquire_next_image(const vk::raii::Semaphore &semaphore);
+    [[nodiscard]] pair<vk::Result, uint32_t> acquire_next_image(const vk::raii::Semaphore &semaphore);
 
     [[nodiscard]] static uint32_t get_image_count(const RendererContext &ctx, const vk::raii::SurfaceKHR &surface);
 

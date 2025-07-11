@@ -67,6 +67,8 @@ struct std::hash<zrx::ViewParams> {
 };
 
 export namespace zrx {
+class TextureBuilder;
+
 /**
  * Abstraction over a Vulkan image, making it easier to manage by hiding all the Vulkan API calls.
  * These images are allocated using VMA and as such are not suited for swap chain images.
@@ -194,7 +196,7 @@ class Texture {
     unique_ptr<Image> image;
     unique_ptr<vk::raii::Sampler> sampler;
 
-    friend class TextureBuilder;
+    friend TextureBuilder;
 
     Texture() = default;
 
@@ -224,7 +226,7 @@ enum class SwizzleComponent {
     HALF_MAX
 };
 
-using SwizzleDesc = std::array<SwizzleComponent, 4>;
+using SwizzleDesc = array<SwizzleComponent, 4>;
 
 constexpr SwizzleDesc default_swizzle = {
     SwizzleComponent::R,
@@ -248,11 +250,11 @@ class TextureBuilder {
     bool is_separate_channels = false;
     bool is_uninitialized = false;
 
-    std::optional<SwizzleDesc> swizzle;
+    optional<SwizzleDesc> swizzle;
 
     vk::SamplerAddressMode address_mode = vk::SamplerAddressMode::eRepeat;
 
-    std::optional<vk::Extent3D> desired_extent;
+    optional<vk::Extent3D> desired_extent;
 
     vector<std::filesystem::path> paths;
     void *memory_source = nullptr;

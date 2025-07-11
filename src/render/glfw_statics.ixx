@@ -1,11 +1,21 @@
-#pragma once
+module;
 
+export module Cinder.Render:GlfwStatics;
+
+import glm;
+import std;
 import glfw;
 
-namespace zrx {
+import :Camera;
+import :Renderer;
+
+import Cinder.Utils;
+import Cinder.Globals;
+
+export namespace zrx {
 struct GlfwStaticUserData {
-    class VulkanRenderer* renderer;
-    class Camera* camera;
+    VulkanRenderer* renderer;
+    Camera* camera;
 };
 
 inline void init_glfw_user_pointer(GLFWwindow* window) {

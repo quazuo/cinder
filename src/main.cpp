@@ -78,7 +78,7 @@ class Engine {
     bool show_debug_quad = false;
 
     ImGui::FileBrowser file_browser;
-    std::optional<FileType> current_type_being_chosen;
+    optional<FileType> current_type_being_chosen;
     std::unordered_map<FileType, std::filesystem::path> chosen_paths{};
     uint32_t load_scheme_idx = 0;
 
@@ -410,7 +410,7 @@ private:
             }
         };
 
-        static const std::array cubemap_face_views{
+        static const array cubemap_face_views{
             glm::lookAt(glm::vec3(0), glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0)),
             glm::lookAt(glm::vec3(0), glm::vec3(1, 0, 0), glm::vec3(0, 1, 0)),
             glm::lookAt(glm::vec3(0), glm::vec3(0, 1, 0), glm::vec3(0, 0, -1)),
@@ -488,7 +488,7 @@ private:
 
             ImGui::Separator();
 
-            ImGui::DragFloat("Model scale", &model_scale, 0.01, 0, std::numeric_limits<float>::max());
+            ImGui::DragFloat("Model scale", &model_scale, 0.01, 0, numeric_limits<float>::max());
 
             ImGui::gizmo3D("Model rotation", model_rotation, 160);
 
@@ -504,7 +504,7 @@ private:
 
 #ifndef NDEBUG
             ImGui::Separator();
-            ImGui::DragFloat("Debug number", &debug_number, 0.01, 0, std::numeric_limits<float>::max());
+            ImGui::DragFloat("Debug number", &debug_number, 0.01, 0, numeric_limits<float>::max());
 #endif
         }
 
