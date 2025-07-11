@@ -2,7 +2,7 @@ module;
 
 #include "../SPIRV-Reflect/spirv_reflect.h"
 
-export module SpirvReflect;
+export module spirv_reflect;
 
 export {
     using ::SpvReflectShaderModule;

@@ -2,7 +2,7 @@ module;
 
 export module Cinder.Render:Renderer;
 
-import VkBootstrap;
+import vk_bootstrap;
 import vulkan_hpp;
 import std;
 import glfw;
@@ -13,18 +13,6 @@ import Cinder.Render.Graph;
 import Cinder.Render.Vulkan;
 import Cinder.Render.Gui;
 import Cinder.Globals;
-
-export const vector device_extensions{
-    ZRX_VK_KHR_SWAPCHAIN_EXTENSION_NAME,
-    ZRX_VK_KHR_SYNCHRONIZATION_2_EXTENSION_NAME,
-    ZRX_VK_KHR_TIMELINE_SEMAPHORE_EXTENSION_NAME,
-    ZRX_VK_KHR_DYNAMIC_RENDERING_EXTENSION_NAME,
-    ZRX_VK_KHR_MULTIVIEW_EXTENSION_NAME,
-    ZRX_VK_KHR_ACCELERATION_STRUCTURE_EXTENSION_NAME,
-    ZRX_VK_KHR_RAY_TRACING_PIPELINE_EXTENSION_NAME,
-    ZRX_VK_KHR_DEFERRED_HOST_OPERATIONS_EXTENSION_NAME,
-    ZRX_VK_EXT_DESCRIPTOR_INDEXING_EXTENSION_NAME,
-};
 
 #ifdef NDEBUG
 export constexpr bool ENABLE_VALIDATION_LAYERS = false;

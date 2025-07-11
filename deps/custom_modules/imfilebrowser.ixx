@@ -7,7 +7,7 @@ module;
 #include <../imgui/backends/imgui_impl_vulkan.h>
 #include "../imgui-filebrowser/imfilebrowser.h"
 
-export module ImFileBrowser;
+export module imfilebrowser;
 
 export namespace ImGui {
     using ImGui::FileBrowser;

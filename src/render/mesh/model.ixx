@@ -2,7 +2,7 @@ module;
 
 export module Cinder.Render.Mesh:Model;
 
-import Assimp;
+import assimp;
 import std;
 
 import Cinder.Render.Vulkan;

@@ -2,7 +2,7 @@ module;
 
 export module Cinder.Render.Vulkan:Buffer;
 
-import VkMemAlloc;
+import vma;
 import std;
 import cvulkan;
 
@@ -21,7 +21,7 @@ export namespace zrx {
 class Buffer {
     VmaAllocator allocator;
     vk::Buffer buffer;
-    VmaAllocation allocation{};
+    VmaAllocation allocation;
     vk::DeviceSize size;
     void *mapped = nullptr;
 

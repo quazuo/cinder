@@ -2,7 +2,7 @@ module;
 
 module Cinder.Render.Gui;
 
-import ImGuIZMOquat;
+import imguizmo_quat;
 import glm;
 import glfw;
 

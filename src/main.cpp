@@ -1,6 +1,6 @@
-import Imgui;
-import ImGuIZMOquat;
-import ImFileBrowser;
+import imgui;
+import imguizmo_quat;
+import imfilebrowser;
 import std;
 import glfw;
 import glm;

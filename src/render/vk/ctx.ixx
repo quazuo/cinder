@@ -2,7 +2,7 @@ module;
 
 export module Cinder.Render.Vulkan:Context;
 
-import VkMemAlloc;
+import vma;
 import vulkan_hpp;
 import std;
 

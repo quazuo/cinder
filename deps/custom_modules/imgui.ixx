@@ -6,7 +6,7 @@ module;
 #include <../imgui/backends/imgui_impl_glfw.h>
 #include <../imgui/backends/imgui_impl_vulkan.h>
 
-export module Imgui;
+export module imgui;
 
 export {
     using ::ImGui_ImplVulkan_InitInfo;

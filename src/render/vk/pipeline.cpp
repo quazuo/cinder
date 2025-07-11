@@ -4,7 +4,7 @@ module Cinder.Render.Vulkan;
 
 import std;
 import vulkan_hpp;
-import SpirvReflect;
+import spirv_reflect;
 
 import Cinder.Utils;
 import :Buffer;

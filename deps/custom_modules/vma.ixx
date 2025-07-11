@@ -1,8 +1,8 @@
 module;
 
-#include "../vma/vk_mem_alloc.h"
+#include "../vma/vma.h"
 
-export module VkMemAlloc;
+export module vma;
 
 export {
     using ::VmaAllocator_T;

@@ -4,10 +4,10 @@ module;
 
 module Cinder.Render;
 
-import SpirvReflect;
+import spirv_reflect;
 import glfw;
 import std;
-import Imgui;
+import imgui;
 
 import Cinder.Utils;
 import Cinder.Render.Vulkan;
@@ -122,7 +122,7 @@ vector<const char *> VulkanRenderer::get_required_extensions() {
     vector extensions(glfw_extensions, glfw_extensions + glfw_extension_count);
 
     if (ENABLE_VALIDATION_LAYERS) {
-        extensions.push_back(ZRX_VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+        extensions.push_back(vk::EXTDebugUtilsExtensionName);
     }
 
     return extensions;
@@ -141,6 +141,19 @@ void VulkanRenderer::create_surface() {
 }
 
 vkb::PhysicalDevice VulkanRenderer::pick_physical_device(const vkb::Instance &vkb_instance) {
+    const vector device_extensions{
+        vk::EXTDescriptorIndexingExtensionName,
+        // vk::EXTDebugMarkerExtensionName,
+        vk::KHRAccelerationStructureExtensionName,
+        vk::KHRDeferredHostOperationsExtensionName,
+        vk::KHRDynamicRenderingExtensionName,
+        vk::KHRMultiviewExtensionName,
+        vk::KHRRayTracingPipelineExtensionName,
+        vk::KHRSwapchainExtensionName,
+        vk::KHRSynchronization2ExtensionName,
+        vk::KHRTimelineSemaphoreExtensionName,
+    };
+
     auto physical_device_result = vkb::PhysicalDeviceSelector(vkb_instance, **surface)
             .set_minimum_version(1, 3)
             .require_dedicated_transfer_queue()
@@ -847,7 +860,7 @@ void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resour
     const size_t subresource_index = node_resources.render_infos.size() == 1 ? 0 : current_frame_idx;
     const auto &node_render_info = node_resources.render_infos[subresource_index];
 
-    command_buffer.debugMarkerBeginEXT(vk::DebugMarkerMarkerInfoEXT { .pMarkerName = node.name.c_str(), });
+    // command_buffer.debugMarkerBeginEXT(vk::DebugMarkerMarkerInfoEXT { .pMarkerName = node.name.c_str(), });
 
     command_buffer.beginRendering(node_render_info.get(
             get_node_target_extent(node_resources),
@@ -859,7 +872,7 @@ void VulkanRenderer::record_node_commands(const RenderNodeResources &node_resour
     // regenerate mipmaps for each target that had them
     record_regenerate_mipmaps_commands(node_resources);
 
-    command_buffer.debugMarkerEndEXT();
+    // command_buffer.debugMarkerEndEXT();
 }
 
 void VulkanRenderer::record_node_rendering_commands(const RenderNodeResources &node_resources) const {

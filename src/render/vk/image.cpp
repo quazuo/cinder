@@ -4,7 +4,7 @@ module Cinder.Render.Vulkan;
 
 import std;
 import vulkan_hpp;
-import StbImage;
+import stb_image;
 
 import Cinder.Globals;
 
@@ -145,28 +145,22 @@ Image::Image(const RendererContext &ctx, const vk::ImageCreateInfo &image_info,
         .requiredFlags = static_cast<VkMemoryPropertyFlags>(properties)
     };
 
-    VkImage new_image;
-    VmaAllocation new_allocation;
-
     const auto result = vmaCreateImage(
         allocator,
         reinterpret_cast<const VkImageCreateInfo *>(&image_info),
         &alloc_info,
-        &new_image,
-        &new_allocation,
+        reinterpret_cast<VkImage *>(&image),
+        &allocation,
         nullptr
     );
 
     if (result != VK_SUCCESS) {
         Logger::error("failed to allocate buffer!");
     }
-
-    image      = make_unique<vk::raii::Image>(*ctx.device, new_image);
-    allocation = make_unique<VmaAllocation>(new_allocation);
 }
 
 Image::~Image() {
-    vmaFreeMemory(allocator, *allocation);
+    vmaDestroyImage(allocator, static_cast<VkImage>(image), allocation);
 }
 
 shared_ptr<vk::raii::ImageView> Image::get_view(const RendererContext &ctx) {
@@ -194,8 +188,8 @@ shared_ptr<vk::raii::ImageView> Image::get_cached_view(const RendererContext &ct
     const auto &[base_mip, mip_count, base_layer, layer_count] = params;
 
     auto view = layer_count == 1
-                    ? utils::img::create_image_view(ctx, **image, format, aspect_mask, base_mip, mip_count, base_layer)
-                    : utils::img::create_cube_image_view(ctx, **image, format, aspect_mask, base_mip, mip_count);
+                    ? utils::img::create_image_view(ctx, image, format, aspect_mask, base_mip, mip_count, base_layer)
+                    : utils::img::create_cube_image_view(ctx, image, format, aspect_mask, base_mip, mip_count);
     auto view_ptr = make_shared<vk::raii::ImageView>(std::move(view));
     cached_views.emplace(params, view_ptr);
     return view_ptr;
@@ -218,7 +212,7 @@ void Image::copy_from_buffer(const vk::Buffer buffer, const vk::raii::CommandBuf
 
     command_buffer.copyBufferToImage(
         buffer,
-        **image,
+        image,
         vk::ImageLayout::eTransferDstOptimal,
         region
     );
@@ -255,7 +249,7 @@ void Image::transition_layout(vk::ImageLayout old_layout, vk::ImageLayout new_la
         .newLayout = new_layout,
         .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
         .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .image = **image,
+        .image = image,
         .subresourceRange = range,
     };
 
@@ -329,7 +323,7 @@ void Image::save_to_file(const RendererContext &ctx, const std::filesystem::path
         .dstAccessMask = vk::AccessFlagBits2::eMemoryRead,
         .oldLayout = vk::ImageLayout::eTransferDstOptimal,
         .newLayout = vk::ImageLayout::eGeneral,
-        .image = **temp_image,
+        .image = *temp_image,
         .subresourceRange = {
             .aspectMask = vk::ImageAspectFlagBits::eColor,
             .levelCount = 1,
@@ -372,18 +366,18 @@ void Image::save_to_file(const RendererContext &ctx, const std::filesystem::path
     utils::cmd::do_single_time_commands(ctx, [&](const auto &commandBuffer) {
         if (supports_blit) {
             commandBuffer.blitImage(
-                **image,
+                image,
                 vk::ImageLayout::eTransferSrcOptimal,
-                **temp_image,
+                *temp_image,
                 vk::ImageLayout::eTransferDstOptimal,
                 blit_info,
                 vk::Filter::eLinear
             );
         } else {
             commandBuffer.copyImage(
-                **image,
+                image,
                 vk::ImageLayout::eTransferSrcOptimal,
-                **temp_image,
+                *temp_image,
                 vk::ImageLayout::eTransferDstOptimal,
                 image_copy_region
             );
@@ -393,7 +387,7 @@ void Image::save_to_file(const RendererContext &ctx, const std::filesystem::path
     });
 
     void *data;
-    vmaMapMemory(temp_image.allocator, *temp_image.allocation, &data);
+    vmaMapMemory(temp_image.allocator, temp_image.allocation, &data);
 
     stbi_write_png(
         path.string().c_str(),
@@ -404,7 +398,7 @@ void Image::save_to_file(const RendererContext &ctx, const std::filesystem::path
         utils::img::get_format_size_in_bytes(temp_image.format) * temp_image.extent.width
     );
 
-    vmaUnmapMemory(temp_image.allocator, *temp_image.allocation);
+    vmaUnmapMemory(temp_image.allocator, temp_image.allocation);
 
     utils::cmd::do_single_time_commands(ctx, [&](const auto &cmd_buffer) {
         transition_layout(
@@ -447,7 +441,7 @@ void CubeImage::copy_from_buffer(const vk::Buffer buffer, const vk::raii::Comman
 
     command_buffer.copyBufferToImage(
         buffer,
-        **image,
+        image,
         vk::ImageLayout::eTransferDstOptimal,
         region
     );
@@ -487,7 +481,7 @@ void Texture::generate_mipmaps(const RendererContext &ctx, const vk::ImageLayout
         .newLayout = vk::ImageLayout::eTransferSrcOptimal,
         .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
         .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .image = ***image,
+        .image = **image,
         .subresourceRange = {
             .aspectMask = vk::ImageAspectFlagBits::eColor,
             .levelCount = 1,
@@ -543,8 +537,8 @@ void Texture::generate_mipmaps(const RendererContext &ctx, const vk::ImageLayout
         };
 
         command_buffer.blitImage(
-            ***image, vk::ImageLayout::eTransferSrcOptimal,
-            ***image, vk::ImageLayout::eTransferDstOptimal,
+            **image, vk::ImageLayout::eTransferSrcOptimal,
+            **image, vk::ImageLayout::eTransferDstOptimal,
             blit,
             vk::Filter::eLinear
         );
@@ -775,7 +769,7 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
     if (name) {
         ctx.device->setDebugUtilsObjectNameEXT(vk::DebugUtilsObjectNameInfoEXT {
             .objectType = vk::ObjectType::eImage,
-            .objectHandle = reinterpret_cast<uint64_t>(static_cast<VkImage>(***texture->image)),
+            .objectHandle = reinterpret_cast<uint64_t>(static_cast<VkImage>(**texture->image)),
             .pObjectName = name,
         });
     }

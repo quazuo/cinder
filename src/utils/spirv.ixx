@@ -2,7 +2,7 @@ module;
 
 export module Cinder.Utils:Spirv;
 
-import SpirvReflect;
+import spirv_reflect;
 import std;
 
 import Cinder.Globals;

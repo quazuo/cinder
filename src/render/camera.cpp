@@ -6,7 +6,7 @@ module Cinder.Render;
 
 import glfw;
 import glm;
-import Imgui;
+import imgui;
 
 import Cinder.Utils;
 import Cinder.Render.Gui;

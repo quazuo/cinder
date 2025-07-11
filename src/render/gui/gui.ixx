@@ -2,7 +2,7 @@ module;
 
 export module Cinder.Render.Gui;
 
-import Imgui;
+import imgui;
 import vulkan_hpp;
 import glfw;
 

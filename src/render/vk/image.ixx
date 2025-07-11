@@ -6,7 +6,7 @@ module;
 
 export module Cinder.Render.Vulkan:Image;
 
-import VkMemAlloc;
+import vma;
 import vulkan_hpp;
 import std;
 
@@ -73,13 +73,15 @@ export namespace zrx {
  */
 class Image {
 protected:
-    VmaAllocator allocator{};
-    unique_ptr<VmaAllocation> allocation{};
-    unique_ptr<vk::raii::Image> image;
+    VmaAllocator allocator;
+    VmaAllocation allocation;
+    vk::Image image;
+
     vk::Extent3D extent;
-    vk::Format format{};
+    vk::Format format;
     uint32_t mip_levels;
     vk::ImageAspectFlags aspect_mask;
+
     std::unordered_map<ViewParams, shared_ptr<vk::raii::ImageView> > cached_views;
 
 public:
@@ -100,7 +102,7 @@ public:
      * Returns a raw handle to the actual Vulkan image.
      * @return Handle to the image.
      */
-    [[nodiscard]] const vk::raii::Image &operator*() const { return *image; }
+    [[nodiscard]] const vk::Image &operator*() const { return image; }
 
     /**
      * Returns an image view containing all mip levels and all layers of this image.

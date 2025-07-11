@@ -3,7 +3,7 @@ module;
 #include "../stb/stb_image.h"
 #include "../stb/stb_image_write.h"
 
-export module StbImage;
+export module stb_image;
 
 export {
     using ::stbi_write_png;

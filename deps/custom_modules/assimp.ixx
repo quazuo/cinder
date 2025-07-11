@@ -4,7 +4,7 @@ module;
 #include <assimp/scene.h>
 #include <assimp/postprocess.h>
 
-export module Assimp;
+export module assimp;
 
 export {
     using ::aiMaterial;

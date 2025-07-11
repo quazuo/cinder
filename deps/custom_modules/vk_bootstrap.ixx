@@ -2,7 +2,7 @@ module;
 
 #include "../vk-bootstrap/VkBootstrap.h"
 
-export module VkBootstrap;
+export module vk_bootstrap;
 
 export namespace vkb {
     using vkb::Instance;

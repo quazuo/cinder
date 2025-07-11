@@ -7,7 +7,7 @@ module;
 #include <../imgui/backends/imgui_impl_vulkan.h>
 #include "../imGuIZMO.quat/imGuIZMO.quat/imGuIZMOquat.h"
 
-export module ImGuIZMOquat;
+export module imguizmo_quat;
 
 export {
     using ::imguiGizmo;

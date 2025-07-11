@@ -3,7 +3,7 @@ module;
 module Cinder.Utils;
 
 import std;
-import SpirvReflect;
+import spirv_reflect;
 
 import :Logger;
 
