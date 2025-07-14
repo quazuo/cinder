@@ -23,6 +23,6 @@ vec2 sample_spherical_map(vec3 v) {
 
 void main() {
     vec2 uv = sample_spherical_map(normalize(localPosition));
-    vec3 color = texture(bindless_textures[constants.equirectangular_map_id], uv).rgb;
+    vec3 color = texture(bindless_samplers[constants.equirectangular_map_id], uv).rgb;
     outColor = vec4(color, 1.0);
 }

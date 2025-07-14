@@ -147,16 +147,12 @@ private:
 
 class ComputePipelineBuilder {
     std::filesystem::path shader_path;
-
     vector<vk::DescriptorSetLayout> descriptor_set_layouts;
-    vector<vk::PushConstantRange> push_constant_ranges;
 
 public:
     ComputePipelineBuilder &with_shader(const std::filesystem::path &path);
 
     ComputePipelineBuilder &with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts);
-
-    ComputePipelineBuilder &with_push_constants(const vector<vk::PushConstantRange> &ranges);
 
     [[nodiscard]] ComputePipeline create(const RendererContext &ctx) const;
 };

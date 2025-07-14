@@ -3,15 +3,26 @@ for /D %%i in (C:\VulkanSDK\*) do set "SDK_DIR=%%i"
 set "IS_ERROR=0"
 
 set graphics_shaders="main" "skybox" "prepass" "sphere-cube" "ss-quad" "ssao"
+set compute_shaders="blur-x" "blur-y"
 set rt_shaders="raytrace"
 
 set graphics_exts="vert" "frag"
+set compute_exts="comp"
 set rt_exts="rchit" "rgen" "rmiss"
 
 set SPV_FLAGS=-g --target-env=vulkan1.2
 
 (for %%a in (%graphics_shaders%) do (
     (for %%e in (%graphics_exts%) do (
+        @echo on
+        %SDK_DIR%/Bin/glslc.exe %%a.%%e -o obj/%%a-%%e.spv %SPV_FLAGS%
+        @echo off
+        if %ERRORLEVEL% NEQ 0 set "IS_ERROR=1"
+    ))
+))
+
+(for %%a in (%compute_shaders%) do (
+    (for %%e in (%compute_exts%) do (
         @echo on
         %SDK_DIR%/Bin/glslc.exe %%a.%%e -o obj/%%a-%%e.spv %SPV_FLAGS%
         @echo off

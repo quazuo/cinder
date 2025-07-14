@@ -38,7 +38,7 @@ struct DefaultDescriptorType<AccelerationStructure> {
 };
 
 template<typename T>
-struct is_valid_for_resource : std::disjunction<
+struct is_valid_descriptor_resource : std::disjunction<
             std::is_same<T, Texture>,
             std::is_same<T, Buffer>,
             std::is_same<T, BufferSlice>,
@@ -46,7 +46,7 @@ struct is_valid_for_resource : std::disjunction<
 };
 
 template<typename T>
-    requires is_valid_for_resource<T>::value
+    requires is_valid_descriptor_resource<T>::value
 struct ResourcePack final {
     using ResourceSlot = optional<reference_wrapper<const T> >;
 
@@ -83,7 +83,7 @@ using NthTypeOf = std::tuple_element_t<N, std::tuple<Ts...> >;
  * Enables compile-time checks to typing of its bindings and doesn't allow changes in layout.
  */
 template<typename... Ts>
-    requires std::conjunction_v<is_valid_for_resource<Ts>...>
+    requires std::conjunction_v<is_valid_descriptor_resource<Ts>...>
 class FixedDescriptorSet {
     reference_wrapper<const RendererContext> ctx;
     std::tuple<ResourcePack<Ts>...> packs;

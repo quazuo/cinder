@@ -60,10 +60,14 @@ class VulkanRenderer {
 
     // bindless resources
 
-    using BindlessDescriptorSet = FixedDescriptorSet<Texture, Buffer>;
+    using BindlessDescriptorSet = FixedDescriptorSet<Texture, Texture, Buffer>;
     unique_ptr<BindlessDescriptorSet> bindless_descriptor_set;
 
     static constexpr uint32_t BINDLESS_ARRAY_SIZE = 64;
+
+    static constexpr uint32_t BINDLESS_SAMPLER_BINDING = 0;
+    static constexpr uint32_t BINDLESS_STORAGE_TEXTURE_BINDING = 1;
+    static constexpr uint32_t BINDLESS_UBO_BINDING = 2;
 
     // render graph stuff
 

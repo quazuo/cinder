@@ -95,8 +95,8 @@ void main() {
 
     const float radius = 0.2;
 
-    vec3 normal = normalize(texture(bindless_textures[constants.g_normal_tex_id], texCoords).xyz);
-    vec3 frag_pos = texture(bindless_textures[constants.g_pos_tex_id], texCoords).xyz;
+    vec3 normal = normalize(texture(bindless_samplers[constants.g_normal_tex_id], texCoords).xyz);
+    vec3 frag_pos = texture(bindless_samplers[constants.g_pos_tex_id], texCoords).xyz;
 
     normal.y *= -1;
     frag_pos.y *= -1;
@@ -118,7 +118,7 @@ void main() {
         sample_clip_pos.xyz /= sample_clip_pos.w;
         sample_clip_pos.xyz = sample_clip_pos.xyz * 0.5 + 0.5;
 
-        float sample_depth = texture(bindless_textures[constants.g_pos_tex_id], sample_clip_pos.xy).z;
+        float sample_depth = texture(bindless_samplers[constants.g_pos_tex_id], sample_clip_pos.xy).z;
 
         float rangeCheck = smoothstep(0.0, 1.0, radius / abs(frag_pos.z - sample_depth));
 

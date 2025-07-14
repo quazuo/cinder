@@ -170,6 +170,7 @@ vkb::PhysicalDevice VulkanRenderer::pick_physical_device(const vkb::Instance &vk
                 .shaderStorageBufferArrayNonUniformIndexing = vk::True,
                 .descriptorBindingUniformBufferUpdateAfterBind = vk::True,
                 .descriptorBindingSampledImageUpdateAfterBind = vk::True,
+                .descriptorBindingStorageImageUpdateAfterBind = vk::True,
                 .descriptorBindingStorageBufferUpdateAfterBind = vk::True,
                 .descriptorBindingPartiallyBound = vk::True,
                 .runtimeDescriptorArray = vk::True,
@@ -311,9 +312,15 @@ void VulkanRenderer::create_bindless_resources() {
             vk::DescriptorType::eCombinedImageSampler,
             binding_flags
         },
+        ResourcePack<Texture> {
+            BINDLESS_ARRAY_SIZE,
+            vk::ShaderStageFlagBits::eCompute,
+            vk::DescriptorType::eStorageImage,
+            binding_flags
+        },
         ResourcePack<Buffer> {
             BINDLESS_ARRAY_SIZE,
-            vk::ShaderStageFlagBits::eAllGraphics,
+            vk::ShaderStageFlagBits::eAll,
             vk::DescriptorType::eUniformBuffer,
             binding_flags
         }
@@ -540,7 +547,7 @@ void VulkanRenderer::create_render_graph_resources() {
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& buffer = resource_manager->get_buffer(handle);
-        bindless_descriptor_set->update_binding<1>(buffer, bindless_handle);
+        bindless_descriptor_set->update_binding<BINDLESS_UBO_BINDING>(buffer, bindless_handle);
     }
 
     for (const auto &[handle, description]: render_graph->external_tex_resources()) {
@@ -552,6 +559,7 @@ void VulkanRenderer::create_render_graph_resources() {
                 .use_usage(vk::ImageUsageFlagBits::eTransferSrc
                            | vk::ImageUsageFlagBits::eTransferDst
                            | vk::ImageUsageFlagBits::eSampled
+                           | vk::ImageUsageFlagBits::eStorage
                            | utils::img::get_format_attachment_type(description.format));
 
         if (description.paths.size() > 1 && !(description.flags & vk::TextureFlagBitsZRX::CUBEMAP))
@@ -563,7 +571,8 @@ void VulkanRenderer::create_render_graph_resources() {
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get_texture(handle);
-        bindless_descriptor_set->update_binding<0>(texture, bindless_handle);
+        bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
+        bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
     }
 
     for (const auto &[handle, description]: render_graph->target_tex_resources()) {
@@ -583,13 +592,15 @@ void VulkanRenderer::create_render_graph_resources() {
                 .use_usage(vk::ImageUsageFlagBits::eTransferSrc
                            | vk::ImageUsageFlagBits::eTransferDst
                            | vk::ImageUsageFlagBits::eSampled
+                           | vk::ImageUsageFlagBits::eStorage
                            | utils::img::get_format_attachment_type(description.format));
 
         resource_manager->add(handle, builder.create(ctx), description.name);
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get_texture(handle);
-        bindless_descriptor_set->update_binding<0>(texture, bindless_handle);
+        bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
+        bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
     }
 
     for (const auto &[handle, description]: render_graph->transient_tex_resources()) {
@@ -608,9 +619,10 @@ void VulkanRenderer::create_render_graph_resources() {
 
         resource_manager->add(handle, builder.create(ctx), description.name);
 
-        const auto bindless_handle = resource_manager->get_bindless_handle(handle);
-        const auto& texture = resource_manager->get_texture(handle);
-        bindless_descriptor_set->update_binding<0>(texture, bindless_handle);
+        // const auto bindless_handle = resource_manager->get_bindless_handle(handle);
+        // const auto& texture = resource_manager->get_texture(handle);
+        // bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
+        // bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
     }
 
     for (const auto &[handle, description]: render_graph->graphics_pipelines()) {
@@ -696,16 +708,6 @@ VulkanRenderer::create_graph_compute_pipeline_builder(const ResourceHandle pipel
             .with_shader(pipeline_info.path)
             .with_descriptor_layouts(descriptor_set_layouts);
 
-    if (pipeline_info.used_resources.size() > 0) {
-        builder.with_push_constants({
-            vk::PushConstantRange {
-                vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
-                0,
-                static_cast<uint32_t>(pipeline_info.used_resources.size() * sizeof(uint32_t))
-            }
-        });
-    }
-
     return builder;
 }
 
@@ -750,7 +752,7 @@ vector<RenderInfo> VulkanRenderer::create_node_render_infos(const RenderNodeHand
             }
 
             for (auto color_target_handle: node_info.color_targets) {
-                if (color_target_handle == FINAL_IMAGE_RESOURCE_HANDLE) {
+                if (color_target_handle == FINAL_IMAGE_HANDLE) {
                     color_targets.emplace_back(std::move(swap_chain_targets.color_target));
                 } else {
                     const auto &target_texture = resource_manager->get_texture(color_target_handle);
@@ -884,7 +886,7 @@ void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeHandle n
     const auto &node = render_graph->nodes().at(node_handle);
 
     for (const auto color_target: node.color_targets) {
-        if (color_target == FINAL_IMAGE_RESOURCE_HANDLE) continue;
+        if (color_target == FINAL_IMAGE_HANDLE) continue;
 
         const auto &target_texture = resource_manager->get_texture(color_target);
         if (target_texture.get_mip_levels() == 1) continue;
@@ -948,7 +950,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
 bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle node_handle) const {
     return render_graph->nodes().at(node_handle)
             .get_all_targets_set()
-            .contains(FINAL_IMAGE_RESOURCE_HANDLE);
+            .contains(FINAL_IMAGE_HANDLE);
 }
 
 bool VulkanRenderer::is_first_node_targetting_final_image(const RenderNodeHandle node_handle) const {
@@ -979,14 +981,14 @@ vk::Extent2D VulkanRenderer::get_node_target_extent(const RenderNodeHandle node_
 }
 
 vk::Format VulkanRenderer::get_target_color_format(const ResourceHandle resource_handle) const {
-    if (resource_handle == FINAL_IMAGE_RESOURCE_HANDLE) {
+    if (resource_handle == FINAL_IMAGE_HANDLE) {
         return swap_chain->get_image_format();
     }
     return resource_manager->get_texture(resource_handle).get_format();
 }
 
 vk::Format VulkanRenderer::get_target_depth_format(const ResourceHandle resource_handle) const {
-    if (resource_handle == FINAL_IMAGE_RESOURCE_HANDLE) {
+    if (resource_handle == FINAL_IMAGE_HANDLE) {
         return swap_chain->get_depth_format();
     }
     return resource_manager->get_texture(resource_handle).get_format();

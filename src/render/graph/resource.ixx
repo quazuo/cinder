@@ -10,7 +10,7 @@ import Cinder.Render.Mesh;
 import Cinder.Globals;
 
 export namespace zrx {
-constexpr ResourceHandle FINAL_IMAGE_RESOURCE_HANDLE  = -1;
+constexpr ResourceHandle FINAL_IMAGE_HANDLE  = -1;
 constexpr std::monostate EMPTY_DESCRIPTOR_SET_BINDING = {};
 
 template<typename T>
@@ -91,7 +91,6 @@ struct GraphicsPipelineDesc {
 
 struct ComputePipelineDesc {
     std::filesystem::path path;
-    vector<ResourceHandle> used_resources;
 
     struct CustomProperties {
     } custom_properties;

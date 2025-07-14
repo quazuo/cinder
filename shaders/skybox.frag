@@ -19,7 +19,7 @@ layout (set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform UniformBuffe
 } ubos[];
 
 void main() {
-    vec3 color = texture(bindless_textures_cube[constants.skybox_tex_id], texCoord).rgb;
+    vec3 color = texture(bindless_samplers_cube[constants.skybox_tex_id], texCoord).rgb;
 
     color = pow(color, vec3(1 / 2.2));
 

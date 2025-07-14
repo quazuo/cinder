@@ -42,7 +42,7 @@ public:
     [[nodiscard]] const auto &vertex_buffers()          const { return vertex_buffers_; }
     [[nodiscard]] const auto &uniform_buffers()         const { return uniform_buffers_; }
     [[nodiscard]] const auto &external_tex_resources()  const { return external_tex_resources_; }
-    [[nodiscard]] const auto &target_tex_resources()     const { return target_tex_resources_; }
+    [[nodiscard]] const auto &target_tex_resources()    const { return target_tex_resources_; }
     [[nodiscard]] const auto &transient_tex_resources() const { return transient_tex_resources_; }
     [[nodiscard]] const auto &model_resources()         const { return model_resources_; }
     [[nodiscard]] const auto &graphics_pipelines()      const { return graphics_pipelines_; }
@@ -54,6 +54,9 @@ public:
     [[nodiscard]] vector<vector<RenderNodeHandle>> get_partitioned() const;
 
     RenderNodeHandle add_node(const RenderNode &node);
+
+    /// Adds multiple nodes at once, connected sequentially via explicit dependencies.
+    vector<RenderNodeHandle> add_nodes_sequential(vector<RenderNode> nodes);
 
     [[nodiscard]] ResourceHandle add_resource(VertexBufferResourceDesc &&resource);
 

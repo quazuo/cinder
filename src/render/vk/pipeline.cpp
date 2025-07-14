@@ -279,15 +279,12 @@ with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts) {
     return *this;
 }
 
-ComputePipelineBuilder & ComputePipelineBuilder::with_push_constants(const vector<vk::PushConstantRange> &ranges) {
-    push_constant_ranges = ranges;
-    return *this;
-}
-
 ComputePipeline ComputePipelineBuilder::create(const RendererContext &ctx) const {
     if (shader_path.empty()) {
         Logger::error("compute shader must be specified during compute pipeline creation!");
     }
+
+    const SpirvReflectModuleWrapper spirv_reflect_module { shader_path };
 
     const vk::raii::ShaderModule shader_module = create_shader_module(ctx, shader_path);
 
@@ -296,6 +293,16 @@ ComputePipeline ComputePipelineBuilder::create(const RendererContext &ctx) const
         .module = *shader_module,
         .pName = "main",
     };
+
+    vector<vk::PushConstantRange> push_constant_ranges;
+    const auto push_constant_blocks = spirv_reflect_module.push_constant_blocks();
+    for (const auto& block: push_constant_blocks) {
+        push_constant_ranges.emplace_back(vk::PushConstantRange {
+            .stageFlags = vk::ShaderStageFlagBits::eCompute,
+            .offset = block->offset,
+            .size = block->size,
+        });
+    }
 
     const vk::PipelineLayoutCreateInfo pipeline_layout_info{
         .setLayoutCount = static_cast<uint32_t>(descriptor_set_layouts.size()),

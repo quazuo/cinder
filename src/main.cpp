@@ -67,15 +67,14 @@ namespace zrx {
 class Engine {
     GLFWwindow *window = nullptr;
     VulkanRenderer renderer;
-    std::unique_ptr<InputManager> input_manager;
+    unique_ptr<InputManager> input_manager;
 
     unique_ptr<Camera> camera;
 
+    glm::ivec2 window_size;
+
     float curr_delta_time = 0.0f;
     float last_time = 0.0f;
-
-    bool is_gui_enabled  = true;
-    bool show_debug_quad = false;
 
     ImGui::FileBrowser file_browser;
     optional<FileType> current_type_being_chosen;
@@ -96,8 +95,11 @@ class Engine {
 
     float debug_number = 0;
 
+    bool is_gui_enabled        = true;
+    bool show_debug_quad       = false;
     bool use_ssao              = false;
     bool should_capture_skybox = true;
+    bool do_blur               = true;
 
 public:
     Engine() {
@@ -131,6 +133,8 @@ private:
         input_manager->tick(delta_time);
         renderer.tick(delta_time);
         camera->tick(delta_time);
+
+        glfwGetWindowSize(window, &window_size.x, &window_size.y);
 
         renderer.run_render_graph();
         should_capture_skybox = false;
@@ -245,7 +249,7 @@ private:
 
         // ================== shaders ==================
 
-        const auto cubecap_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
+        const auto cubecap_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
             .vertex_path = "../shaders/obj/sphere-cube-vert.spv",
             .fragment_path = "../shaders/obj/sphere-cube-frag.spv",
             .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
@@ -257,7 +261,7 @@ private:
             }
         });
 
-        const auto prepass_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
+        const auto prepass_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
             .vertex_path = "../shaders/obj/prepass-vert.spv",
             .fragment_path = "../shaders/obj/prepass-frag.spv",
             .binding_descriptions = ModelVertex::get_binding_descriptions(),
@@ -266,7 +270,7 @@ private:
             .depth_format = g_buffer_depth_format
         });
 
-        const auto ssao_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
+        const auto ssao_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
             .vertex_path = "../shaders/obj/ssao-vert.spv",
             .fragment_path = "../shaders/obj/ssao-frag.spv",
             .binding_descriptions = ScreenSpaceQuadVertex::get_binding_descriptions(),
@@ -274,25 +278,33 @@ private:
             .color_formats = {ssao_tex_format}
         });
 
-        const auto skybox_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
+        const auto skybox_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
             .vertex_path = "../shaders/obj/skybox-vert.spv",
             .fragment_path = "../shaders/obj/skybox-frag.spv",
             .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
             .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
-            .color_formats = {FinalImageFormatPlaceholder()},
-            .depth_format = FinalImageFormatPlaceholder(),
+            .color_formats = {FINAL_FORMAT},
+            .depth_format = FINAL_FORMAT,
             .custom_properties = {
                 .depth_compare_op = vk::CompareOp::eLessOrEqual,
             }
         });
 
-        const auto main_shaders = render_graph.add_pipeline(GraphicsPipelineDesc{
+        const auto blur_x_pipeline = render_graph.add_pipeline(ComputePipelineDesc{
+            .path = "../shaders/obj/blur-x-comp.spv",
+        });
+
+        const auto blur_y_pipeline = render_graph.add_pipeline(ComputePipelineDesc{
+            .path = "../shaders/obj/blur-y-comp.spv",
+        });
+
+        const auto main_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
             .vertex_path = "../shaders/obj/main-vert.spv",
             .fragment_path = "../shaders/obj/main-frag.spv",
             .binding_descriptions = ModelVertex::get_binding_descriptions(),
             .attr_descriptions = ModelVertex::get_attribute_descriptions(),
-            .color_formats = {FinalImageFormatPlaceholder()},
-            .depth_format = FinalImageFormatPlaceholder()
+            .color_formats = {FINAL_FORMAT},
+            .depth_format = FINAL_FORMAT
         });
 
         // ================== nodes ==================
@@ -302,7 +314,7 @@ private:
             .bound_resources = {uniform_buffer, envmap_texture},
             .color_targets = {skybox_texture},
             .body = [=](RenderPassContext &ctx) {
-                ctx.bind_pipeline(cubecap_shaders);
+                ctx.bind_pipeline(cubecap_pipeline);
                 ctx.bind_resources({uniform_buffer, envmap_texture});
                 ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
             },
@@ -318,7 +330,7 @@ private:
             .color_targets = {g_buffer_normal, g_buffer_pos},
             .depth_target = g_buffer_depth,
             .body = [=](RenderPassContext &ctx) {
-                ctx.bind_pipeline(prepass_shaders);
+                ctx.bind_pipeline(prepass_pipeline);
                 ctx.bind_resources({uniform_buffer});
                 ctx.draw_model(scene_model);
             },
@@ -330,7 +342,7 @@ private:
             .bound_resources = {uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos},
             .color_targets = {ssao_texture},
             .body = [=](RenderPassContext &ctx) {
-                ctx.bind_pipeline(ssao_shaders);
+                ctx.bind_pipeline(ssao_pipeline);
                 ctx.bind_resources({uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos});
                 ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
             },
@@ -340,30 +352,52 @@ private:
         const auto main_node = render_graph.add_node({
             .name = "main",
             .bound_resources = {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture, skybox_texture},
-            .color_targets = {FINAL_IMAGE_RESOURCE_HANDLE},
-            .depth_target = FINAL_IMAGE_RESOURCE_HANDLE,
+            .color_targets = {FINAL_IMAGE_HANDLE},
+            .depth_target = FINAL_IMAGE_HANDLE,
             .body = [=](RenderPassContext &ctx) {
-                ctx.bind_pipeline(main_shaders);
+                ctx.bind_pipeline(main_pipeline);
                 ctx.bind_resources({uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture});
                 ctx.draw_model(scene_model);
 
-                ctx.bind_pipeline(skybox_shaders);
+                ctx.bind_pipeline(skybox_pipeline);
                 ctx.bind_resources({uniform_buffer, skybox_texture});
                 ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
             },
         });
 
+        const auto post_processing_nodes = render_graph.add_nodes_sequential({
+            {
+                .name = "blur-x",
+                .bound_resources = {FINAL_IMAGE_HANDLE},
+                .body = [=](RenderPassContext &ctx) {
+                    ctx.bind_pipeline(blur_x_pipeline);
+                    ctx.dispatch(window_size.x / 32, window_size.y / 32, 1);
+                },
+                .should_run_predicate = [&] { return do_blur; },
+                .explicit_dependencies = { main_node },
+            },
+            {
+                .name = "blur-y",
+                .bound_resources = {FINAL_IMAGE_HANDLE},
+                .body = [=](RenderPassContext &ctx) {
+                    ctx.bind_pipeline(blur_y_pipeline);
+                    ctx.dispatch(window_size.x / 32, window_size.y / 32, 1);
+                },
+                .should_run_predicate = [&] { return do_blur; }
+            }
+        });
+
         render_graph.add_node({
             .name = "gui",
             .bound_resources = {},
-            .color_targets = {FINAL_IMAGE_RESOURCE_HANDLE},
+            .color_targets = {FINAL_IMAGE_HANDLE},
             .body = [=](const RenderPassContext &ctx) {
                 renderer.get_gui_renderer().begin_rendering();
                 render_gui_section(curr_delta_time);
                 renderer.get_gui_renderer().end_rendering(ctx.get_raw_cmd_buffer());
             },
             .should_run_predicate = [&] { return is_gui_enabled; },
-            .explicit_dependencies = { main_node },
+            .explicit_dependencies = { main_node, post_processing_nodes.back() },
         });
 
         renderer.register_render_graph(render_graph);

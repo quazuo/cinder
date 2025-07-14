@@ -27,26 +27,17 @@ layout (set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform UniformBuffe
     MiscData misc;
 } ubos[];
 
-//layout (set = 0, binding = 1) uniform sampler2D ssaoSampler;
-//
-//// 32
-//#define MATERIAL_TEX_ARRAY_SIZE 1
-//
-//layout (set = 1, binding = 0) uniform sampler2D baseColorSamplers[MATERIAL_TEX_ARRAY_SIZE];
-//layout (set = 1, binding = 1) uniform sampler2D normalSamplers[MATERIAL_TEX_ARRAY_SIZE];
-//layout (set = 1, binding = 2) uniform sampler2D ormSamplers[MATERIAL_TEX_ARRAY_SIZE];
-
 float getBlurredSsao() {
     uint ubo_id = constants.ubo_id;
     vec2 texCoord = gl_FragCoord.xy / vec2(ubos[ubo_id].window.width, ubos[ubo_id].window.height);
 
-    vec2 texelSize = vec2(1.0) / vec2(textureSize(bindless_textures[constants.ssao_tex_id], 0));
+    vec2 texelSize = vec2(1.0) / vec2(textureSize(bindless_samplers[constants.ssao_tex_id], 0));
     float result = 0.0;
 
     for (int x = -2; x < 2; x++) {
         for (int y = -2; y < 2; y++) {
             vec2 offset = vec2(x, y) * texelSize;
-            result += texture(bindless_textures[constants.ssao_tex_id], texCoord + offset).r;
+            result += texture(bindless_samplers[constants.ssao_tex_id], texCoord + offset).r;
         }
     }
 
@@ -56,15 +47,15 @@ float getBlurredSsao() {
 void main() {
     const uint ubo_id = constants.ubo_id;
 
-    vec4 base_color = texture(bindless_textures[constants.base_color_tex_id], fragTexCoord);
+    vec4 base_color = texture(bindless_samplers[constants.base_color_tex_id], fragTexCoord);
 
     if (base_color.a < 0.1) discard;
 
-    vec3 normal = texture(bindless_textures[constants.normal_tex_id], fragTexCoord).rgb;
+    vec3 normal = texture(bindless_samplers[constants.normal_tex_id], fragTexCoord).rgb;
     normal = normalize(normal * 2.0 - 1.0);
     normal = normalize(TBN * normal);
 
-    vec3 orm = texture(bindless_textures[constants.orm_tex_id], fragTexCoord).rgb;
+    vec3 orm = texture(bindless_samplers[constants.orm_tex_id], fragTexCoord).rgb;
     float ao = ubos[ubo_id].misc.use_ssao == 1u ? getBlurredSsao() : orm.r;
     float roughness = orm.g;
     float metallic = orm.b;

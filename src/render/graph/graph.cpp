@@ -95,12 +95,12 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
     }
 
     for (const auto& res: new_targets_set) {
-        if (res != FINAL_IMAGE_RESOURCE_HANDLE && !target_tex_resources_.contains(res)) {
+        if (res != FINAL_IMAGE_HANDLE && !target_tex_resources_.contains(res)) {
             Logger::error("invalid render node: resource <{}> with invalid type specified as target for node <{}>",
                           resource_names.at(res), node.name);
         }
 
-        if (res != FINAL_IMAGE_RESOURCE_HANDLE) {
+        if (res != FINAL_IMAGE_HANDLE) {
             produced_resources.emplace(res);
         }
     }
@@ -133,6 +133,20 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
     check_dependency_cycles();
 
     return new_handle;
+}
+
+vector<RenderNodeHandle> RenderGraph::add_nodes_sequential(vector<RenderNode> nodes) {
+    vector<RenderNodeHandle> new_handles;
+
+    for (auto& node: nodes) {
+        if (!new_handles.empty()) {
+            node.explicit_dependencies.emplace_back(new_handles.back());
+        }
+
+        new_handles.emplace_back(add_node(node));
+    }
+
+    return new_handles;
 }
 
 ResourceHandle RenderGraph::add_resource(VertexBufferResourceDesc &&resource) {
