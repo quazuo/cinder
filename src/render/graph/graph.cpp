@@ -51,7 +51,7 @@ vector<vector<RenderNodeHandle>> RenderGraph::get_partitioned() const {
     set<RenderNodeHandle> remaining;
 
     for (const auto &[node_handle, node_info]: nodes_) {
-        if (!node_info.should_run_predicate || (*node_info.should_run_predicate)()) {
+        if (node_info.should_run()) {
             remaining.emplace(node_handle);
         } else {
             ignored.emplace(node_handle);
@@ -80,11 +80,11 @@ vector<vector<RenderNodeHandle>> RenderGraph::get_partitioned() const {
     return partitions;
 }
 
-RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
+RenderNodeHandle RenderGraph::add_node(const RenderNodeGraphics &node) {
     const auto new_handle = get_new_node_handle();
     nodes_.emplace(new_handle, node);
 
-    const auto new_targets_set = node.get_all_targets_set();
+    const auto new_targets_set = node.get_all_non_final_targets_set();
 
     if (!detail::empty_intersection(new_targets_set, node.bound_resources)) {
         Logger::error("invalid render node: cannot simultaneously use a target as a shader resource!");
@@ -109,11 +109,14 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
 
     // for each existing node A...
     for (const auto &[other_handle, other_node]: nodes_) {
-        const auto other_targets_set = other_node.get_all_targets_set();
+        if (!other_node.is_graphics()) continue; // todo - temporary
+        const auto &other_node_gfx = other_node.get_graphics();
+
+        const auto other_targets_set = other_node_gfx.get_all_non_final_targets_set();
 
         // ...if any of the new node's targets is sampled in A,
         // then the new node is A's dependency.
-        if (!detail::empty_intersection(new_targets_set, other_node.bound_resources)) {
+        if (!detail::empty_intersection(new_targets_set, other_node_gfx.bound_resources)) {
             dependency_graph.at(other_handle).emplace(new_handle);
         }
 
@@ -135,15 +138,28 @@ RenderNodeHandle RenderGraph::add_node(const RenderNode &node) {
     return new_handle;
 }
 
+RenderNodeHandle RenderGraph::add_node(const RenderNodeCompute &node) {
+    const auto new_handle = get_new_node_handle();
+    nodes_.emplace(new_handle, node);
+
+    Logger::error("unimplemented");
+
+    check_dependency_cycles();
+
+    return new_handle;
+}
+
 vector<RenderNodeHandle> RenderGraph::add_nodes_sequential(vector<RenderNode> nodes) {
     vector<RenderNodeHandle> new_handles;
 
     for (auto& node: nodes) {
-        if (!new_handles.empty()) {
-            node.explicit_dependencies.emplace_back(new_handles.back());
-        }
+        node.visit([&](auto&& n) {
+            if (!new_handles.empty()) {
+                n.explicit_dependencies.emplace_back(new_handles.back());
+            }
 
-        new_handles.emplace_back(add_node(node));
+            new_handles.emplace_back(add_node(n));
+        });
     }
 
     return new_handles;

@@ -20,6 +20,7 @@ export {
     using std::optional;
     using std::pair;
     using std::numeric_limits;
+    using std::variant;
 
     using std::uint64_t;
     using std::uint32_t;

@@ -51,7 +51,7 @@ private:
     void push_constants() const;
 };
 
-struct RenderNode {
+struct RenderNodeGraphics {
     using RenderNodeBodyFn   = std::function<void(RenderPassContext &)>;
     using ShouldRunPredicate = std::function<bool()>;
 
@@ -67,6 +67,50 @@ struct RenderNode {
         uint32_t multiview_count = 1;
     } custom_properties;
 
-    [[nodiscard]] set<ResourceHandle> get_all_targets_set() const;
+    [[nodiscard]] set<ResourceHandle> get_all_non_final_targets_set() const;
+};
+
+struct RenderNodeCompute {
+    using RenderNodeBodyFn   = std::function<void(RenderPassContext &)>;
+    using ShouldRunPredicate = std::function<bool()>;
+
+    string name;
+    vector<ResourceHandle> bound_read_resources;
+    vector<ResourceHandle> bound_write_resources;
+    RenderNodeBodyFn body;
+    optional<ShouldRunPredicate> should_run_predicate;
+    std::vector<RenderNodeHandle> explicit_dependencies;
+
+    struct CustomProperties {
+    } custom_properties;
+};
+
+class RenderNode {
+    variant<RenderNodeGraphics, RenderNodeCompute> node_;
+
+public:
+    RenderNode(const RenderNodeGraphics& node) : node_(node) {}
+    RenderNode(const RenderNodeCompute& node)  : node_(node) {}
+
+    [[nodiscard]] bool is_graphics() const { return std::holds_alternative<RenderNodeGraphics>(node_); }
+    [[nodiscard]] bool is_compute()  const { return std::holds_alternative<RenderNodeCompute>(node_); }
+
+    [[nodiscard]] const RenderNodeGraphics& get_graphics() const { return std::get<RenderNodeGraphics>(node_); }
+    [[nodiscard]] RenderNodeGraphics&       get_graphics()       { return std::get<RenderNodeGraphics>(node_); }
+
+    [[nodiscard]] const RenderNodeCompute& get_compute() const { return std::get<RenderNodeCompute>(node_); }
+    [[nodiscard]] RenderNodeCompute&       get_compute()       { return std::get<RenderNodeCompute>(node_); }
+
+    [[nodiscard]] const string& name() const;
+
+    [[nodiscard]] bool should_run() const;
+
+    [[nodiscard]] const std::vector<RenderNodeHandle>& explicit_dependencies() const;
+
+    template <typename Functor>
+    auto visit(Functor&& fn) const { return std::visit(std::forward<Functor>(fn), node_); }
+
+    template <typename Functor>
+    auto visit(Functor&& fn) { return std::visit(std::forward<Functor>(fn), node_); }
 };
 } // zrx

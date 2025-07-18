@@ -6,20 +6,21 @@
 layout (local_size_x = 32, local_size_y = 32, local_size_z = 1) in;
 
 layout (push_constant) uniform PushResourceIDs {
-    uint texture_id;
+    uint input_tex_id;
+    uint output_tex_id;
 } constants;
 
 void main() {
-    vec4 accumulated_color = vec4(0.0, 0.0, 0.0, 1.0);
+    vec4 accumulated_color = vec4(0.0f);
     float accumulation_count = 0.0f;
     ivec2 texel_coord = ivec2(gl_GlobalInvocationID.xy);
 
     for (int i = -2; i <= 2; i++) {
-        accumulated_color = imageLoad(bindless_textures[constants.texture_id], texel_coord + ivec2(0, i));
+        accumulated_color = imageLoad(bindless_textures[constants.input_tex_id], texel_coord + ivec2(0, i));
         accumulation_count += 1.0f;
     }
 
     accumulated_color /= accumulation_count;
     accumulated_color.w = 1.0f;
-    imageStore(bindless_textures[constants.texture_id], texel_coord, accumulated_color);
+    imageStore(bindless_textures[constants.output_tex_id], texel_coord, accumulated_color);
 }

@@ -10,6 +10,7 @@ import Cinder.Globals;
 
 export namespace zrx {
 class ResourceManager {
+    // todo - replace by vectors
     map<ResourceHandle, unique_ptr<Buffer> > buffers;
     map<ResourceHandle, unique_ptr<Texture> > textures;
     map<ResourceHandle, unique_ptr<Model> > models;

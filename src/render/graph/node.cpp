@@ -97,9 +97,42 @@ void RenderPassContext::push_constants() const {
     }
 }
 
-set<ResourceHandle> RenderNode::get_all_targets_set() const {
+set<ResourceHandle> RenderNodeGraphics::get_all_non_final_targets_set() const {
     set result(color_targets.begin(), color_targets.end());
     if (depth_target) result.insert(*depth_target);
+    result.erase(FINAL_IMAGE_HANDLE);
     return result;
+}
+
+const string& RenderNode::name() const {
+    if (std::holds_alternative<RenderNodeGraphics>(node_)) {
+        return std::get<RenderNodeGraphics>(node_).name;
+    }
+    if (std::holds_alternative<RenderNodeCompute>(node_)) {
+        return std::get<RenderNodeCompute>(node_).name;
+    }
+    throw std::runtime_error("illegal type in RenderNode");
+}
+
+bool RenderNode::should_run() const {
+    if (std::holds_alternative<RenderNodeGraphics>(node_)) {
+        const auto& pred = std::get<RenderNodeGraphics>(node_).should_run_predicate;
+        return !pred || (*pred)();
+    }
+    if (std::holds_alternative<RenderNodeCompute>(node_)) {
+        const auto& pred = std::get<RenderNodeCompute>(node_).should_run_predicate;
+        return !pred || (*pred)();
+    }
+    throw std::runtime_error("illegal type in RenderNode");
+}
+
+const std::vector<RenderNodeHandle>& RenderNode::explicit_dependencies() const {
+    if (std::holds_alternative<RenderNodeGraphics>(node_)) {
+        return std::get<RenderNodeGraphics>(node_).explicit_dependencies;
+    }
+    if (std::holds_alternative<RenderNodeCompute>(node_)) {
+        return std::get<RenderNodeCompute>(node_).explicit_dependencies;
+    }
+    throw std::runtime_error("illegal type in RenderNode");
 }
 } // zrx

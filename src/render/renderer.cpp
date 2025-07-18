@@ -86,12 +86,6 @@ vkb::Instance VulkanRenderer::create_instance() {
         ss << "[VALIDATION LAYER / " << severity << " / " << type << "]\n" << pCallbackData->pMessage << "\n";
         std::cout << ss.str() << std::endl;
 
-        // if (messageSeverity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) {
-        //     std::cerr << ss.str() << std::endl;
-        // } else {
-        //     std::cout << ss.str() << std::endl;
-        // }
-
         return vk::False;
     };
 
@@ -258,7 +252,9 @@ void VulkanRenderer::recreate_swap_chain() {
     );
 
     for (auto& [node_handle, resources]: node_resources) {
-        resources.render_infos = create_node_render_infos(node_handle);
+        if (render_graph->nodes().at(node_handle).is_graphics()) {
+            resources.render_infos = create_node_render_infos(node_handle);
+        }
     }
 }
 
@@ -736,7 +732,8 @@ void VulkanRenderer::queue_set_update_with_handle(DescriptorSet &descriptor_set,
 }
 
 vector<RenderInfo> VulkanRenderer::create_node_render_infos(const RenderNodeHandle node_handle) const {
-    const auto &node_info = render_graph->nodes().at(node_handle);
+    const auto &node_info = render_graph->nodes().at(node_handle).get_graphics();
+
     vector<RenderInfo> render_infos;
 
     if (has_swapchain_target(node_handle)) {
@@ -800,9 +797,15 @@ void VulkanRenderer::run_render_graph() {
 
         node_resources.clear();
         for (const auto& [node_handle, _]: render_graph->nodes()) {
-            node_resources.emplace(node_handle, RenderNodeResources{
-                .render_infos = create_node_render_infos(node_handle),
-            });
+            const auto& node = render_graph->nodes().at(node_handle);
+
+            if (node.is_graphics()) {
+                node_resources.emplace(node_handle, RenderNodeResources{
+                    .render_infos = create_node_render_infos(node_handle),
+                });
+            } else if (node.is_compute()) {
+                Logger::error("unimplemented"); // todo
+            }
         }
 
         record_graph_commands();
@@ -825,10 +828,16 @@ void VulkanRenderer::record_graph_commands() {
         }
 
         for (const auto &node_handle: curr_partition) {
-            record_node_commands(node_handle);
+            const RenderNode& node = render_graph->nodes().at(node_handle);
 
-            for (const auto &target: get_node_target_handles(node_handle)) {
-                unbarriered_targets.insert(target); // todo - ignore FINAL_IMAGE maybe??
+            if (node.is_graphics()) {
+                record_graphics_node_commands(node_handle);
+
+                for (const auto &target: get_node_target_handles(node_handle)) {
+                    unbarriered_targets.insert(target); // todo - ignore FINAL_IMAGE maybe??
+                }
+            } else if (node.is_compute()) {
+                Logger::error("unimplemented"); // todo
             }
         }
     }
@@ -838,9 +847,9 @@ void VulkanRenderer::record_graph_commands() {
     command_buffer.end();
 }
 
-void VulkanRenderer::record_node_commands(const RenderNodeHandle node_handle) const {
+void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_handle) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    const auto &node = render_graph->nodes().at(node_handle);
+    const auto &node = render_graph->nodes().at(node_handle).get_graphics();
 
     Logger::debug("recording node: {}", node.name);
 
@@ -867,7 +876,7 @@ void VulkanRenderer::record_node_commands(const RenderNodeHandle node_handle) co
 
 void VulkanRenderer::record_node_rendering_commands(const RenderNodeHandle node_handle) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    const auto &node_info = render_graph->nodes().at(node_handle);
+    const auto &node_info = render_graph->nodes().at(node_handle).get_graphics();
 
     utils::cmd::set_dynamic_states(command_buffer, get_node_target_extent(node_handle));
 
@@ -883,7 +892,7 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeHandle node_
 
 void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeHandle node_handle) const {
     const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
-    const auto &node = render_graph->nodes().at(node_handle);
+    const auto &node = render_graph->nodes().at(node_handle).get_graphics();
 
     for (const auto color_target: node.color_targets) {
         if (color_target == FINAL_IMAGE_HANDLE) continue;
@@ -909,7 +918,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
 
     vector<ResourceHandle> sampled_resources;
     for (const auto& node_handle: partition) {
-        const auto& node_info = render_graph->nodes().at(node_handle);
+        const auto& node_info = render_graph->nodes().at(node_handle).get_graphics();
 
         for (const auto color_target: node_info.bound_resources) {
             sampled_resources.emplace_back(color_target);
@@ -948,8 +957,8 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
 }
 
 bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle node_handle) const {
-    return render_graph->nodes().at(node_handle)
-            .get_all_targets_set()
+    return render_graph->nodes().at(node_handle).get_graphics()
+            .get_all_non_final_targets_set()
             .contains(FINAL_IMAGE_HANDLE);
 }
 
@@ -966,8 +975,7 @@ bool VulkanRenderer::is_first_node_targetting_final_image(const RenderNodeHandle
 }
 
 bool VulkanRenderer::should_run_node_pass(const RenderNodeHandle node_handle) const {
-    const auto &node = render_graph->nodes().at(node_handle);
-    return node.should_run_predicate ? (*node.should_run_predicate)() : true;
+    return render_graph->nodes().at(node_handle).should_run();
 }
 
 vk::Extent2D VulkanRenderer::get_node_target_extent(const RenderNodeHandle node_handle) const {
@@ -975,7 +983,7 @@ vk::Extent2D VulkanRenderer::get_node_target_extent(const RenderNodeHandle node_
 
     return has_swapchain_target(node_handle)
            ? swap_chain->get_extent()
-           : resource_manager->get_texture(node_info.color_targets[0])
+           : resource_manager->get_texture(node_info.get_graphics().color_targets[0])
            .get_image()
            .get_extent_2d();
 }
@@ -995,7 +1003,7 @@ vk::Format VulkanRenderer::get_target_depth_format(const ResourceHandle resource
 }
 
 vector<ResourceHandle> VulkanRenderer::get_node_target_handles(const RenderNodeHandle node_handle) const {
-    const auto& node = render_graph->nodes().at(node_handle);
+    const auto& node = render_graph->nodes().at(node_handle).get_graphics();
     vector<ResourceHandle> handles = node.color_targets;
     if (node.depth_target) handles.emplace_back(*node.depth_target);
     return handles;

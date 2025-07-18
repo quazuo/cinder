@@ -247,6 +247,12 @@ private:
             .format = ssao_tex_format,
         });
 
+        constexpr auto base_pass_tex_format = vk::Format::eR8G8B8A8Unorm;
+        const auto base_pass_texture = render_graph.add_resource(TargetTextureResourceDesc{
+            .name = "base-pass-texture",
+            .format = base_pass_tex_format,
+        });
+
         // ================== shaders ==================
 
         const auto cubecap_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
@@ -283,7 +289,7 @@ private:
             .fragment_path = "../shaders/obj/skybox-frag.spv",
             .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
             .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
-            .color_formats = {FINAL_FORMAT},
+            .color_formats = {base_pass_tex_format},
             .depth_format = FINAL_FORMAT,
             .custom_properties = {
                 .depth_compare_op = vk::CompareOp::eLessOrEqual,
@@ -303,13 +309,13 @@ private:
             .fragment_path = "../shaders/obj/main-frag.spv",
             .binding_descriptions = ModelVertex::get_binding_descriptions(),
             .attr_descriptions = ModelVertex::get_attribute_descriptions(),
-            .color_formats = {FINAL_FORMAT},
+            .color_formats = {base_pass_tex_format},
             .depth_format = FINAL_FORMAT
         });
 
         // ================== nodes ==================
 
-        render_graph.add_node({
+        render_graph.add_node(RenderNodeGraphics {
             .name = "cubemap-capture",
             .bound_resources = {uniform_buffer, envmap_texture},
             .color_targets = {skybox_texture},
@@ -319,12 +325,12 @@ private:
                 ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
             },
             .should_run_predicate = [&] { return should_capture_skybox; },
-            .custom_properties = RenderNode::CustomProperties {
+            .custom_properties = RenderNodeGraphics::CustomProperties {
                 .multiview_count = 6
             }
         });
 
-        render_graph.add_node({
+        render_graph.add_node(RenderNodeGraphics {
             .name = "prepass",
             .bound_resources = {uniform_buffer},
             .color_targets = {g_buffer_normal, g_buffer_pos},
@@ -337,7 +343,7 @@ private:
             .should_run_predicate = [&] { return use_ssao; }
         });
 
-        render_graph.add_node({
+        render_graph.add_node(RenderNodeGraphics {
             .name = "ssao",
             .bound_resources = {uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos},
             .color_targets = {ssao_texture},
@@ -349,10 +355,10 @@ private:
             .should_run_predicate = [&] { return use_ssao; }
         });
 
-        const auto main_node = render_graph.add_node({
+        const auto main_node = render_graph.add_node(RenderNodeGraphics {
             .name = "main",
             .bound_resources = {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture, skybox_texture},
-            .color_targets = {FINAL_IMAGE_HANDLE},
+            .color_targets = {base_pass_texture},
             .depth_target = FINAL_IMAGE_HANDLE,
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(main_pipeline);
@@ -365,10 +371,13 @@ private:
             },
         });
 
+        // todo - co zrobić z tym, że compute shader nie ma outputu, tylko pisze do zbindowanej storage tekstury?
+        // todo - prawdopodobnie trzeba rozdzielić RenderNode na gfx/compute node'y
         const auto post_processing_nodes = render_graph.add_nodes_sequential({
-            {
+            RenderNodeCompute {
                 .name = "blur-x",
-                .bound_resources = {FINAL_IMAGE_HANDLE},
+                .bound_read_resources = {base_pass_texture},
+                .bound_write_resources = {FINAL_IMAGE_HANDLE},
                 .body = [=](RenderPassContext &ctx) {
                     ctx.bind_pipeline(blur_x_pipeline);
                     ctx.dispatch(window_size.x / 32, window_size.y / 32, 1);
@@ -376,9 +385,10 @@ private:
                 .should_run_predicate = [&] { return do_blur; },
                 .explicit_dependencies = { main_node },
             },
-            {
+            RenderNodeCompute {
                 .name = "blur-y",
-                .bound_resources = {FINAL_IMAGE_HANDLE},
+                .bound_read_resources = {base_pass_texture},
+                .bound_write_resources = {FINAL_IMAGE_HANDLE},
                 .body = [=](RenderPassContext &ctx) {
                     ctx.bind_pipeline(blur_y_pipeline);
                     ctx.dispatch(window_size.x / 32, window_size.y / 32, 1);
@@ -387,7 +397,7 @@ private:
             }
         });
 
-        render_graph.add_node({
+        render_graph.add_node(RenderNodeGraphics {
             .name = "gui",
             .bound_resources = {},
             .color_targets = {FINAL_IMAGE_HANDLE},

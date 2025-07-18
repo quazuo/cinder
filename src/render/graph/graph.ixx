@@ -20,9 +20,10 @@ struct FrameBeginActionContext {
 using FrameBeginCallback = std::function<void(const FrameBeginActionContext &)>;
 
 class RenderGraph {
-    map<RenderNodeHandle, RenderNode> nodes_;
+    map<RenderNodeHandle, RenderNode> nodes_; // todo - replace by vector
     map<RenderNodeHandle, set<RenderNodeHandle> > dependency_graph;
 
+    // todo - replace by vectors
     map<ResourceHandle, VertexBufferResourceDesc> vertex_buffers_;
     map<ResourceHandle, UniformBufferResourceDesc> uniform_buffers_;
     map<ResourceHandle, ExternalTextureResourceDesc> external_tex_resources_;
@@ -53,7 +54,9 @@ public:
 
     [[nodiscard]] vector<vector<RenderNodeHandle>> get_partitioned() const;
 
-    RenderNodeHandle add_node(const RenderNode &node);
+    RenderNodeHandle add_node(const RenderNodeGraphics &node);
+
+    RenderNodeHandle add_node(const RenderNodeCompute &node);
 
     /// Adds multiple nodes at once, connected sequentially via explicit dependencies.
     vector<RenderNodeHandle> add_nodes_sequential(vector<RenderNode> nodes);

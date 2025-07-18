@@ -221,7 +221,7 @@ private:
 
     void record_graph_commands();
 
-    void record_node_commands(RenderNodeHandle node_handle) const;
+    void record_graphics_node_commands(RenderNodeHandle node_handle) const;
 
     void record_node_rendering_commands(RenderNodeHandle node_handle) const;
 
