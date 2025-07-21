@@ -67,7 +67,7 @@ struct RenderNodeGraphics {
         uint32_t multiview_count = 1;
     } custom_properties;
 
-    [[nodiscard]] set<ResourceHandle> get_all_non_final_targets_set() const;
+    [[nodiscard]] set<ResourceHandle> get_all_targets_set() const;
 };
 
 struct RenderNodeCompute {

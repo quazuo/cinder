@@ -102,7 +102,7 @@ class VulkanRenderer {
             Timeline render_finished_timeline;
         } sync;
 
-        unique_ptr<vk::raii::CommandBuffer> graphics_cmd_buffer;
+        unique_ptr<vk::raii::CommandBuffer> main_cmd_buffer;
     };
 
     static constexpr size_t MAX_FRAMES_IN_FLIGHT = 3;
@@ -228,6 +228,8 @@ private:
     void record_regenerate_mipmaps_commands(RenderNodeHandle node_handle) const;
 
     void record_pre_partition_commands(const vector<RenderNodeHandle> &partition);
+
+    void record_compute_node_commands(RenderNodeHandle node_handle) const;
 
     [[nodiscard]] bool has_swapchain_target(RenderNodeHandle node_handle) const;
 

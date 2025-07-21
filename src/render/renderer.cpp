@@ -424,7 +424,7 @@ void VulkanRenderer::create_command_buffers() {
             utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::ePrimary, n_buffers);
 
     for (size_t i = 0; i < graphics_command_buffers.size(); i++) {
-        frame_resources[i].graphics_cmd_buffer =
+        frame_resources[i].main_cmd_buffer =
                 make_unique<vk::raii::CommandBuffer>(std::move(graphics_command_buffers[i]));
     }
 }
@@ -804,7 +804,7 @@ void VulkanRenderer::run_render_graph() {
                     .render_infos = create_node_render_infos(node_handle),
                 });
             } else if (node.is_compute()) {
-                Logger::error("unimplemented"); // todo
+                // Logger::error("unimplemented"); // todo
             }
         }
 
@@ -814,7 +814,7 @@ void VulkanRenderer::run_render_graph() {
 }
 
 void VulkanRenderer::record_graph_commands() {
-    const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
+    const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
 
     command_buffer.begin({});
 
@@ -834,10 +834,14 @@ void VulkanRenderer::record_graph_commands() {
                 record_graphics_node_commands(node_handle);
 
                 for (const auto &target: get_node_target_handles(node_handle)) {
-                    unbarriered_targets.insert(target); // todo - ignore FINAL_IMAGE maybe??
+                    unbarriered_targets.insert(target);
                 }
             } else if (node.is_compute()) {
-                Logger::error("unimplemented"); // todo
+                record_compute_node_commands(node_handle);
+
+                for (const auto &target: node.get_compute().bound_write_resources) {
+                    unbarriered_targets.insert(target);
+                }
             }
         }
     }
@@ -848,7 +852,7 @@ void VulkanRenderer::record_graph_commands() {
 }
 
 void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_handle) const {
-    const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
+    const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
     const auto &node = render_graph->nodes().at(node_handle).get_graphics();
 
     Logger::debug("recording node: {}", node.name);
@@ -875,7 +879,7 @@ void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_h
 }
 
 void VulkanRenderer::record_node_rendering_commands(const RenderNodeHandle node_handle) const {
-    const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
+    const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
     const auto &node_info = render_graph->nodes().at(node_handle).get_graphics();
 
     utils::cmd::set_dynamic_states(command_buffer, get_node_target_extent(node_handle));
@@ -891,7 +895,7 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeHandle node_
 }
 
 void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeHandle node_handle) const {
-    const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
+    const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
     const auto &node = render_graph->nodes().at(node_handle).get_graphics();
 
     for (const auto color_target: node.color_targets) {
@@ -911,14 +915,16 @@ void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeHandle n
 }
 
 void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle> &partition) {
-    const auto &command_buffer = *frame_resources[current_frame_idx].graphics_cmd_buffer;
+    const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
 
     cached_barriers.emplace_back();
     auto& barriers = cached_barriers.back();
 
     vector<ResourceHandle> sampled_resources;
     for (const auto& node_handle: partition) {
-        const auto& node_info = render_graph->nodes().at(node_handle).get_graphics();
+        const auto& node = render_graph->nodes().at(node_handle);
+        if (!node.is_graphics()) continue;
+        const auto& node_info = node.get_graphics();
 
         for (const auto color_target: node_info.bound_resources) {
             sampled_resources.emplace_back(color_target);
@@ -956,9 +962,42 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
     barriers.record_cmd(command_buffer);
 }
 
+void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_handle) const {
+    const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
+    const auto &node = render_graph->nodes().at(node_handle).get_compute();
+
+    Logger::debug("recording node: {}", node.name);
+
+    // todo
+    //
+    // if size > 1, then this means that this pass (node) draws to the swapchain image
+    // and thus benefits from double or triple buffering
+    //
+    // const auto &[render_infos] = node_resources.at(node_handle);
+    // const size_t subresource_index = render_infos.size() == 1 ? 0 : current_frame_idx;
+    // const auto &node_render_info = render_infos[subresource_index];
+
+    // command_buffer.debugMarkerBeginEXT(vk::DebugMarkerMarkerInfoEXT { .pMarkerName = node.name.c_str(), });
+
+    RenderPassContext ctx{
+        command_buffer,
+        *resource_manager,
+        graphics_pipelines,
+        compute_pipelines,
+        **bindless_descriptor_set
+    };
+    node.body(ctx);
+
+    // todo
+    // regenerate mipmaps for each target that had them
+    // record_regenerate_mipmaps_commands(node_handle);
+
+    // command_buffer.debugMarkerEndEXT();
+}
+
 bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle node_handle) const {
     return render_graph->nodes().at(node_handle).get_graphics()
-            .get_all_non_final_targets_set()
+            .get_all_targets_set()
             .contains(FINAL_IMAGE_HANDLE);
 }
 
@@ -1101,7 +1140,7 @@ void VulkanRenderer::end_frame() {
             .pWaitSemaphores = wait_semaphores.data(),
             .pWaitDstStageMask = wait_stages,
             .commandBufferCount = 1,
-            .pCommandBuffers = &**frame_resources[current_frame_idx].graphics_cmd_buffer,
+            .pCommandBuffers = &**frame_resources[current_frame_idx].main_cmd_buffer,
             .signalSemaphoreCount = signal_semaphores.size(),
             .pSignalSemaphores = signal_semaphores.data(),
         },

@@ -84,14 +84,15 @@ RenderNodeHandle RenderGraph::add_node(const RenderNodeGraphics &node) {
     const auto new_handle = get_new_node_handle();
     nodes_.emplace(new_handle, node);
 
-    const auto new_targets_set = node.get_all_non_final_targets_set();
+    auto new_targets_set = node.get_all_targets_set();
+    new_targets_set.erase(FINAL_IMAGE_HANDLE);
 
     if (!detail::empty_intersection(new_targets_set, node.bound_resources)) {
         Logger::error("invalid render node: cannot simultaneously use a target as a shader resource!");
     }
 
     if (!detail::empty_intersection(new_targets_set, produced_resources)) {
-        Logger::error("invalid render node: each target can only be produced once!");
+        Logger::error("invalid render node: each non-final target can only be produced once!");
     }
 
     for (const auto& res: new_targets_set) {
@@ -105,35 +106,7 @@ RenderNodeHandle RenderGraph::add_node(const RenderNodeGraphics &node) {
         }
     }
 
-    set<RenderNodeHandle> dependencies;
-
-    // for each existing node A...
-    for (const auto &[other_handle, other_node]: nodes_) {
-        if (!other_node.is_graphics()) continue; // todo - temporary
-        const auto &other_node_gfx = other_node.get_graphics();
-
-        const auto other_targets_set = other_node_gfx.get_all_non_final_targets_set();
-
-        // ...if any of the new node's targets is sampled in A,
-        // then the new node is A's dependency.
-        if (!detail::empty_intersection(new_targets_set, other_node_gfx.bound_resources)) {
-            dependency_graph.at(other_handle).emplace(new_handle);
-        }
-
-        // and if the new node samples any of A's targets,
-        // then A is the new node's dependency.
-        if (!detail::empty_intersection(other_targets_set, node.bound_resources)) {
-            dependencies.emplace(other_handle);
-        }
-    }
-
-    for (const auto& explicit_dep : node.explicit_dependencies) {
-        dependencies.emplace(explicit_dep);
-    }
-
-    dependency_graph.emplace(new_handle, std::move(dependencies));
-
-    check_dependency_cycles();
+    add_new_dependencies(new_handle);
 
     return new_handle;
 }
@@ -142,12 +115,89 @@ RenderNodeHandle RenderGraph::add_node(const RenderNodeCompute &node) {
     const auto new_handle = get_new_node_handle();
     nodes_.emplace(new_handle, node);
 
-    Logger::error("unimplemented");
+    set<ResourceHandle> new_writes_set;
+    new_writes_set.insert_range(node.bound_write_resources);
 
-    check_dependency_cycles();
+    if (!detail::empty_intersection(new_writes_set, produced_resources)) {
+        Logger::error("invalid render node: each write resource (except the final images) can only be produced once!");
+    }
+
+    for (const auto& res: new_writes_set) {
+        // if (res != FINAL_IMAGE_HANDLE && !target_tex_resources_.contains(res)) {
+        //     Logger::error("invalid render node: resource <{}> with invalid type specified as target for node <{}>",
+        //                   resource_names.at(res), node.name);
+        // }
+
+        if (res != FINAL_IMAGE_HANDLE) {
+            produced_resources.emplace(res);
+        }
+    }
+
+    add_new_dependencies(new_handle);
 
     return new_handle;
 }
+
+void RenderGraph::add_new_dependencies(const RenderNodeHandle new_handle) {
+    const RenderNode& node = nodes_.at(new_handle);
+    set<ResourceHandle> new_node_reads;
+    set<ResourceHandle> new_node_writes;
+
+    if (node.is_graphics()) {
+        new_node_reads.insert_range(node.get_graphics().bound_resources);
+        new_node_writes = node.get_graphics().get_all_targets_set();
+    } else if (node.is_compute()) {
+        new_node_reads.insert_range(node.get_compute().bound_read_resources);
+        new_node_writes.insert_range(node.get_compute().bound_write_resources);
+    }
+
+    const bool new_node_writes_to_final_image = new_node_writes.contains(FINAL_IMAGE_HANDLE);
+    if (new_node_writes_to_final_image) new_node_writes.erase(FINAL_IMAGE_HANDLE);
+
+    set<RenderNodeHandle> dependencies;
+
+    // denote the new node as A. For each existing node B...
+    for (const auto &[other_handle, other_node]: nodes_) {
+        set<ResourceHandle> other_node_reads;
+        set<ResourceHandle> other_node_writes;
+
+        if (other_node.is_graphics()) {
+            const auto &other_node_gfx = other_node.get_graphics();
+            other_node_reads.insert_range(other_node_gfx.bound_resources);
+            other_node_writes = other_node_gfx.get_all_targets_set();
+        } else if (other_node.is_compute()) {
+            const auto &other_node_compute = other_node.get_compute();
+            other_node_reads.insert_range(other_node_compute.bound_read_resources);
+            other_node_writes.insert_range(other_node_compute.bound_write_resources);
+        }
+
+        const bool other_node_writes_to_final_image = new_node_writes.contains(FINAL_IMAGE_HANDLE);
+        if (other_node_writes_to_final_image) new_node_writes.erase(FINAL_IMAGE_HANDLE);
+
+        // if both A and B write to the final image, then A depends on B, because B was created earlier.
+        if (new_node_writes_to_final_image && other_node_writes_to_final_image) {
+            dependencies.emplace(other_handle);
+        }
+
+        // if any resource written by A is read by B, then B depends on A (by the SSA rule).
+        if (!detail::empty_intersection(new_node_writes, other_node_reads)) {
+            dependency_graph.at(other_handle).emplace(new_handle);
+        }
+
+        // if any resource written by B is read by A, then A depends on B (by the SSA rule).
+        if (!detail::empty_intersection(other_node_writes, new_node_reads)) {
+            dependencies.emplace(other_handle);
+        }
+    }
+
+    for (const auto& explicit_dep : node.explicit_dependencies()) {
+        dependencies.emplace(explicit_dep);
+    }
+
+    dependency_graph.emplace(new_handle, std::move(dependencies));
+
+    check_dependency_cycles();
+};
 
 vector<RenderNodeHandle> RenderGraph::add_nodes_sequential(vector<RenderNode> nodes) {
     vector<RenderNodeHandle> new_handles;
@@ -217,7 +267,7 @@ void RenderGraph::cycles_helper(const RenderNodeHandle handle, set<RenderNodeHan
 
     discovered.erase(handle);
     finished.emplace(handle);
-};
+}
 
 void RenderGraph::check_dependency_cycles() const {
     set<RenderNodeHandle> discovered, finished;

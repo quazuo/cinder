@@ -97,10 +97,9 @@ void RenderPassContext::push_constants() const {
     }
 }
 
-set<ResourceHandle> RenderNodeGraphics::get_all_non_final_targets_set() const {
+set<ResourceHandle> RenderNodeGraphics::get_all_targets_set() const {
     set result(color_targets.begin(), color_targets.end());
     if (depth_target) result.insert(*depth_target);
-    result.erase(FINAL_IMAGE_HANDLE);
     return result;
 }
 

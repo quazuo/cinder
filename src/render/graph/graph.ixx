@@ -33,6 +33,7 @@ class RenderGraph {
     map<ResourceHandle, GraphicsPipelineDesc> graphics_pipelines_;
     map<ResourceHandle, ComputePipelineDesc> compute_pipelines_;
 
+    set<RenderNodeHandle> nodes_writing_to_final;
     set<ResourceHandle> produced_resources;
     map<ResourceHandle, string> resource_names;
 
@@ -94,6 +95,8 @@ public:
     void add_frame_begin_action(FrameBeginCallback &&callback);
 
 private:
+    void add_new_dependencies(RenderNodeHandle new_handle);
+
     void cycles_helper(RenderNodeHandle handle, set<RenderNodeHandle> &discovered,
                        set<RenderNodeHandle> &finished) const;
 

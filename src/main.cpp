@@ -95,11 +95,11 @@ class Engine {
 
     float debug_number = 0;
 
-    bool is_gui_enabled        = true;
+    bool is_gui_enabled        = false;
     bool show_debug_quad       = false;
     bool use_ssao              = false;
     bool should_capture_skybox = true;
-    bool do_blur               = true;
+    bool do_blur               = false;
 
 public:
     Engine() {
@@ -247,10 +247,18 @@ private:
             .format = ssao_tex_format,
         });
 
-        constexpr auto base_pass_tex_format = vk::Format::eR8G8B8A8Unorm;
+        constexpr auto final_no_gamma_format = vk::Format::eR8G8B8A8Unorm;
         const auto base_pass_texture = render_graph.add_resource(TargetTextureResourceDesc{
             .name = "base-pass-texture",
-            .format = base_pass_tex_format,
+            .format = final_no_gamma_format,
+        });
+        const auto post_blur_x_texture = render_graph.add_resource(TargetTextureResourceDesc{
+            .name = "post-blur-x-texture",
+            .format = final_no_gamma_format,
+        });
+        const auto post_blur_y_texture = render_graph.add_resource(TargetTextureResourceDesc{
+            .name = "post-blur-y-texture",
+            .format = final_no_gamma_format,
         });
 
         // ================== shaders ==================
@@ -289,11 +297,20 @@ private:
             .fragment_path = "../shaders/obj/skybox-frag.spv",
             .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
             .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
-            .color_formats = {base_pass_tex_format},
+            .color_formats = {final_no_gamma_format},
             .depth_format = FINAL_FORMAT,
             .custom_properties = {
                 .depth_compare_op = vk::CompareOp::eLessOrEqual,
             }
+        });
+
+        const auto main_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
+            .vertex_path = "../shaders/obj/main-vert.spv",
+            .fragment_path = "../shaders/obj/main-frag.spv",
+            .binding_descriptions = ModelVertex::get_binding_descriptions(),
+            .attr_descriptions = ModelVertex::get_attribute_descriptions(),
+            .color_formats = {final_no_gamma_format},
+            .depth_format = FINAL_FORMAT
         });
 
         const auto blur_x_pipeline = render_graph.add_pipeline(ComputePipelineDesc{
@@ -302,15 +319,6 @@ private:
 
         const auto blur_y_pipeline = render_graph.add_pipeline(ComputePipelineDesc{
             .path = "../shaders/obj/blur-y-comp.spv",
-        });
-
-        const auto main_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = "../shaders/obj/main-vert.spv",
-            .fragment_path = "../shaders/obj/main-frag.spv",
-            .binding_descriptions = ModelVertex::get_binding_descriptions(),
-            .attr_descriptions = ModelVertex::get_attribute_descriptions(),
-            .color_formats = {base_pass_tex_format},
-            .depth_format = FINAL_FORMAT
         });
 
         // ================== nodes ==================
@@ -371,13 +379,11 @@ private:
             },
         });
 
-        // todo - co zrobić z tym, że compute shader nie ma outputu, tylko pisze do zbindowanej storage tekstury?
-        // todo - prawdopodobnie trzeba rozdzielić RenderNode na gfx/compute node'y
         const auto post_processing_nodes = render_graph.add_nodes_sequential({
             RenderNodeCompute {
                 .name = "blur-x",
                 .bound_read_resources = {base_pass_texture},
-                .bound_write_resources = {FINAL_IMAGE_HANDLE},
+                .bound_write_resources = {post_blur_x_texture},
                 .body = [=](RenderPassContext &ctx) {
                     ctx.bind_pipeline(blur_x_pipeline);
                     ctx.dispatch(window_size.x / 32, window_size.y / 32, 1);
@@ -387,7 +393,7 @@ private:
             },
             RenderNodeCompute {
                 .name = "blur-y",
-                .bound_read_resources = {base_pass_texture},
+                .bound_read_resources = {post_blur_x_texture},
                 .bound_write_resources = {FINAL_IMAGE_HANDLE},
                 .body = [=](RenderPassContext &ctx) {
                     ctx.bind_pipeline(blur_y_pipeline);
