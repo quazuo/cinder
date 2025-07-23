@@ -231,6 +231,8 @@ private:
 
     void record_compute_node_commands(RenderNodeHandle node_handle) const;
 
+    [[nodiscard]] set<ResourceHandle> gather_compute_accessed_resources() const;
+
     [[nodiscard]] bool has_swapchain_target(RenderNodeHandle node_handle) const;
 
     [[nodiscard]] bool is_first_node_targetting_final_image(RenderNodeHandle node_handle) const;

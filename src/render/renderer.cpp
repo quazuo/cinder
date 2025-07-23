@@ -525,6 +525,8 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
 }
 
 void VulkanRenderer::create_render_graph_resources() {
+    const auto compute_accessed_resources = gather_compute_accessed_resources();
+
     for (const auto &[handle, description]: render_graph->model_resources()) {
         auto model = make_unique<Model>(ctx, description.path, false);
         resource_manager->add(handle, std::move(model), description.name);
@@ -547,16 +549,22 @@ void VulkanRenderer::create_render_graph_resources() {
     }
 
     for (const auto &[handle, description]: render_graph->external_tex_resources()) {
+        auto usage_flags = vk::ImageUsageFlagBits::eTransferSrc
+                           | vk::ImageUsageFlagBits::eTransferDst
+                           | vk::ImageUsageFlagBits::eSampled
+                           | utils::img::get_format_attachment_type(description.format);
+
+        const bool is_compute_accessed = compute_accessed_resources.contains(handle);
+        if (is_compute_accessed) {
+            usage_flags |= vk::ImageUsageFlagBits::eStorage;
+        }
+
         auto builder = TextureBuilder()
                 .with_flags(description.flags)
                 .with_name(description.name.c_str())
                 .from_paths(description.paths)
                 .use_format(description.format)
-                .use_usage(vk::ImageUsageFlagBits::eTransferSrc
-                           | vk::ImageUsageFlagBits::eTransferDst
-                           | vk::ImageUsageFlagBits::eSampled
-                           | vk::ImageUsageFlagBits::eStorage
-                           | utils::img::get_format_attachment_type(description.format));
+                .use_usage(usage_flags);
 
         if (description.paths.size() > 1 && !(description.flags & vk::TextureFlagBitsZRX::CUBEMAP))
             builder.as_separate_channels();
@@ -567,14 +575,28 @@ void VulkanRenderer::create_render_graph_resources() {
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get_texture(handle);
+
         bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
-        bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
+
+        if (is_compute_accessed) {
+            bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
+        }
     }
 
     for (const auto &[handle, description]: render_graph->target_tex_resources()) {
         auto extent = description.extent;
         if (extent.width == 0 && extent.height == 0) {
             extent = swap_chain->get_extent();
+        }
+
+        auto usage_flags = vk::ImageUsageFlagBits::eTransferSrc
+                           | vk::ImageUsageFlagBits::eTransferDst
+                           | vk::ImageUsageFlagBits::eSampled
+                           | utils::img::get_format_attachment_type(description.format);
+
+        const bool is_compute_accessed = compute_accessed_resources.contains(handle);
+        if (is_compute_accessed) {
+            usage_flags |= vk::ImageUsageFlagBits::eStorage;
         }
 
         auto builder = TextureBuilder()
@@ -585,18 +607,18 @@ void VulkanRenderer::create_render_graph_resources() {
                 .use_layout(utils::img::is_depth_format(description.format)
                             ? vk::ImageLayout::eDepthStencilAttachmentOptimal
                             : vk::ImageLayout::eColorAttachmentOptimal)
-                .use_usage(vk::ImageUsageFlagBits::eTransferSrc
-                           | vk::ImageUsageFlagBits::eTransferDst
-                           | vk::ImageUsageFlagBits::eSampled
-                           | vk::ImageUsageFlagBits::eStorage
-                           | utils::img::get_format_attachment_type(description.format));
+                .use_usage(usage_flags);
 
         resource_manager->add(handle, builder.create(ctx), description.name);
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get_texture(handle);
+
         bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
-        bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
+
+        if (is_compute_accessed) {
+            bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
+        }
     }
 
     for (const auto &[handle, description]: render_graph->transient_tex_resources()) {
@@ -614,11 +636,6 @@ void VulkanRenderer::create_render_graph_resources() {
                            | utils::img::get_format_attachment_type(description.format));
 
         resource_manager->add(handle, builder.create(ctx), description.name);
-
-        // const auto bindless_handle = resource_manager->get_bindless_handle(handle);
-        // const auto& texture = resource_manager->get_texture(handle);
-        // bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
-        // bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
     }
 
     for (const auto &[handle, description]: render_graph->graphics_pipelines()) {
@@ -888,7 +905,6 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeHandle node_
         command_buffer,
         *resource_manager,
         graphics_pipelines,
-        compute_pipelines,
         **bindless_descriptor_set
     };
     node_info.body(ctx);
@@ -979,10 +995,9 @@ void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_ha
 
     // command_buffer.debugMarkerBeginEXT(vk::DebugMarkerMarkerInfoEXT { .pMarkerName = node.name.c_str(), });
 
-    RenderPassContext ctx{
+    ComputePassContext ctx{
         command_buffer,
         *resource_manager,
-        graphics_pipelines,
         compute_pipelines,
         **bindless_descriptor_set
     };
@@ -993,6 +1008,19 @@ void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_ha
     // record_regenerate_mipmaps_commands(node_handle);
 
     // command_buffer.debugMarkerEndEXT();
+}
+
+set<ResourceHandle> VulkanRenderer::gather_compute_accessed_resources() const {
+    set<ResourceHandle> result;
+
+    for (const auto& [node_handle, node_info] : render_graph->nodes()) {
+        if (!node_info.is_compute()) continue;
+
+        result.insert_range(node_info.get_compute().bound_read_resources);
+        result.insert_range(node_info.get_compute().bound_write_resources);
+    }
+
+    return result;
 }
 
 bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle node_handle) const {

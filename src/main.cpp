@@ -95,7 +95,7 @@ class Engine {
 
     float debug_number = 0;
 
-    bool is_gui_enabled        = false;
+    bool is_gui_enabled        = true;
     bool show_debug_quad       = false;
     bool use_ssao              = false;
     bool should_capture_skybox = true;
@@ -251,14 +251,22 @@ private:
         const auto base_pass_texture = render_graph.add_resource(TargetTextureResourceDesc{
             .name = "base-pass-texture",
             .format = final_no_gamma_format,
+            .flags = {}
         });
         const auto post_blur_x_texture = render_graph.add_resource(TargetTextureResourceDesc{
             .name = "post-blur-x-texture",
             .format = final_no_gamma_format,
+            .flags = {}
         });
         const auto post_blur_y_texture = render_graph.add_resource(TargetTextureResourceDesc{
             .name = "post-blur-y-texture",
             .format = final_no_gamma_format,
+            .flags = {}
+        });
+        const auto post_gui_texture = render_graph.add_resource(TargetTextureResourceDesc{
+            .name = "post-blur-y-texture",
+            .format = final_no_gamma_format,
+            .flags = {}
         });
 
         // ================== shaders ==================
@@ -319,6 +327,15 @@ private:
 
         const auto blur_y_pipeline = render_graph.add_pipeline(ComputePipelineDesc{
             .path = "../shaders/obj/blur-y-comp.spv",
+        });
+
+        const auto final_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
+            .vertex_path = "../shaders/obj/ss-quad-vert.spv",
+            .fragment_path = "../shaders/obj/ss-quad-frag.spv",
+            .binding_descriptions = ScreenSpaceQuadVertex::get_binding_descriptions(),
+            .attr_descriptions = ScreenSpaceQuadVertex::get_attribute_descriptions(),
+            .color_formats = {FINAL_FORMAT},
+            .depth_format = FINAL_FORMAT
         });
 
         // ================== nodes ==================
@@ -384,8 +401,9 @@ private:
                 .name = "blur-x",
                 .bound_read_resources = {base_pass_texture},
                 .bound_write_resources = {post_blur_x_texture},
-                .body = [=](RenderPassContext &ctx) {
+                .body = [=](ComputePassContext &ctx) {
                     ctx.bind_pipeline(blur_x_pipeline);
+                    ctx.bind_resources({FINAL_IMAGE_HANDLE, post_blur_x_texture});
                     ctx.dispatch(window_size.x / 32, window_size.y / 32, 1);
                 },
                 .should_run_predicate = [&] { return do_blur; },
@@ -394,19 +412,23 @@ private:
             RenderNodeCompute {
                 .name = "blur-y",
                 .bound_read_resources = {post_blur_x_texture},
-                .bound_write_resources = {FINAL_IMAGE_HANDLE},
-                .body = [=](RenderPassContext &ctx) {
+                .bound_write_resources = {post_blur_y_texture},
+                .body = [=](ComputePassContext &ctx) {
                     ctx.bind_pipeline(blur_y_pipeline);
+                    ctx.bind_resources({post_blur_x_texture, FINAL_IMAGE_HANDLE});
                     ctx.dispatch(window_size.x / 32, window_size.y / 32, 1);
                 },
                 .should_run_predicate = [&] { return do_blur; }
             }
         });
 
+        // todo - make it work!
+        render_graph.resource_alias_hint(post_blur_y_texture, post_gui_texture);
+
         render_graph.add_node(RenderNodeGraphics {
             .name = "gui",
             .bound_resources = {},
-            .color_targets = {FINAL_IMAGE_HANDLE},
+            .color_targets = {post_gui_texture},
             .body = [=](const RenderPassContext &ctx) {
                 renderer.get_gui_renderer().begin_rendering();
                 render_gui_section(curr_delta_time);
@@ -414,6 +436,17 @@ private:
             },
             .should_run_predicate = [&] { return is_gui_enabled; },
             .explicit_dependencies = { main_node, post_processing_nodes.back() },
+        });
+
+        render_graph.add_node(RenderNodeGraphics {
+            .name = "final",
+            .bound_resources = {post_gui_texture},
+            .color_targets = {FINAL_IMAGE_HANDLE},
+            .body = [=](RenderPassContext &ctx) {
+                ctx.bind_pipeline(final_pipeline);
+                ctx.bind_resources({post_gui_texture});
+                ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
+            },
         });
 
         renderer.register_render_graph(render_graph);
@@ -480,6 +513,11 @@ private:
         input_manager->bind_callback(ZRX_GLFW_KEY_GRAVE_ACCENT, EActivationType::PRESS_ONCE, [&](const float delta_time) {
             (void) delta_time;
             is_gui_enabled = !is_gui_enabled;
+        });
+
+        input_manager->bind_callback(ZRX_GLFW_KEY_F1, EActivationType::PRESS_ONCE, [&](const float delta_time) {
+            (void) delta_time;
+            do_blur = !do_blur;
         });
     }
 

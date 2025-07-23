@@ -8,23 +8,13 @@ import Cinder.Render.Vulkan;
 
 namespace zrx {
 void RenderPassContext::bind_pipeline(const ResourceHandle pipeline_handle) {
-    vk::Pipeline pipeline {};
-    vk::PipelineLayout layout {};
-    vk::PipelineBindPoint bind_point {};
-
-    if (graphics_pipelines.get().contains(pipeline_handle)) {
-        pipeline = **graphics_pipelines.get().at(pipeline_handle);
-        layout = *graphics_pipelines.get().at(pipeline_handle).get_layout();
-        bind_point = vk::PipelineBindPoint::eGraphics;
-
-    } else if (compute_pipelines.get().contains(pipeline_handle)) {
-        pipeline = **compute_pipelines.get().at(pipeline_handle);
-        layout = *compute_pipelines.get().at(pipeline_handle).get_layout();
-        bind_point = vk::PipelineBindPoint::eCompute;
-
-    } else {
+    if (!graphics_pipelines.get().contains(pipeline_handle)) {
         Logger::error("Invalid pipeline handle in RenderPassContext::bind_pipeline!");
     }
+
+    const auto& pipeline = **graphics_pipelines.get().at(pipeline_handle);
+    const auto& layout = *graphics_pipelines.get().at(pipeline_handle).get_layout();
+    const auto& bind_point = vk::PipelineBindPoint::eGraphics;
 
     command_buffer.get().bindPipeline(bind_point, pipeline);
     command_buffer.get().bindDescriptorSets(bind_point, layout, 0, *bindless_set.get(), nullptr);
@@ -78,10 +68,6 @@ void RenderPassContext::draw(const ResourceHandle vertices_handle,
     command_buffer.get().draw(vertex_count, instance_count, first_vertex, first_instance);
 }
 
-void RenderPassContext::dispatch(const uint32_t x, const uint32_t y, const uint32_t z) const {
-    command_buffer.get().dispatch(x, y, z);
-}
-
 void RenderPassContext::push_constants() const {
     if (!last_bound_pipeline) {
         Logger::error("no pipeline bound during draw!");
@@ -91,6 +77,48 @@ void RenderPassContext::push_constants() const {
         command_buffer.get().pushConstants<ResourceHandle>(
             *graphics_pipelines.get().at(*last_bound_pipeline).get_layout(),
             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
+            0,
+            bound_resource_ids
+        );
+    }
+}
+
+void ComputePassContext::bind_pipeline(ResourceHandle pipeline_handle) {
+    if (!compute_pipelines.get().contains(pipeline_handle)) {
+        Logger::error("Invalid pipeline handle in ComputePassContext::bind_pipeline!");
+    }
+
+    const auto& pipeline = **compute_pipelines.get().at(pipeline_handle);
+    const auto& layout = *compute_pipelines.get().at(pipeline_handle).get_layout();
+    const auto& bind_point = vk::PipelineBindPoint::eCompute;
+
+    command_buffer.get().bindPipeline(bind_point, pipeline);
+    command_buffer.get().bindDescriptorSets(bind_point, layout, 0, *bindless_set.get(), nullptr);
+
+    last_bound_pipeline = pipeline_handle;
+}
+
+void ComputePassContext::bind_resources(const std::vector<ResourceHandle> &handles) {
+    bound_resource_ids = handles;
+
+    for (auto& res_id: bound_resource_ids) {
+        res_id = resource_manager.get().get_bindless_handle(res_id);
+    }
+}
+
+void ComputePassContext::dispatch(const uint32_t x, const uint32_t y, const uint32_t z) const {
+    command_buffer.get().dispatch(x, y, z);
+}
+
+void ComputePassContext::push_constants() const {
+    if (!last_bound_pipeline) {
+        Logger::error("no pipeline bound during draw!");
+    }
+
+    if (!bound_resource_ids.empty()) {
+        command_buffer.get().pushConstants<ResourceHandle>(
+            *compute_pipelines.get().at(*last_bound_pipeline).get_layout(),
+            vk::ShaderStageFlagBits::eCompute,
             0,
             bound_resource_ids
         );

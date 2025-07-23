@@ -17,7 +17,6 @@ class RenderPassContext {
     reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
     reference_wrapper<ResourceManager> resource_manager;
     reference_wrapper<const map<ResourceHandle, GraphicsPipeline>> graphics_pipelines;
-    reference_wrapper<const map<ResourceHandle, ComputePipeline>> compute_pipelines;
     reference_wrapper<const vk::raii::DescriptorSet> bindless_set;
 
     optional<ResourceHandle> last_bound_pipeline;
@@ -26,11 +25,9 @@ class RenderPassContext {
 public:
     explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, ResourceManager &rm,
                                const map<ResourceHandle, GraphicsPipeline> &graphics_pipelines,
-                               const map<ResourceHandle, ComputePipeline> &compute_pipelines,
                                const vk::raii::DescriptorSet &bindless_set)
         : command_buffer(cmd_buf), resource_manager(rm),
-          graphics_pipelines(graphics_pipelines), compute_pipelines(compute_pipelines),
-          bindless_set(bindless_set) {
+          graphics_pipelines(graphics_pipelines), bindless_set(bindless_set) {
     }
 
     [[nodiscard]]
@@ -44,6 +41,34 @@ public:
 
     void draw(ResourceHandle vertices_handle, uint32_t vertex_count, uint32_t instance_count,
               uint32_t first_vertex, uint32_t first_instance) const;
+
+private:
+    void push_constants() const;
+};
+
+class ComputePassContext {
+    reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
+    reference_wrapper<ResourceManager> resource_manager;
+    reference_wrapper<const map<ResourceHandle, ComputePipeline>> compute_pipelines;
+    reference_wrapper<const vk::raii::DescriptorSet> bindless_set;
+
+    optional<ResourceHandle> last_bound_pipeline;
+    std::vector<ResourceHandle> bound_resource_ids;
+
+public:
+    explicit ComputePassContext(const vk::raii::CommandBuffer &cmd_buf, ResourceManager &rm,
+                               const map<ResourceHandle, ComputePipeline> &compute_pipelines,
+                               const vk::raii::DescriptorSet &bindless_set)
+        : command_buffer(cmd_buf), resource_manager(rm),
+          compute_pipelines(compute_pipelines), bindless_set(bindless_set) {
+    }
+
+    [[nodiscard]]
+    const vk::raii::CommandBuffer& get_raw_cmd_buffer() const { return command_buffer.get(); }
+
+    void bind_pipeline(ResourceHandle pipeline_handle);
+
+    void bind_resources(const std::vector<ResourceHandle>& handles);
 
     void dispatch(uint32_t x, uint32_t y, uint32_t z) const;
 
@@ -71,7 +96,7 @@ struct RenderNodeGraphics {
 };
 
 struct RenderNodeCompute {
-    using RenderNodeBodyFn   = std::function<void(RenderPassContext &)>;
+    using RenderNodeBodyFn   = std::function<void(ComputePassContext &)>;
     using ShouldRunPredicate = std::function<bool()>;
 
     string name;
