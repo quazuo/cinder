@@ -84,6 +84,7 @@ class VulkanRenderer {
     map<ResourceHandle, ComputePipeline> compute_pipelines;
 
     set<ResourceHandle> unbarriered_targets;
+    map<ResourceHandle, vk::ImageLayout> last_image_layouts;
     vector<PipelineBarrierPack> cached_barriers;
 
     // other resources
@@ -221,11 +222,11 @@ private:
 
     void record_graph_commands();
 
-    void record_graphics_node_commands(RenderNodeHandle node_handle) const;
+    void record_graphics_node_commands(RenderNodeHandle node_handle);
 
     void record_node_rendering_commands(RenderNodeHandle node_handle) const;
 
-    void record_regenerate_mipmaps_commands(RenderNodeHandle node_handle) const;
+    void record_regenerate_mipmaps_commands(RenderNodeHandle node_handle);
 
     void record_pre_partition_commands(const vector<RenderNodeHandle> &partition);
 

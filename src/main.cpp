@@ -264,7 +264,7 @@ private:
             .flags = {}
         });
         const auto post_gui_texture = render_graph.add_resource(TargetTextureResourceDesc{
-            .name = "post-blur-y-texture",
+            .name = "post-gui-texture",
             .format = final_no_gamma_format,
             .flags = {}
         });
@@ -317,7 +317,7 @@ private:
             .fragment_path = "../shaders/obj/main-frag.spv",
             .binding_descriptions = ModelVertex::get_binding_descriptions(),
             .attr_descriptions = ModelVertex::get_attribute_descriptions(),
-            .color_formats = {final_no_gamma_format},
+            .color_formats = {FINAL_FORMAT},
             .depth_format = FINAL_FORMAT
         });
 
@@ -383,7 +383,7 @@ private:
         const auto main_node = render_graph.add_node(RenderNodeGraphics {
             .name = "main",
             .bound_resources = {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture, skybox_texture},
-            .color_targets = {base_pass_texture},
+            .color_targets = {FINAL_IMAGE_HANDLE},
             .depth_target = FINAL_IMAGE_HANDLE,
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(main_pipeline);
@@ -396,58 +396,82 @@ private:
             },
         });
 
-        const auto post_processing_nodes = render_graph.add_nodes_sequential({
-            RenderNodeCompute {
-                .name = "blur-x",
-                .bound_read_resources = {base_pass_texture},
-                .bound_write_resources = {post_blur_x_texture},
-                .body = [=](ComputePassContext &ctx) {
-                    ctx.bind_pipeline(blur_x_pipeline);
-                    ctx.bind_resources({FINAL_IMAGE_HANDLE, post_blur_x_texture});
-                    ctx.dispatch(window_size.x / 32, window_size.y / 32, 1);
-                },
-                .should_run_predicate = [&] { return do_blur; },
-                .explicit_dependencies = { main_node },
-            },
-            RenderNodeCompute {
-                .name = "blur-y",
-                .bound_read_resources = {post_blur_x_texture},
-                .bound_write_resources = {post_blur_y_texture},
-                .body = [=](ComputePassContext &ctx) {
-                    ctx.bind_pipeline(blur_y_pipeline);
-                    ctx.bind_resources({post_blur_x_texture, FINAL_IMAGE_HANDLE});
-                    ctx.dispatch(window_size.x / 32, window_size.y / 32, 1);
-                },
-                .should_run_predicate = [&] { return do_blur; }
-            }
-        });
+        // const auto post_processing_nodes = render_graph.add_nodes_sequential({
+        //     RenderNodeCompute {
+        //         .name = "blur-x",
+        //         .bound_read_resources = {base_pass_texture},
+        //         .bound_write_resources = {post_blur_x_texture},
+        //         .body = [=](ComputePassContext &ctx) {
+        //             ctx.bind_pipeline(blur_x_pipeline);
+        //             ctx.bind_resources({base_pass_texture, post_blur_x_texture});
+        //             ctx.dispatch(window_size.x / 32, window_size.y / 32, 1);
+        //         },
+        //         .should_run_predicate = [&] { return do_blur; },
+        //     },
+        //     RenderNodeCompute {
+        //         .name = "blur-y",
+        //         .bound_read_resources = {post_blur_x_texture},
+        //         .bound_write_resources = {post_blur_y_texture},
+        //         .body = [=](ComputePassContext &ctx) {
+        //             ctx.bind_pipeline(blur_y_pipeline);
+        //             ctx.bind_resources({post_blur_x_texture, post_blur_y_texture});
+        //             ctx.dispatch(window_size.x / 32, window_size.y / 32, 1);
+        //         },
+        //         .should_run_predicate = [&] { return do_blur; }
+        //     }
+        // });
 
-        // todo - make it work!
-        render_graph.resource_alias_hint(post_blur_y_texture, post_gui_texture);
+        // // todo - make it work!
+        // render_graph.resource_alias_hint(post_blur_y_texture, post_gui_texture);
 
-        render_graph.add_node(RenderNodeGraphics {
-            .name = "gui",
-            .bound_resources = {},
-            .color_targets = {post_gui_texture},
-            .body = [=](const RenderPassContext &ctx) {
-                renderer.get_gui_renderer().begin_rendering();
-                render_gui_section(curr_delta_time);
-                renderer.get_gui_renderer().end_rendering(ctx.get_raw_cmd_buffer());
-            },
-            .should_run_predicate = [&] { return is_gui_enabled; },
-            .explicit_dependencies = { main_node, post_processing_nodes.back() },
-        });
+        // render_graph.add_node(RenderNodeGraphics {
+        //     .name = "final-blurred",
+        //     //.bound_resources = {post_blur_y_texture},
+        //     .color_targets = {FINAL_IMAGE_HANDLE},
+        //     .body = [=](RenderPassContext &ctx) {
+        //         ctx.bind_pipeline(final_pipeline);
+        //         //ctx.bind_resources({post_blur_y_texture});
+        //         ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
+        //     },
+        //     .should_run_predicate = [&] { return do_blur; }
+        // });
+        //
+        // render_graph.add_node(RenderNodeGraphics {
+        //     .name = "final-unblurred",
+        //     //.bound_resources = {base_pass_texture},
+        //     .color_targets = {FINAL_IMAGE_HANDLE},
+        //     .body = [=](RenderPassContext &ctx) {
+        //         ctx.bind_pipeline(final_pipeline);
+        //         //ctx.bind_resources({base_pass_texture});
+        //         ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
+        //     },
+        //     .should_run_predicate = [&] { return !do_blur; }
+        // });
 
         render_graph.add_node(RenderNodeGraphics {
             .name = "final",
             .bound_resources = {post_gui_texture},
             .color_targets = {FINAL_IMAGE_HANDLE},
+            .depth_target = FINAL_IMAGE_HANDLE,
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(final_pipeline);
                 ctx.bind_resources({post_gui_texture});
                 ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
             },
         });
+
+        // render_graph.add_node(RenderNodeGraphics {
+        //     .name = "gui",
+        //     .bound_resources = {},
+        //     .color_targets = {FINAL_IMAGE_HANDLE},
+        //     .body = [=](const RenderPassContext &ctx) {
+        //         renderer.get_gui_renderer().begin_rendering();
+        //         render_gui_section(curr_delta_time);
+        //         renderer.get_gui_renderer().end_rendering(ctx.get_raw_cmd_buffer());
+        //     },
+        //     .should_run_predicate = [&] { return is_gui_enabled; },
+        //     .explicit_dependencies = { main_node, post_processing_nodes.back() },
+        // });
 
         renderer.register_render_graph(render_graph);
     }
@@ -606,8 +630,7 @@ private:
         renderer.render_gui_section();
     }
 
-    void render_tex_load_button(const string &label, const FileType file_type,
-                                const vector<string> &type_filters) {
+    void render_tex_load_button(const string &label, const FileType file_type, const vector<string> &type_filters) {
         if (ImGui::Button(label.c_str(), ImVec2(180, 0))) {
             current_type_being_chosen = file_type;
             file_browser.SetTypeFilters(type_filters);

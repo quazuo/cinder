@@ -19,8 +19,6 @@ layout (push_constant) uniform PushResourceIDs {
     uint orm_tex_id;
 } constants;
 
-#define material_id 0
-
 layout (set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform UniformBufferObject {
     WindowRes window;
     Matrices matrices;

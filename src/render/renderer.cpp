@@ -559,11 +559,15 @@ void VulkanRenderer::create_render_graph_resources() {
             usage_flags |= vk::ImageUsageFlagBits::eStorage;
         }
 
+        constexpr auto layout = vk::ImageLayout::eShaderReadOnlyOptimal;
+        last_image_layouts.emplace(handle, layout);
+
         auto builder = TextureBuilder()
                 .with_flags(description.flags)
                 .with_name(description.name.c_str())
                 .from_paths(description.paths)
                 .use_format(description.format)
+                .use_layout(layout)
                 .use_usage(usage_flags);
 
         if (description.paths.size() > 1 && !(description.flags & vk::TextureFlagBitsZRX::CUBEMAP))
@@ -599,14 +603,17 @@ void VulkanRenderer::create_render_graph_resources() {
             usage_flags |= vk::ImageUsageFlagBits::eStorage;
         }
 
+        const auto layout = utils::img::is_depth_format(description.format)
+                            ? vk::ImageLayout::eDepthStencilAttachmentOptimal
+                            : vk::ImageLayout::eColorAttachmentOptimal;
+        last_image_layouts.emplace(handle, layout);
+
         auto builder = TextureBuilder()
                 .with_flags(description.flags)
                 .with_name(description.name.c_str())
                 .as_uninitialized({extent.width, extent.height, 1u})
                 .use_format(description.format)
-                .use_layout(utils::img::is_depth_format(description.format)
-                            ? vk::ImageLayout::eDepthStencilAttachmentOptimal
-                            : vk::ImageLayout::eColorAttachmentOptimal)
+                .use_layout(layout)
                 .use_usage(usage_flags);
 
         resource_manager->add(handle, builder.create(ctx), description.name);
@@ -820,8 +827,6 @@ void VulkanRenderer::run_render_graph() {
                 node_resources.emplace(node_handle, RenderNodeResources{
                     .render_infos = create_node_render_infos(node_handle),
                 });
-            } else if (node.is_compute()) {
-                // Logger::error("unimplemented"); // todo
             }
         }
 
@@ -840,9 +845,7 @@ void VulkanRenderer::record_graph_commands() {
     for (size_t i = 0; i < partitioned_nodes.size(); i++) {
         const auto& curr_partition = partitioned_nodes[i];
 
-        if (i != 0) {
-            record_pre_partition_commands(curr_partition);
-        }
+        record_pre_partition_commands(curr_partition);
 
         for (const auto &node_handle: curr_partition) {
             const RenderNode& node = render_graph->nodes().at(node_handle);
@@ -868,11 +871,11 @@ void VulkanRenderer::record_graph_commands() {
     command_buffer.end();
 }
 
-void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_handle) const {
+void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_handle) {
     const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
     const auto &node = render_graph->nodes().at(node_handle).get_graphics();
 
-    Logger::debug("recording node: {}", node.name);
+    Logger::debug("recording gfx node: {}", node.name);
 
     // if size > 1, then this means that this pass (node) draws to the swapchain image
     // and thus benefits from double or triple buffering
@@ -910,7 +913,7 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeHandle node_
     node_info.body(ctx);
 }
 
-void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeHandle node_handle) const {
+void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeHandle node_handle) {
     const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
     const auto &node = render_graph->nodes().at(node_handle).get_graphics();
 
@@ -920,6 +923,8 @@ void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeHandle n
         const auto &target_texture = resource_manager->get_texture(color_target);
         if (target_texture.get_mip_levels() == 1) continue;
 
+        Logger::debug("recording mipmap regeneration commands for texture: {}", resource_manager->get_name(color_target));
+
         target_texture.get_image().transition_layout(
             vk::ImageLayout::eShaderReadOnlyOptimal,
             vk::ImageLayout::eTransferDstOptimal,
@@ -927,6 +932,8 @@ void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeHandle n
         );
 
         target_texture.generate_mipmaps(ctx, vk::ImageLayout::eShaderReadOnlyOptimal);
+
+        last_image_layouts[color_target] = vk::ImageLayout::eShaderReadOnlyOptimal;
     }
 }
 
@@ -937,6 +944,8 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
     auto& barriers = cached_barriers.back();
 
     vector<ResourceHandle> sampled_resources;
+    vector<ResourceHandle> target_resources;
+
     for (const auto& node_handle: partition) {
         const auto& node = render_graph->nodes().at(node_handle);
         if (!node.is_graphics()) continue;
@@ -945,15 +954,23 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
         for (const auto color_target: node_info.bound_resources) {
             sampled_resources.emplace_back(color_target);
         }
+
+        for (const auto color_target: node_info.color_targets) {
+            target_resources.emplace_back(color_target);
+        }
+        if (node_info.depth_target) {
+            target_resources.emplace_back(*node_info.depth_target);
+        }
     }
 
     for (const auto& sampled_resource: sampled_resources) {
         if (!unbarriered_targets.contains(sampled_resource)) continue;
 
-        Logger::debug("inserting pre-partition barrier for texture: {}", resource_manager->get_name(sampled_resource));
+        Logger::debug("inserting pre-partition (sampled) barrier for texture: {}", resource_manager->get_name(sampled_resource));
 
         const Texture& sampled_texture = resource_manager->get_texture(sampled_resource);
         const bool is_depth_texture = utils::img::is_depth_format(sampled_texture.get_image().get_format());
+        constexpr auto new_layout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
         barriers.insert(vk::ImageMemoryBarrier2 {
             .srcStageMask = vk::PipelineStageFlagBits2::eAllGraphics,
@@ -963,7 +980,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
             .dstStageMask = vk::PipelineStageFlagBits2::eAllGraphics,
             .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
             .oldLayout = is_depth_texture ? vk::ImageLayout::eDepthAttachmentOptimal : vk::ImageLayout::eColorAttachmentOptimal,
-            .newLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
+            .newLayout = new_layout,
             .image = *sampled_texture.get_image(),
             .subresourceRange = {
                 .aspectMask = is_depth_texture ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor,
@@ -973,6 +990,41 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
         });
 
         unbarriered_targets.erase(sampled_resource);
+        last_image_layouts[sampled_resource] = new_layout;
+    }
+
+    for (const auto& target_resource: target_resources) {
+        if (!resource_manager->contains_texture(target_resource)) continue;
+
+        Logger::debug("inserting pre-partition (target) barrier for texture: {}", resource_manager->get_name(target_resource));
+
+        const Texture& target_texture = resource_manager->get_texture(target_resource);
+        const bool is_depth_texture = utils::img::is_depth_format(target_texture.get_image().get_format());
+        const auto expected_layout = is_depth_texture
+                                     ? vk::ImageLayout::eDepthAttachmentOptimal
+                                     : vk::ImageLayout::eColorAttachmentOptimal;
+        const auto current_layout = last_image_layouts.at(target_resource);
+
+        if (current_layout == expected_layout) continue;
+
+        barriers.insert(vk::ImageMemoryBarrier2 {
+            .srcStageMask = vk::PipelineStageFlagBits2::eAllGraphics,
+            .srcAccessMask = is_depth_texture
+                             ? vk::AccessFlagBits2::eDepthStencilAttachmentWrite
+                             : vk::AccessFlagBits2::eColorAttachmentWrite,
+            .dstStageMask = vk::PipelineStageFlagBits2::eAllGraphics,
+            .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
+            .oldLayout = current_layout,
+            .newLayout = expected_layout,
+            .image = *target_texture.get_image(),
+            .subresourceRange = {
+                .aspectMask = is_depth_texture ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor,
+                .levelCount = 1,
+                .layerCount = 1,
+            }
+        });
+
+        last_image_layouts[target_resource] = expected_layout;
     }
 
     barriers.record_cmd(command_buffer);
@@ -982,7 +1034,7 @@ void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_ha
     const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
     const auto &node = render_graph->nodes().at(node_handle).get_compute();
 
-    Logger::debug("recording node: {}", node.name);
+    Logger::debug("recording compute node: {}", node.name);
 
     // todo
     //
