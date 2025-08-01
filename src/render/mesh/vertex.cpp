@@ -106,7 +106,7 @@ vector<vk::VertexInputBindingDescription> ScreenSpaceQuadVertex::get_binding_des
     return {
         {
             .binding = static_cast<uint32_t>(0U),
-            .stride = static_cast<uint32_t>(sizeof(SkyboxVertex)),
+            .stride = static_cast<uint32_t>(sizeof(ScreenSpaceQuadVertex)),
             .inputRate = vk::VertexInputRate::eVertex
         }
     };

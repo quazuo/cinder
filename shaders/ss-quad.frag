@@ -11,5 +11,5 @@ layout (push_constant) uniform PushResourceIDs {
 } constants;
 
 void main() {
-    out_color = vec4(1, 0, 0, 1); //vec4(texture(bindless_samplers[constants.sampled_tex_id], tex_coords).rgb, 1.0);
+    out_color = vec4(texture(bindless_samplers[constants.sampled_tex_id], tex_coords).rgb, 1.0);
 }

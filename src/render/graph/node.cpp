@@ -112,7 +112,7 @@ void ComputePassContext::dispatch(const uint32_t x, const uint32_t y, const uint
 
 void ComputePassContext::push_constants() const {
     if (!last_bound_pipeline) {
-        Logger::error("no pipeline bound during draw!");
+        Logger::error("no pipeline bound during ComputePassContext::push_constants!");
     }
 
     if (!bound_resource_ids.empty()) {

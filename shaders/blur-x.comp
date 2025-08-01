@@ -22,5 +22,6 @@ void main() {
 
     accumulated_color /= accumulation_count;
     accumulated_color.w = 1.0f;
+    accumulated_color = vec4(1, 0, 0, 0);
     imageStore(bindless_textures[constants.output_tex_id], texel_coord, accumulated_color);
 }
