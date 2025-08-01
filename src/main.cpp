@@ -305,7 +305,7 @@ private:
             .fragment_path = "../shaders/obj/skybox-frag.spv",
             .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
             .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
-            .color_formats = {final_no_gamma_format},
+            .color_formats = {FINAL_FORMAT},
             .depth_format = FINAL_FORMAT,
             .custom_properties = {
                 .depth_compare_op = vk::CompareOp::eLessOrEqual,
@@ -335,66 +335,65 @@ private:
             .binding_descriptions = ScreenSpaceQuadVertex::get_binding_descriptions(),
             .attr_descriptions = ScreenSpaceQuadVertex::get_attribute_descriptions(),
             .color_formats = {FINAL_FORMAT},
-            .depth_format = FINAL_FORMAT
         });
 
         // ================== nodes ==================
 
-        render_graph.add_node(RenderNodeGraphics {
-            .name = "cubemap-capture",
-            .bound_resources = {uniform_buffer, envmap_texture},
-            .color_targets = {skybox_texture},
-            .body = [=](RenderPassContext &ctx) {
-                ctx.bind_pipeline(cubecap_pipeline);
-                ctx.bind_resources({uniform_buffer, envmap_texture});
-                ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
-            },
-            .should_run_predicate = [&] { return should_capture_skybox; },
-            .custom_properties = RenderNodeGraphics::CustomProperties {
-                .multiview_count = 6
-            }
-        });
+        // render_graph.add_node(RenderNodeGraphics {
+        //     .name = "cubemap-capture",
+        //     .bound_resources = {uniform_buffer, envmap_texture},
+        //     .color_targets = {skybox_texture},
+        //     .body = [=](RenderPassContext &ctx) {
+        //         ctx.bind_pipeline(cubecap_pipeline);
+        //         ctx.bind_resources({uniform_buffer, envmap_texture});
+        //         ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
+        //     },
+        //     .should_run_predicate = [&] { return should_capture_skybox; },
+        //     .custom_properties = RenderNodeGraphics::CustomProperties {
+        //         .multiview_count = 6
+        //     }
+        // });
+        //
+        // render_graph.add_node(RenderNodeGraphics {
+        //     .name = "prepass",
+        //     .bound_resources = {uniform_buffer},
+        //     .color_targets = {g_buffer_normal, g_buffer_pos},
+        //     .depth_target = g_buffer_depth,
+        //     .body = [=](RenderPassContext &ctx) {
+        //         ctx.bind_pipeline(prepass_pipeline);
+        //         ctx.bind_resources({uniform_buffer});
+        //         ctx.draw_model(scene_model);
+        //     },
+        //     .should_run_predicate = [&] { return use_ssao; }
+        // });
+        //
+        // render_graph.add_node(RenderNodeGraphics {
+        //     .name = "ssao",
+        //     .bound_resources = {uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos},
+        //     .color_targets = {ssao_texture},
+        //     .body = [=](RenderPassContext &ctx) {
+        //         ctx.bind_pipeline(ssao_pipeline);
+        //         ctx.bind_resources({uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos});
+        //         ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
+        //     },
+        //     .should_run_predicate = [&] { return use_ssao; }
+        // });
 
-        render_graph.add_node(RenderNodeGraphics {
-            .name = "prepass",
-            .bound_resources = {uniform_buffer},
-            .color_targets = {g_buffer_normal, g_buffer_pos},
-            .depth_target = g_buffer_depth,
-            .body = [=](RenderPassContext &ctx) {
-                ctx.bind_pipeline(prepass_pipeline);
-                ctx.bind_resources({uniform_buffer});
-                ctx.draw_model(scene_model);
-            },
-            .should_run_predicate = [&] { return use_ssao; }
-        });
-
-        render_graph.add_node(RenderNodeGraphics {
-            .name = "ssao",
-            .bound_resources = {uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos},
-            .color_targets = {ssao_texture},
-            .body = [=](RenderPassContext &ctx) {
-                ctx.bind_pipeline(ssao_pipeline);
-                ctx.bind_resources({uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos});
-                ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
-            },
-            .should_run_predicate = [&] { return use_ssao; }
-        });
-
-        const auto main_node = render_graph.add_node(RenderNodeGraphics {
-            .name = "main",
-            .bound_resources = {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture, skybox_texture},
-            .color_targets = {FINAL_IMAGE_HANDLE},
-            .depth_target = FINAL_IMAGE_HANDLE,
-            .body = [=](RenderPassContext &ctx) {
-                ctx.bind_pipeline(main_pipeline);
-                ctx.bind_resources({uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture});
-                ctx.draw_model(scene_model);
-
-                ctx.bind_pipeline(skybox_pipeline);
-                ctx.bind_resources({uniform_buffer, skybox_texture});
-                ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
-            },
-        });
+        // const auto main_node = render_graph.add_node(RenderNodeGraphics {
+        //     .name = "main",
+        //     .bound_resources = {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture, skybox_texture},
+        //     .color_targets = {FINAL_IMAGE_HANDLE},
+        //     .depth_target = FINAL_IMAGE_HANDLE,
+        //     .body = [=](RenderPassContext &ctx) {
+        //         ctx.bind_pipeline(main_pipeline);
+        //         ctx.bind_resources({uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture});
+        //         ctx.draw_model(scene_model);
+        //
+        //         ctx.bind_pipeline(skybox_pipeline);
+        //         ctx.bind_resources({uniform_buffer, skybox_texture});
+        //         ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
+        //     },
+        // });
 
         // const auto post_processing_nodes = render_graph.add_nodes_sequential({
         //     RenderNodeCompute {
@@ -450,12 +449,11 @@ private:
 
         render_graph.add_node(RenderNodeGraphics {
             .name = "final",
-            .bound_resources = {post_gui_texture},
+            .bound_resources = {base_color_texture},
             .color_targets = {FINAL_IMAGE_HANDLE},
-            .depth_target = FINAL_IMAGE_HANDLE,
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(final_pipeline);
-                ctx.bind_resources({post_gui_texture});
+                ctx.bind_resources({base_color_texture});
                 ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
             },
         });

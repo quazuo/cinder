@@ -1,11 +1,15 @@
 #version 450
 
-layout(location = 0) in vec2 texCoords;
+#include "utils/bindless.glsl"
 
-layout(location = 0) out vec4 outColor;
+layout(location = 0) in vec2 tex_coords;
 
-layout(binding = 0) uniform sampler2D texSampler;
+layout(location = 0) out vec4 out_color;
+
+layout (push_constant) uniform PushResourceIDs {
+    uint sampled_tex_id;
+} constants;
 
 void main() {
-    outColor = vec4(1.0f);//vec4(texture(texSampler, texCoords).rgb, 1.0);
+    out_color = vec4(1, 0, 0, 1); //vec4(texture(bindless_samplers[constants.sampled_tex_id], tex_coords).rgb, 1.0);
 }

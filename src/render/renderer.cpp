@@ -768,7 +768,6 @@ vector<RenderInfo> VulkanRenderer::create_node_render_infos(const RenderNodeHand
 
             if (!is_first_with_final_target) {
                 // has to be overridden, otherwise this render pass will clear the swapchain image
-                // todo - maybe also add this functionality to targets other than swapchain? like postprocessing
                 swap_chain_targets.color_target.override_attachment_config(vk::AttachmentLoadOp::eLoad);
             }
 
