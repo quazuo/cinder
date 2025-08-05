@@ -69,7 +69,7 @@ class VulkanRenderer {
     static constexpr uint32_t BINDLESS_STORAGE_TEXTURE_BINDING = 1;
     static constexpr uint32_t BINDLESS_UBO_BINDING = 2;
 
-    // render graph stuff
+    // ================ render graph stuff ================
 
     struct RenderNodeResources {
         vector<RenderInfo> render_infos;
@@ -83,11 +83,13 @@ class VulkanRenderer {
     map<ResourceHandle, GraphicsPipeline> graphics_pipelines;
     map<ResourceHandle, ComputePipeline> compute_pipelines;
 
-    set<ResourceHandle> unbarriered_targets;
+    // command recording state
+    set<ResourceHandle> unbarriered_gfx_written_resources;
+    set<ResourceHandle> unbarriered_compute_written_resources;
     map<ResourceHandle, vk::ImageLayout> last_image_layouts;
     vector<PipelineBarrierPack> cached_barriers;
 
-    // other resources
+    // ================ other stuff ================
 
     using TimelineSemValueType = uint64_t;
 
@@ -109,12 +111,12 @@ class VulkanRenderer {
     static constexpr size_t MAX_FRAMES_IN_FLIGHT = 3;
     array<FrameResources, MAX_FRAMES_IN_FLIGHT> frame_resources;
 
-    // gui stuff
+    // ================ gui stuff ================
 
     unique_ptr<vk::raii::DescriptorPool> imgui_descriptor_pool;
     unique_ptr<GuiRenderer> gui_renderer;
 
-    // miscellaneous state variables
+    // ================ miscellaneous state variables ================
 
     vector<FrameBeginCallback> repeated_frame_begin_actions;
     std::queue<FrameBeginCallback> queued_frame_begin_actions;
@@ -231,6 +233,8 @@ private:
     void record_pre_partition_commands(const vector<RenderNodeHandle> &partition);
 
     void record_compute_node_commands(RenderNodeHandle node_handle) const;
+
+    [[nodiscard]] set<ResourceHandle> gather_attachment_resources() const;
 
     [[nodiscard]] set<ResourceHandle> gather_compute_accessed_resources() const;
 

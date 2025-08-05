@@ -95,7 +95,7 @@ class Engine {
 
     float debug_number = 0;
 
-    bool is_gui_enabled        = true;
+    bool is_gui_enabled        = false;
     bool show_debug_quad       = false;
     bool use_ssao              = false;
     bool should_capture_skybox = true;
@@ -277,7 +277,6 @@ private:
             .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
             .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
             .color_formats = {skybox_tex_format},
-            .depth_format = {},
             .custom_properties = {
                 .multiview_count = 6
             }
@@ -420,7 +419,7 @@ private:
             }
         });
 
-        render_graph.add_node(RenderNodeGraphics {
+        const auto final_blurred_node = render_graph.add_node(RenderNodeGraphics {
             .name = "final-blurred",
             .bound_resources = {post_blur_y_texture},
             .color_targets = {FINAL_IMAGE_HANDLE},
@@ -432,7 +431,7 @@ private:
             .should_run_predicate = [&] { return do_blur; }
         });
 
-        render_graph.add_node(RenderNodeGraphics {
+        const auto final_unblurred_node = render_graph.add_node(RenderNodeGraphics {
             .name = "final-unblurred",
             .bound_resources = {base_pass_texture},
             .color_targets = {FINAL_IMAGE_HANDLE},
@@ -454,7 +453,7 @@ private:
                 renderer.get_gui_renderer().end_rendering(ctx.get_raw_cmd_buffer());
             },
             .should_run_predicate = [&] { return is_gui_enabled; },
-            .explicit_dependencies = { main_node, post_processing_nodes.back() },
+            .explicit_dependencies = { final_blurred_node, final_unblurred_node },
         });
 
         renderer.register_render_graph(render_graph);

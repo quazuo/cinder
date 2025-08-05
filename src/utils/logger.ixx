@@ -25,7 +25,7 @@ public:
 
     template<typename T, typename... Ts>
     static void warning(const T& fmt_str, Ts... args) {
-        log(std::cerr, LogLevel::WARNING, fmt_str, args...);
+        log(std::cout, LogLevel::WARNING, fmt_str, args...);
     }
 
     template<typename T, typename... Ts>

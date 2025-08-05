@@ -11,6 +11,7 @@ import Cinder.Globals;
 
 export namespace zrx {
 constexpr ResourceHandle FINAL_IMAGE_HANDLE  = -1;
+const string FINAL_IMAGE_NAME = "final-image";
 constexpr std::monostate EMPTY_DESCRIPTOR_SET_BINDING = {};
 
 template<typename T>

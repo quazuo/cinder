@@ -4,6 +4,8 @@ export module Cinder.Render.Graph:ResourceManager;
 
 import std;
 
+import :Resource;
+
 import Cinder.Render.Vulkan;
 import Cinder.Render.Mesh;
 import Cinder.Globals;
@@ -43,7 +45,10 @@ public:
         resource_names.emplace(handle, name);
     }
 
-    [[nodiscard]] const std::string& get_name(const ResourceHandle handle) const { return resource_names.at(handle); }
+    [[nodiscard]] const std::string& get_name(const ResourceHandle handle) const {
+        if (handle == FINAL_IMAGE_HANDLE) return FINAL_IMAGE_NAME;
+        return resource_names.at(handle);
+    }
 
     [[nodiscard]] BindlessHandle get_bindless_handle(const ResourceHandle handle) const { return bindless_handle_mapping.at(handle); }
 
