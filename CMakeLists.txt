@@ -91,14 +91,6 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(glm)
 
-# ========================= PIX =========================
-
-add_library(PIX_LIBRARY SHARED IMPORTED)
-set_target_properties(PIX_LIBRARY PROPERTIES
-        IMPORTED_LOCATION "${CMAKE_CURRENT_SOURCE_DIR}/deps/pix/bin/x64/WinPixEventRuntime.dll"
-        IMPORTED_IMPLIB "${CMAKE_CURRENT_SOURCE_DIR}/deps/pix/bin/x64/WinPixEventRuntime.lib"
-)
-
 # ========================= General =========================
 
 include_directories(
@@ -118,7 +110,6 @@ set(ALL_LIBS
         glm::glm
         Vulkan::Vulkan
         VulkanHppModule
-        PIX_LIBRARY
 )
 
 file(GLOB HEADER_ONLY_DEPS_SRCS
