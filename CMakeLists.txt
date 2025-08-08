@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.30.2 FATAL_ERROR)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_MODULE_STD 1)
-set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "0e5b6991-d74f-4b3d-a41c-cf096e0b2508")
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "a9e1cf81-9932-4810-974b-6eccaf14e457")
 
 include(FetchContent)
 
@@ -16,9 +16,10 @@ project(cinder LANGUAGES CXX)
 find_package(Vulkan REQUIRED)
 
 if( ${Vulkan_VERSION} VERSION_LESS "1.3.256" )
-    message( FATAL_ERROR "Minimum required Vulkan version for C++ modules is 1.3.256. "
-            "Found ${Vulkan_VERSION}."
-    )
+        message(FATAL_ERROR
+                "Minimum required Vulkan version for C++ modules is 1.3.256. "
+                "Found ${Vulkan_VERSION}."
+        )
 endif()
 
 add_library(VulkanHppModule)
@@ -148,16 +149,16 @@ target_sources(cinder
         PUBLIC
         FILE_SET CXX_MODULES
         FILES
-            ${CINDER_MODULES}
-            ${DEPS_CUSTOM_MODULES}
-            "deps/glm/glm/glm.cppm"
+                ${CINDER_MODULES}
+                ${DEPS_CUSTOM_MODULES}
+                "deps/glm/glm/glm.cppm"
         PRIVATE
-            ${CINDER_SRCS}
-            ${IMGUI_SRCS}
-            ${IMGUI_IMPL_SRCS}
-            ${IMGUIZMO_QUAT_SRCS}
-            ${VK_BOOTSTRAP_SRCS}
-            ${HEADER_ONLY_DEPS_SRCS})
+                ${CINDER_SRCS}
+                ${IMGUI_SRCS}
+                ${IMGUI_IMPL_SRCS}
+                ${IMGUIZMO_QUAT_SRCS}
+                ${VK_BOOTSTRAP_SRCS}
+                ${HEADER_ONLY_DEPS_SRCS})
 
 target_link_libraries(cinder PRIVATE ${ALL_LIBS})
 
