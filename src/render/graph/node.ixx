@@ -31,7 +31,7 @@ public:
     }
 
     [[nodiscard]]
-    const vk::raii::CommandBuffer& get_raw_cmd_buffer() const { return command_buffer.get(); }
+    auto get_raw_cmd_buffer() const -> const vk::raii::CommandBuffer& { return command_buffer.get(); }
 
     void bind_pipeline(ResourceHandle pipeline_handle);
 
@@ -63,8 +63,7 @@ public:
           compute_pipelines(compute_pipelines), bindless_set(bindless_set) {
     }
 
-    [[nodiscard]]
-    const vk::raii::CommandBuffer& get_raw_cmd_buffer() const { return command_buffer.get(); }
+    auto get_raw_cmd_buffer() const -> const vk::raii::CommandBuffer& { return command_buffer.get(); }
 
     void bind_pipeline(ResourceHandle pipeline_handle);
 
@@ -92,7 +91,7 @@ struct RenderNodeGraphics {
         uint32_t multiview_count = 1;
     } custom_properties;
 
-    [[nodiscard]] set<ResourceHandle> get_all_targets_set() const;
+    auto get_all_targets_set() const -> set<ResourceHandle>;
 };
 
 struct RenderNodeCompute {
@@ -117,20 +116,20 @@ public:
     RenderNode(const RenderNodeGraphics& node) : node_(node) {}
     RenderNode(const RenderNodeCompute& node)  : node_(node) {}
 
-    [[nodiscard]] bool is_graphics() const { return std::holds_alternative<RenderNodeGraphics>(node_); }
-    [[nodiscard]] bool is_compute()  const { return std::holds_alternative<RenderNodeCompute>(node_); }
+    auto is_graphics() const -> bool { return std::holds_alternative<RenderNodeGraphics>(node_); }
+    auto is_compute()  const -> bool { return std::holds_alternative<RenderNodeCompute>(node_); }
 
-    [[nodiscard]] const RenderNodeGraphics& get_graphics() const { return std::get<RenderNodeGraphics>(node_); }
-    [[nodiscard]] RenderNodeGraphics&       get_graphics()       { return std::get<RenderNodeGraphics>(node_); }
+    auto get_graphics() const -> const RenderNodeGraphics& { return std::get<RenderNodeGraphics>(node_); }
+    auto get_graphics()       -> RenderNodeGraphics&       { return std::get<RenderNodeGraphics>(node_); }
 
-    [[nodiscard]] const RenderNodeCompute& get_compute() const { return std::get<RenderNodeCompute>(node_); }
-    [[nodiscard]] RenderNodeCompute&       get_compute()       { return std::get<RenderNodeCompute>(node_); }
+    auto get_compute() const -> const RenderNodeCompute& { return std::get<RenderNodeCompute>(node_); }
+    auto get_compute()       -> RenderNodeCompute&       { return std::get<RenderNodeCompute>(node_); }
 
-    [[nodiscard]] const string& name() const;
+    auto name() const -> const string&;
 
-    [[nodiscard]] bool should_run() const;
+    auto should_run() const -> bool;
 
-    [[nodiscard]] const std::vector<RenderNodeHandle>& explicit_dependencies() const;
+    auto explicit_dependencies() const -> const std::vector<RenderNodeHandle>&;
 
     template <typename Functor>
     auto visit(Functor&& fn) const { return std::visit(std::forward<Functor>(fn), node_); }

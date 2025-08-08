@@ -74,6 +74,6 @@ private:
      * @param type Type of event the caller is interested in.
      * @return Did the event occur?
      */
-    bool check_key(EKey key, EActivationType type);
+    auto check_key(EKey key, EActivationType type) -> bool;
 };
 } // zrx

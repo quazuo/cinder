@@ -44,9 +44,9 @@ public:
          *
          * @return Handle to the buffer.
          */
-    [[nodiscard]] const vk::Buffer &operator*() const { return buffer; }
+    auto operator*() const -> const vk::Buffer& { return buffer; }
 
-    [[nodiscard]] vk::DeviceSize get_size() const { return size; }
+    auto get_size() const -> vk::DeviceSize { return size; }
 
     /**
      * Maps the buffer's memory to host memory. This requires the buffer to *not* be created
@@ -55,7 +55,7 @@ public:
      *
      * @return Pointer to the mapped memory.
      */
-    [[nodiscard]] void *map();
+    auto map() -> void*;
 
     /**
          * Unmaps the memory, after which the pointer returned by `map()` becomes invalidated.
@@ -88,14 +88,13 @@ struct BufferSlice {
         }
     }
 
-    [[nodiscard]] const Buffer &operator*() const { return buffer.get(); }
+    auto operator*() const -> const Buffer&{ return buffer.get(); }
 };
 
 namespace utils::buf {
     template<typename ElemType>
-    [[nodiscard]] unique_ptr<Buffer>
-    create_local_buffer(const RendererContext &ctx, const vector<ElemType> &contents,
-                        const vk::BufferUsageFlags usage) {
+    auto create_local_buffer(const RendererContext &ctx, const vector<ElemType> &contents,
+                             const vk::BufferUsageFlags usage) -> unique_ptr<Buffer> {
         const vk::DeviceSize buffer_size = sizeof(contents[0]) * contents.size();
 
         Buffer staging_buffer{
@@ -121,6 +120,6 @@ namespace utils::buf {
         return result_buffer;
     }
 
-    [[nodiscard]] unique_ptr<Buffer> create_uniform_buffer(const RendererContext &ctx, vk::DeviceSize size);
+    auto create_uniform_buffer(const RendererContext &ctx, vk::DeviceSize size) -> unique_ptr<Buffer>;
 } // utils::buf
 } // zrx

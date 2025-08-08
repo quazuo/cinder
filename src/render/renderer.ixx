@@ -35,7 +35,7 @@ public:
 
     RenderInfo(vector<RenderTarget> colors, RenderTarget depth);
 
-    [[nodiscard]] vk::RenderingInfo get(vk::Extent2D extent, uint32_t views = 1, vk::RenderingFlags flags = {}) const;
+    auto get(vk::Extent2D extent, uint32_t views = 1, vk::RenderingFlags flags = {}) const -> vk::RenderingInfo;
 
 private:
     void make_attachment_infos();
@@ -143,11 +143,11 @@ public:
 
     VulkanRenderer &operator=(VulkanRenderer &&other) = delete;
 
-    [[nodiscard]] GLFWwindow *get_window() const { return window; }
+    auto get_window() const -> GLFWwindow* { return window; }
 
-    [[nodiscard]] GuiRenderer &get_gui_renderer() const { return *gui_renderer; }
+    auto get_gui_renderer() const -> GuiRenderer& { return *gui_renderer; }
 
-    [[nodiscard]] vk::SampleCountFlagBits get_msaa_sample_count() const {
+    auto get_msaa_sample_count() const -> vk::SampleCountFlagBits {
         return use_msaa ? msaa_sample_count : vk::SampleCountFlagBits::e1;
     }
 
@@ -162,13 +162,13 @@ private:
 
     // ==================== startup ====================
 
-    vkb::Instance create_instance();
+    auto create_instance() -> vkb::Instance;
 
-    static vector<const char *> get_required_extensions();
+    static auto get_required_extensions() -> vector<const char *>;
 
     void create_surface();
 
-    vkb::PhysicalDevice pick_physical_device(const vkb::Instance &vkb_instance);
+    auto pick_physical_device(const vkb::Instance &vkb_instance) -> vkb::PhysicalDevice;
 
     void create_logical_device(const vkb::PhysicalDevice &vkb_physical_device);
 
@@ -184,12 +184,11 @@ private:
 
     // ==================== multisampling ====================
 
-    [[nodiscard]] vk::SampleCountFlagBits get_max_usable_sample_count() const;
+    auto get_max_usable_sample_count() const -> vk::SampleCountFlagBits;
 
     // ==================== buffers ====================
 
-    [[nodiscard]] unique_ptr<Buffer>
-    create_local_buffer(const void* data, vk::DeviceSize size, vk::BufferUsageFlags usage) const;
+    auto create_local_buffer(const void* data, vk::DeviceSize size, vk::BufferUsageFlags usage) const -> unique_ptr<Buffer>;
 
     // ==================== commands ====================
 
@@ -213,14 +212,14 @@ public:
 private:
     void create_render_graph_resources();
 
-    [[nodiscard]] GraphicsPipelineBuilder create_graph_gfx_pipeline_builder(ResourceHandle pipeline_handle) const;
+    auto create_graph_gfx_pipeline_builder(ResourceHandle pipeline_handle) const -> GraphicsPipelineBuilder;
 
-    [[nodiscard]] ComputePipelineBuilder create_graph_compute_pipeline_builder(ResourceHandle pipeline_handle) const;
+    auto create_graph_compute_pipeline_builder(ResourceHandle pipeline_handle) const -> ComputePipelineBuilder;
 
     void queue_set_update_with_handle(DescriptorSet &descriptor_set, ResourceHandle res_handle,
                                       uint32_t binding, uint32_t array_element = 0) const;
 
-    [[nodiscard]] vector<RenderInfo> create_node_render_infos(RenderNodeHandle node_handle) const;
+    auto create_node_render_infos(RenderNodeHandle node_handle) const -> vector<RenderInfo>;
 
     void record_graph_commands();
 
@@ -234,23 +233,23 @@ private:
 
     void record_compute_node_commands(RenderNodeHandle node_handle) const;
 
-    [[nodiscard]] set<ResourceHandle> gather_attachment_resources() const;
+    auto gather_attachment_resources() const -> set<ResourceHandle>;
 
-    [[nodiscard]] set<ResourceHandle> gather_compute_accessed_resources() const;
+    auto gather_compute_accessed_resources() const -> set<ResourceHandle>;
 
-    [[nodiscard]] bool has_swapchain_target(RenderNodeHandle node_handle) const;
+    auto has_swapchain_target(RenderNodeHandle node_handle) const -> bool;
 
-    [[nodiscard]] bool is_first_node_targetting_final_image(RenderNodeHandle node_handle) const;
+    auto is_first_node_targetting_final_image(RenderNodeHandle node_handle) const -> bool;
 
-    [[nodiscard]] bool should_run_node_pass(RenderNodeHandle node_handle) const;
+    auto should_run_node_pass(RenderNodeHandle node_handle) const -> bool;
 
-    [[nodiscard]] vk::Extent2D get_node_target_extent(RenderNodeHandle node_handle) const;
+    auto get_node_target_extent(RenderNodeHandle node_handle) const -> vk::Extent2D;
 
-    [[nodiscard]] vk::Format get_target_color_format(ResourceHandle resource_handle) const;
+    auto get_target_color_format(ResourceHandle resource_handle) const -> vk::Format;
 
-    [[nodiscard]] vk::Format get_target_depth_format(ResourceHandle resource_handle) const;
+    auto get_target_depth_format(ResourceHandle resource_handle) const -> vk::Format;
 
-    [[nodiscard]] vector<ResourceHandle> get_node_target_handles(RenderNodeHandle node_handle) const;
+    auto get_node_target_handles(RenderNodeHandle node_handle) const -> vector<ResourceHandle>;
 
     // ==================== render loop ====================
 
@@ -259,7 +258,7 @@ public:
 
     void do_frame_begin_actions();
 
-    bool start_frame();
+    auto start_frame() -> bool;
 
     void end_frame();
 };

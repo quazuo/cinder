@@ -21,7 +21,7 @@ enum class FileType {
     ENVMAP_HDR,
 };
 
-[[nodiscard]] vector<string> get_file_type_extensions(const FileType type) {
+auto get_file_type_extensions(const FileType type) -> vector<string> {
     switch (type) {
         case FileType::MODEL:
             return {".obj", ".fbx", ".gltf"};
@@ -41,7 +41,7 @@ enum class FileType {
     }
 }
 
-[[nodiscard]] bool is_file_type_optional(const FileType type) {
+auto is_file_type_optional(const FileType type) -> bool {
     switch (type) {
         case FileType::AO_PNG:
         case FileType::METALLIC_PNG:
@@ -51,7 +51,7 @@ enum class FileType {
     }
 }
 
-[[nodiscard]] string get_file_type_load_label(const FileType type) {
+auto get_file_type_load_label(const FileType type) -> string {
     switch (type) {
         case FileType::MODEL:
             return "Load model...";

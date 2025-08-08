@@ -48,7 +48,7 @@ private:
         stream << "\n";
     }
 
-    [[nodiscard]] static string to_string(const LogLevel level) {
+    static auto to_string(const LogLevel level) -> string {
         switch (level) {
             case LogLevel::FATAL_ERROR:
                 return "FATAL ERROR";

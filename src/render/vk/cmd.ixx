@@ -30,7 +30,7 @@ namespace utils::cmd {
     * @param ctx Renderer context.
     * @return The created single-use command buffer.
     */
-    [[nodiscard]] vk::raii::CommandBuffer begin_single_time_commands(const RendererContext& ctx);
+    auto begin_single_time_commands(const RendererContext& ctx) -> vk::raii::CommandBuffer;
 
     /**
     * Ends a single-time command buffer created beforehand by `beginSingleTimeCommands`.
@@ -56,10 +56,8 @@ namespace utils::cmd {
      */
     void set_dynamic_states(const vk::raii::CommandBuffer &command_buffer, vk::Extent2D draw_extent);
 
-    [[nodiscard]] vk::raii::CommandBuffers
-    create_command_buffers(const RendererContext& ctx, vk::CommandBufferLevel level, uint32_t count);
+    auto create_command_buffers(const RendererContext& ctx, vk::CommandBufferLevel level, uint32_t count) -> vk::raii::CommandBuffers;
 
-    [[nodiscard]] vk::raii::CommandBuffer
-    create_command_buffer(const RendererContext &ctx, vk::CommandBufferLevel level);
+    auto create_command_buffer(const RendererContext &ctx, vk::CommandBufferLevel level) -> vk::raii::CommandBuffer;
 }
 } // zrx

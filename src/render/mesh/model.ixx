@@ -52,25 +52,25 @@ public:
 
     void add_instances(const aiNode *node, const glm::mat4 &base_transform);
 
-    [[nodiscard]] const vector<Mesh> &get_meshes() const { return meshes; }
+    auto get_meshes() const -> const vector<Mesh>& { return meshes; }
 
-    [[nodiscard]] const vector<Material> &get_materials() const { return materials; }
+    auto get_materials() const -> const vector<Material>& { return materials; }
 
-    [[nodiscard]] const Buffer &get_vertex_buffer() const { return *vertex_buffer; }
+    auto get_vertex_buffer() const -> const Buffer& { return *vertex_buffer; }
 
-    [[nodiscard]] const Buffer &get_index_buffer() const { return *index_buffer; }
+    auto get_index_buffer() const -> const Buffer& { return *index_buffer; }
 
-    [[nodiscard]] const Buffer &get_mesh_descriptions_buffer() const { return *mesh_descriptions_buffer; }
+    auto get_mesh_descriptions_buffer() const -> const Buffer& { return *mesh_descriptions_buffer; }
 
-    [[nodiscard]] const AccelerationStructure &get_blas() const { return *blas; }
+    auto get_blas() const -> const AccelerationStructure& { return *blas; }
 
-    [[nodiscard]] vector<ModelVertex> get_vertices() const;
+    auto get_vertices() const -> vector<ModelVertex>;
 
-    [[nodiscard]] vector<uint32_t> get_indices() const;
+    auto get_indices() const -> vector<uint32_t>;
 
-    [[nodiscard]] vector<glm::mat4> get_instance_transforms() const;
+    auto get_instance_transforms() const -> vector<glm::mat4>;
 
-    [[nodiscard]] vector<MeshDescription> get_mesh_descriptions() const;
+    auto get_mesh_descriptions() const -> vector<MeshDescription>;
 
     void bind_buffers(const vk::raii::CommandBuffer &command_buffer) const;
 
@@ -81,6 +81,6 @@ private:
 
     void create_blas(const RendererContext &ctx);
 
-    [[nodiscard]] float get_max_vertex_distance() const;
+    auto get_max_vertex_distance() const -> float;
 };
 } // zrx

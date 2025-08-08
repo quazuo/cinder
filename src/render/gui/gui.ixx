@@ -16,7 +16,6 @@ public:
     ~GuiRenderer();
 
     GuiRenderer(const GuiRenderer& other) = delete;
-
     GuiRenderer& operator=(const GuiRenderer& other) = delete;
 
     void begin_rendering();

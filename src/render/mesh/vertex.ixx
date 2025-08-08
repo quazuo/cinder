@@ -24,17 +24,17 @@ struct ModelVertex {
                && bitangent == other.bitangent;
     }
 
-    static vector<vk::VertexInputBindingDescription> get_binding_descriptions();
+    static auto get_binding_descriptions() -> vector<vk::VertexInputBindingDescription>;
 
-    static vector<vk::VertexInputAttributeDescription> get_attribute_descriptions();
+    static auto get_attribute_descriptions() -> vector<vk::VertexInputAttributeDescription>;
 };
 
 struct SkyboxVertex {
     glm::vec3 pos;
 
-    static vector<vk::VertexInputBindingDescription> get_binding_descriptions();
+    static auto get_binding_descriptions() -> vector<vk::VertexInputBindingDescription>;
 
-    static vector<vk::VertexInputAttributeDescription> get_attribute_descriptions();
+    static auto get_attribute_descriptions() -> vector<vk::VertexInputAttributeDescription>;
 };
 
 // vertices of the skybox cube.
@@ -87,9 +87,9 @@ struct ScreenSpaceQuadVertex {
     glm::vec2 pos;
     glm::vec2 tex_coord;
 
-    static vector<vk::VertexInputBindingDescription> get_binding_descriptions();
+    static auto get_binding_descriptions() -> vector<vk::VertexInputBindingDescription>;
 
-    static vector<vk::VertexInputAttributeDescription> get_attribute_descriptions();
+    static auto get_attribute_descriptions() -> vector<vk::VertexInputAttributeDescription>;
 };
 
 const vector<ScreenSpaceQuadVertex> screen_space_quad_vertices = {
@@ -104,9 +104,10 @@ const vector<ScreenSpaceQuadVertex> screen_space_quad_vertices = {
 } // zrx
 
 // as mentioned above, this is implemented to allow using `Vertex` as a key in an `unordered_map`.
+// todo - fix it
 template<>
 struct std::hash<zrx::ModelVertex> {
-    size_t operator()(zrx::ModelVertex const &vertex) const noexcept {
+    auto operator()(zrx::ModelVertex const &vertex) const noexcept -> size_t {
         return 0;
         // return (hash<glm::vec3>()(vertex.pos) >> 1) ^
         //        (hash<glm::vec2>()(vertex.tex_coord) << 1) ^

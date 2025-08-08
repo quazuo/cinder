@@ -18,8 +18,8 @@ public:
     AccelerationStructure(unique_ptr<vk::raii::AccelerationStructureKHR>&& handle, unique_ptr<Buffer>&& buffer)
     : handle(std::move(handle)), buffer(std::move(buffer)) {}
 
-    [[nodiscard]] const vk::raii::AccelerationStructureKHR& operator*() const { return *handle; }
+    const vk::raii::AccelerationStructureKHR& operator*() const { return *handle; }
 
-    [[nodiscard]] const Buffer& getBuffer() const { return *buffer; }
+    const Buffer& getBuffer() const { return *buffer; }
 };
 } // zrx

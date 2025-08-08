@@ -28,7 +28,7 @@ public:
 
     VmaAllocatorWrapper &operator=(VmaAllocatorWrapper &&other) = delete;
 
-    [[nodiscard]] VmaAllocator_T* operator*() const { return allocator; }
+    auto operator*() const -> VmaAllocator_T* { return allocator; }
 };
 
 /**

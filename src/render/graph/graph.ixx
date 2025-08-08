@@ -20,63 +20,57 @@ struct FrameBeginActionContext {
 using FrameBeginCallback = std::function<void(const FrameBeginActionContext &)>;
 
 class RenderGraph {
-    map<RenderNodeHandle, RenderNode> nodes_; // todo - replace by vector
+    map<RenderNodeHandle, RenderNode> nodes_; // todo - replace by vector or smth else
     map<RenderNodeHandle, set<RenderNodeHandle> > dependency_graph;
 
     // todo - replace by vectors
-    map<ResourceHandle, VertexBufferResourceDesc> vertex_buffers_;
-    map<ResourceHandle, UniformBufferResourceDesc> uniform_buffers_;
-    map<ResourceHandle, ExternalTextureResourceDesc> external_tex_resources_;
-    map<ResourceHandle, TargetTextureResourceDesc> target_tex_resources_;
-    map<ResourceHandle, TransientTextureResourceDesc> transient_tex_resources_;
-    map<ResourceHandle, ModelResourceDesc> model_resources_;
-    map<ResourceHandle, GraphicsPipelineDesc> graphics_pipelines_;
-    map<ResourceHandle, ComputePipelineDesc> compute_pipelines_;
+    map<ResourceHandle, VertexBufferResourceDesc>       vertex_buffers_;
+    map<ResourceHandle, UniformBufferResourceDesc>      uniform_buffers_;
+    map<ResourceHandle, ExternalTextureResourceDesc>    external_tex_resources_;
+    map<ResourceHandle, TargetTextureResourceDesc>      target_tex_resources_;
+    map<ResourceHandle, TransientTextureResourceDesc>   transient_tex_resources_;
+    map<ResourceHandle, ModelResourceDesc>              model_resources_;
+    map<ResourceHandle, GraphicsPipelineDesc>           graphics_pipelines_;
+    map<ResourceHandle, ComputePipelineDesc>            compute_pipelines_;
 
-    set<RenderNodeHandle> nodes_writing_to_final;
-    set<ResourceHandle> produced_resources;
+    set<RenderNodeHandle>       nodes_writing_to_final;
+    set<ResourceHandle>         produced_resources;
     map<ResourceHandle, string> resource_names;
 
     vector<FrameBeginCallback> frame_begin_callbacks_;
 
 public:
-    [[nodiscard]] const auto &nodes()                   const { return nodes_; }
-    [[nodiscard]] const auto &vertex_buffers()          const { return vertex_buffers_; }
-    [[nodiscard]] const auto &uniform_buffers()         const { return uniform_buffers_; }
-    [[nodiscard]] const auto &external_tex_resources()  const { return external_tex_resources_; }
-    [[nodiscard]] const auto &target_tex_resources()    const { return target_tex_resources_; }
-    [[nodiscard]] const auto &transient_tex_resources() const { return transient_tex_resources_; }
-    [[nodiscard]] const auto &model_resources()         const { return model_resources_; }
-    [[nodiscard]] const auto &graphics_pipelines()      const { return graphics_pipelines_; }
-    [[nodiscard]] const auto &compute_pipelines()       const { return compute_pipelines_; }
-    [[nodiscard]] const auto &frame_begin_callbacks()   const { return frame_begin_callbacks_; }
+    const auto &nodes()                   const { return nodes_; }
+    const auto &vertex_buffers()          const { return vertex_buffers_; }
+    const auto &uniform_buffers()         const { return uniform_buffers_; }
+    const auto &external_tex_resources()  const { return external_tex_resources_; }
+    const auto &target_tex_resources()    const { return target_tex_resources_; }
+    const auto &transient_tex_resources() const { return transient_tex_resources_; }
+    const auto &model_resources()         const { return model_resources_; }
+    const auto &graphics_pipelines()      const { return graphics_pipelines_; }
+    const auto &compute_pipelines()       const { return compute_pipelines_; }
+    const auto &frame_begin_callbacks()   const { return frame_begin_callbacks_; }
 
-    [[nodiscard]] vector<RenderNodeHandle> get_topo_sorted() const;
+    auto get_topo_sorted() const -> vector<RenderNodeHandle>;
 
-    [[nodiscard]] vector<vector<RenderNodeHandle>> get_partitioned() const;
+    auto get_partitioned() const -> vector<vector<RenderNodeHandle>>;
 
-    RenderNodeHandle add_node(const RenderNodeGraphics &node);
-
-    RenderNodeHandle add_node(const RenderNodeCompute &node);
+    auto add_node(const RenderNodeGraphics &node) -> RenderNodeHandle;
+    auto add_node(const RenderNodeCompute &node)  -> RenderNodeHandle;
 
     /// Adds multiple nodes at once, connected sequentially via explicit dependencies.
-    vector<RenderNodeHandle> add_nodes_sequential(vector<RenderNode> nodes);
+    auto add_nodes_sequential(vector<RenderNode> nodes) -> vector<RenderNodeHandle>;
 
-    [[nodiscard]] ResourceHandle add_resource(VertexBufferResourceDesc &&resource);
-
-    [[nodiscard]] ResourceHandle add_resource(UniformBufferResourceDesc &&resource);
-
-    [[nodiscard]] ResourceHandle add_resource(ExternalTextureResourceDesc &&resource);
-
-    [[nodiscard]] ResourceHandle add_resource(TargetTextureResourceDesc &&resource);
-
-    [[nodiscard]] ResourceHandle add_resource(TransientTextureResourceDesc &&resource);
-
-    [[nodiscard]] ResourceHandle add_resource(ModelResourceDesc &&resource);
+    auto add_resource(VertexBufferResourceDesc &&resource)      -> ResourceHandle;
+    auto add_resource(UniformBufferResourceDesc &&resource)     -> ResourceHandle;
+    auto add_resource(ExternalTextureResourceDesc &&resource)   -> ResourceHandle;
+    auto add_resource(TargetTextureResourceDesc &&resource)     -> ResourceHandle;
+    auto add_resource(TransientTextureResourceDesc &&resource)  -> ResourceHandle;
+    auto add_resource(ModelResourceDesc &&resource)             -> ResourceHandle;
 
     template<typename T>
         requires ResourceLike<T>
-    [[nodiscard]] vector<ResourceHandle> add_repeated_resource(const uint32_t count, T &&resource) {
+    vector<ResourceHandle> add_repeated_resource(const uint32_t count, T &&resource) {
         vector<ResourceHandle> handles;
 
         for (uint32_t i = 0; i < count; i++) {
@@ -88,9 +82,8 @@ public:
         return handles;
     }
 
-    [[nodiscard]] ResourceHandle add_pipeline(GraphicsPipelineDesc &&resource);
-
-    [[nodiscard]] ResourceHandle add_pipeline(ComputePipelineDesc &&resource);
+    auto add_pipeline(GraphicsPipelineDesc &&resource) -> ResourceHandle;
+    auto add_pipeline(ComputePipelineDesc &&resource)  -> ResourceHandle;
 
     void add_frame_begin_action(FrameBeginCallback &&callback);
 
@@ -102,13 +95,12 @@ private:
 
     void check_dependency_cycles() const;
 
-    [[nodiscard]] static ResourceHandle get_new_node_handle();
+    static auto get_new_node_handle() -> ResourceHandle;
 
-    [[nodiscard]] static ResourceHandle get_new_resource_handle();
+    static auto get_new_resource_handle() -> ResourceHandle;
 
     template<typename ResourceType>
-    [[nodiscard]] ResourceHandle
-    add_resource_generic(ResourceType &&resource, map<ResourceHandle, ResourceType> &resource_map) {
+    auto add_resource_generic(ResourceType &&resource, map<ResourceHandle, ResourceType> &resource_map) -> ResourceHandle {
         const auto handle = get_new_resource_handle();
         resource_map.emplace(handle, resource);
         if constexpr (ResourceLike<ResourceType>) {

@@ -16,10 +16,10 @@ public:
 
     ~SpirvReflectModuleWrapper();
 
-    [[nodiscard]] vector<SpvReflectDescriptorSet*> descriptor_sets() const;
+    auto descriptor_sets() const -> vector<SpvReflectDescriptorSet*>;
 
-    [[nodiscard]] vector<SpvReflectDescriptorBinding*> descriptor_bindings() const;
+    auto descriptor_bindings() const -> vector<SpvReflectDescriptorBinding*>;
 
-    [[nodiscard]] vector<SpvReflectBlockVariable*> push_constant_blocks() const;
+    auto push_constant_blocks() const -> vector<SpvReflectBlockVariable*>;
 };
 } // zrx

@@ -14,19 +14,19 @@ class Rotator {
     glm::vec2 rot = {0, 0};
 
 public:
-    [[nodiscard]] glm::vec2 operator*() const { return rot; }
+    auto operator*() const -> glm::vec2 { return rot; }
 
-    Rotator& operator=(glm::vec2 other);
+    auto operator=(glm::vec2 other)  -> Rotator&;
 
-    Rotator& operator+=(glm::vec2 other);
+    auto operator+=(glm::vec2 other) -> Rotator&;
 
-    Rotator& operator-=(glm::vec2 other);
+    auto operator-=(glm::vec2 other) -> Rotator&;
 
     struct ViewVectors {
         glm::vec3 front, right, up;
     };
 
-    [[nodiscard]] ViewVectors get_view_vectors() const;
+    auto get_view_vectors() const -> ViewVectors;
 };
 
 class Camera {
@@ -56,17 +56,17 @@ public:
 
     void tick(float delta_time);
 
-    [[nodiscard]] glm::vec3 get_pos() const { return pos; }
+    auto get_pos() const -> glm::vec3 { return pos; }
 
-    [[nodiscard]] glm::mat4 get_view_matrix() const;
+    auto get_view_matrix() const -> glm::mat4;
 
-    [[nodiscard]] glm::mat4 get_static_view_matrix() const;
+    auto get_static_view_matrix() const -> glm::mat4;
 
-    [[nodiscard]] glm::mat4 get_projection_matrix() const;
+    auto get_projection_matrix() const -> glm::mat4;
 
-    [[nodiscard]] Rotator::ViewVectors get_view_vectors() const { return rotator.get_view_vectors(); }
+    auto get_view_vectors() const -> Rotator::ViewVectors { return rotator.get_view_vectors(); }
 
-    [[nodiscard]] std::pair<float, float> get_clipping_planes() const { return {z_near, z_far}; }
+    auto get_clipping_planes() const -> std::pair<float, float> { return {z_near, z_far}; }
 
     void render_gui_section();
 

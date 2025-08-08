@@ -35,9 +35,9 @@ protected:
         : pipeline(std::move(pipeline)), layout(std::move(layout)) {}
 
 public:
-    [[nodiscard]] const vk::raii::Pipeline &operator*() const { return pipeline; }
+    auto operator*() const -> const vk::raii::Pipeline& { return pipeline; }
 
-    [[nodiscard]] const vk::raii::PipelineLayout &get_layout() const { return layout; }
+    auto get_layout() const -> const vk::raii::PipelineLayout& { return layout; }
 };
 
 class GraphicsPipeline : public Pipeline {
@@ -50,7 +50,7 @@ class GraphicsPipeline : public Pipeline {
         : Pipeline(std::move(pipeline), std::move(layout)), rasterization_samples(samples) {}
 
 public:
-    [[nodiscard]] vk::SampleCountFlagBits get_sample_count() const { return rasterization_samples; }
+    auto get_sample_count() const -> vk::SampleCountFlagBits { return rasterization_samples; }
 };
 
 class ComputePipeline : public Pipeline {
@@ -79,7 +79,7 @@ private:
         : Pipeline(std::move(pipeline), std::move(layout)), sbt(std::move(sbt)) {}
 
 public:
-    [[nodiscard]] const ShaderBindingTable &get_sbt() const { return sbt; }
+    auto get_sbt() const -> const ShaderBindingTable& { return sbt; }
 };
 
 /**
@@ -103,46 +103,47 @@ class GraphicsPipelineBuilder {
     optional<vk::Format> depth_attachment_format;
 
 public:
-    GraphicsPipelineBuilder &with_vertex_shader(const std::filesystem::path &path);
+    auto with_vertex_shader(const std::filesystem::path &path) -> GraphicsPipelineBuilder&;
 
-    GraphicsPipelineBuilder &with_fragment_shader(const std::filesystem::path &path);
+    auto with_fragment_shader(const std::filesystem::path &path) -> GraphicsPipelineBuilder&;
 
     template<typename T>
         requires VertexLike<T>
-    GraphicsPipelineBuilder &with_vertices() {
+    auto with_vertices() -> GraphicsPipelineBuilder& {
         vertex_bindings   = T::get_binding_descriptions();
         vertex_attributes = T::get_attribute_descriptions();
         return *this;
     }
 
-    GraphicsPipelineBuilder &with_vertices(vector<vk::VertexInputBindingDescription> bindings,
-                                           vector<vk::VertexInputAttributeDescription> attributes);
+    auto with_vertices(vector<vk::VertexInputBindingDescription> bindings,
+                       vector<vk::VertexInputAttributeDescription> attributes) -> GraphicsPipelineBuilder&;
 
-    GraphicsPipelineBuilder &with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts);
+    auto with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts) -> GraphicsPipelineBuilder&;
 
-    GraphicsPipelineBuilder &with_rasterizer(const vk::PipelineRasterizationStateCreateInfo &rasterizer);
+    auto with_rasterizer(const vk::PipelineRasterizationStateCreateInfo &rasterizer) -> GraphicsPipelineBuilder&;
 
-    GraphicsPipelineBuilder &with_multisampling(const vk::PipelineMultisampleStateCreateInfo &multisampling);
+    auto with_multisampling(const vk::PipelineMultisampleStateCreateInfo &multisampling) -> GraphicsPipelineBuilder&;
 
-    GraphicsPipelineBuilder &with_depth_stencil(const vk::PipelineDepthStencilStateCreateInfo &depth_stencil);
+    auto with_depth_stencil(const vk::PipelineDepthStencilStateCreateInfo &depth_stencil) -> GraphicsPipelineBuilder&;
 
     /**
      * Sets the number of views used with the `VK_KHR_multiview` extension.
      */
-    GraphicsPipelineBuilder &for_views(uint32_t count);
+    auto for_views(uint32_t count) -> GraphicsPipelineBuilder&;
 
-    GraphicsPipelineBuilder &with_color_formats(const vector<vk::Format> &formats);
+    auto with_color_formats(const vector<vk::Format> &formats) -> GraphicsPipelineBuilder&;
 
-    GraphicsPipelineBuilder &with_depth_format(vk::Format format);
+    auto with_depth_format(vk::Format format) -> GraphicsPipelineBuilder&;
 
-    [[nodiscard]] GraphicsPipeline create(const RendererContext &ctx) const;
+    auto create(const RendererContext &ctx) const -> GraphicsPipeline;
 
 private:
     void check_params() const;
 
-    [[nodiscard]] static vector<vk::PushConstantRange>
-    eval_push_constant_ranges(const SpirvReflectModuleWrapper& vertex_spirv_reflect_module,
-                              const SpirvReflectModuleWrapper& fragment_spirv_reflect_module);
+    static auto eval_push_constant_ranges(
+        const SpirvReflectModuleWrapper& vertex_spirv_reflect_module,
+        const SpirvReflectModuleWrapper& fragment_spirv_reflect_module
+    ) -> vector<vk::PushConstantRange>;
 };
 
 class ComputePipelineBuilder {
@@ -150,11 +151,11 @@ class ComputePipelineBuilder {
     vector<vk::DescriptorSetLayout> descriptor_set_layouts;
 
 public:
-    ComputePipelineBuilder &with_shader(const std::filesystem::path &path);
+    auto with_shader(const std::filesystem::path &path) -> ComputePipelineBuilder&;
 
-    ComputePipelineBuilder &with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts);
+    auto with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts) -> ComputePipelineBuilder&;
 
-    [[nodiscard]] ComputePipeline create(const RendererContext &ctx) const;
+    auto create(const RendererContext &ctx) const -> ComputePipeline;
 };
 
 class RtPipelineBuilder {
@@ -166,25 +167,23 @@ class RtPipelineBuilder {
     vector<vk::PushConstantRange> push_constant_ranges;
 
 public:
-    RtPipelineBuilder &with_ray_gen_shader(const std::filesystem::path &path);
+    auto with_ray_gen_shader(const std::filesystem::path &path) -> RtPipelineBuilder&;
 
-    RtPipelineBuilder &with_closest_hit_shader(const std::filesystem::path &path);
+    auto with_closest_hit_shader(const std::filesystem::path &path) -> RtPipelineBuilder&;
 
-    RtPipelineBuilder &with_miss_shader(const std::filesystem::path &path);
+    auto with_miss_shader(const std::filesystem::path &path) -> RtPipelineBuilder&;
 
-    RtPipelineBuilder &with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts);
+    auto with_descriptor_layouts(const vector<vk::DescriptorSetLayout> &layouts) -> RtPipelineBuilder&;
 
-    RtPipelineBuilder &with_push_constants(const vector<vk::PushConstantRange> &ranges);
+    auto with_push_constants(const vector<vk::PushConstantRange> &ranges) -> RtPipelineBuilder&;
 
-    [[nodiscard]] RtPipeline create(const RendererContext &ctx) const;
+    auto create(const RendererContext &ctx) const -> RtPipeline;
 
 private:
     void check_params() const;
 
-    [[nodiscard]] pair<vk::raii::Pipeline, vk::raii::PipelineLayout>
-    build_pipeline(const RendererContext &ctx) const;
+    auto build_pipeline(const RendererContext &ctx) const -> pair<vk::raii::Pipeline, vk::raii::PipelineLayout>;
 
-    [[nodiscard]] RtPipeline::ShaderBindingTable
-    build_sbt(const RendererContext &ctx, const vk::raii::Pipeline &pipeline) const;
+    auto build_sbt(const RendererContext &ctx, const vk::raii::Pipeline &pipeline) const -> RtPipeline::ShaderBindingTable;
 };
 } // zrx

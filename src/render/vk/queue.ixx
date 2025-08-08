@@ -11,7 +11,7 @@ struct QueueFamilyIndices {
     optional<uint32_t> graphics_compute_family;
     optional<uint32_t> present_family;
 
-    [[nodiscard]] bool isComplete() const {
+    auto is_complete() const -> bool {
         return graphics_compute_family.has_value() && present_family.has_value();
     }
 };

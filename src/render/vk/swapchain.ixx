@@ -58,34 +58,34 @@ public:
 
     SwapChain &operator=(const SwapChain &other) = delete;
 
-    [[nodiscard]] const vk::raii::SwapchainKHR &operator*() const { return *swap_chain; }
+    auto operator*() const -> const vk::raii::SwapchainKHR& { return *swap_chain; }
 
-    [[nodiscard]] vk::Format get_image_format() const { return image_format; }
+    auto get_image_format() const -> vk::Format { return image_format; }
 
-    [[nodiscard]] vk::Format get_depth_format() const { return depth_format; }
+    auto get_depth_format() const -> vk::Format { return depth_format; }
 
-    [[nodiscard]] vk::Extent2D get_extent() const { return extent; }
+    auto get_extent() const -> vk::Extent2D { return extent; }
 
     /**
      * Returns the index of the image that was most recently acquired and will be presented next.
      * @return Index of the current image.
      */
-    [[nodiscard]] uint32_t get_current_image_index() const { return current_image_index; }
+    auto get_current_image_index() const -> uint32_t { return current_image_index; }
 
     /**
      * Wraps swapchain image views in `RenderTarget` objects and returns them.
      * When called the first time, these views are created and cached for later.
      */
-    [[nodiscard]] vector<SwapChainRenderTargets> get_render_targets(const RendererContext &ctx);
+    auto get_render_targets(const RendererContext &ctx) -> vector<SwapChainRenderTargets>;
 
     /**
      * Requests a new image from the swap chain and signals a given semaphore when the image is available.
      * @param semaphore Semaphore which should be signalled after completion.
      * @return Result code and index of the new image.
      */
-    [[nodiscard]] pair<vk::Result, uint32_t> acquire_next_image(const vk::raii::Semaphore &semaphore);
+    auto acquire_next_image(const vk::raii::Semaphore &semaphore) -> pair<vk::Result, uint32_t>;
 
-    [[nodiscard]] static uint32_t get_image_count(const RendererContext &ctx, const vk::raii::SurfaceKHR &surface);
+    static auto get_image_count(const RendererContext &ctx, const vk::raii::SurfaceKHR &surface) -> uint32_t;
 
     /**
      * Records commands that transition the most newly acquired image to a layout
@@ -104,16 +104,15 @@ private:
 
     void create_depth_resources(const RendererContext &ctx);
 
-    [[nodiscard]] static vk::Format find_depth_format(const RendererContext &ctx);
+    static auto find_depth_format(const RendererContext &ctx) -> vk::Format;
 
-    [[nodiscard]] static vk::Format
-    find_supported_format(const RendererContext &ctx, const vector<vk::Format> &candidates,
-                        vk::ImageTiling tiling, vk::FormatFeatureFlags features);
+    static auto find_supported_format(const RendererContext &ctx, const vector<vk::Format> &candidates,
+                                      vk::ImageTiling tiling, vk::FormatFeatureFlags features) -> vk::Format;
 
-    [[nodiscard]] static vk::Extent2D choose_extent(const vk::SurfaceCapabilitiesKHR &capabilities, GLFWwindow *window);
+    static auto choose_extent(const vk::SurfaceCapabilitiesKHR &capabilities, GLFWwindow *window) -> vk::Extent2D;
 
-    static vk::SurfaceFormatKHR choose_surface_format(const vector<vk::SurfaceFormatKHR> &available_formats);
+    static auto choose_surface_format(const vector<vk::SurfaceFormatKHR> &available_formats) -> vk::SurfaceFormatKHR;
 
-    static vk::PresentModeKHR choose_present_mode(const vector<vk::PresentModeKHR> &available_present_modes);
+    static auto choose_present_mode(const vector<vk::PresentModeKHR> &available_present_modes) -> vk::PresentModeKHR;
 };
 } // zrx
