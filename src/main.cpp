@@ -99,7 +99,7 @@ class Engine {
     bool show_debug_quad       = false;
     bool use_ssao              = false;
     bool should_capture_skybox = true;
-    bool do_blur               = false;
+    bool do_blur               = true;
 
 public:
     Engine() {
@@ -402,7 +402,7 @@ private:
                 .body = [=](ComputePassContext &ctx) {
                     ctx.bind_pipeline(blur_x_pipeline);
                     ctx.bind_resources({base_pass_texture, post_blur_x_texture});
-                    ctx.dispatch(window_size.x / 32, window_size.y / 32, 1);
+                    ctx.dispatch(std::ceil(window_size.x / 32.0f), std::ceil(window_size.y / 32.0f), 1);
                 },
                 .should_run_predicate = [&] { return do_blur; },
             },
@@ -413,7 +413,7 @@ private:
                 .body = [=](ComputePassContext &ctx) {
                     ctx.bind_pipeline(blur_y_pipeline);
                     ctx.bind_resources({post_blur_x_texture, post_blur_y_texture});
-                    ctx.dispatch(window_size.x / 32, window_size.y / 32, 1);
+                    ctx.dispatch(std::ceil(window_size.x / 32.0f), std::ceil(window_size.y / 32.0f), 1);
                 },
                 .should_run_predicate = [&] { return do_blur; }
             }

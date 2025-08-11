@@ -630,7 +630,6 @@ void VulkanRenderer::create_render_graph_resources() {
                 .use_usage(usage_flags);
 
         resource_manager->add(handle, builder.create(ctx), description.name);
-
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get_texture(handle);
 
@@ -1013,7 +1012,9 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
                                  : vk::AccessFlagBits2::eColorAttachmentWrite)
                              : vk::AccessFlagBits2::eShaderWrite,
             .dstStageMask = vk::PipelineStageFlagBits2::eFragmentShader,
-            .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
+            .dstAccessMask = is_depth_texture
+                             ? vk::AccessFlagBits2::eDepthStencilAttachmentRead
+                             : vk::AccessFlagBits2::eColorAttachmentRead,
             .oldLayout = old_layout,
             .newLayout = new_layout,
             .image = *texture.get_image(),
@@ -1080,8 +1081,16 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
         constexpr auto new_layout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
         barriers.insert(vk::ImageMemoryBarrier2 {
-            .srcStageMask = is_unbarriered_gfx ? vk::PipelineStageFlagBits2::eAllGraphics : vk::PipelineStageFlagBits2::eComputeShader,
-            .srcAccessMask = vk::AccessFlagBits2::eShaderWrite,
+            .srcStageMask = is_unbarriered_gfx
+                            ? (is_depth_texture
+                                ? vk::PipelineStageFlagBits2::eEarlyFragmentTests | vk::PipelineStageFlagBits2::eLateFragmentTests
+                                : vk::PipelineStageFlagBits2::eColorAttachmentOutput)
+                            : vk::PipelineStageFlagBits2::eComputeShader,
+            .srcAccessMask = is_unbarriered_gfx
+                             ? (is_depth_texture
+                                 ? vk::AccessFlagBits2::eDepthStencilAttachmentWrite
+                                 : vk::AccessFlagBits2::eColorAttachmentWrite)
+                             : vk::AccessFlagBits2::eShaderWrite,
             .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
             .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
             .oldLayout = old_layout,

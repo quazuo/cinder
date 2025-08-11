@@ -11,17 +11,25 @@ layout (push_constant) uniform PushResourceIDs {
 } constants;
 
 void main() {
+    ivec2 input_size = imageSize(bindless_textures[constants.input_tex_id]);
+    ivec2 output_size = imageSize(bindless_textures[constants.output_tex_id]);
+
     vec4 accumulated_color = vec4(0.0f);
     float accumulation_count = 0.0f;
     ivec2 texel_coord = ivec2(gl_GlobalInvocationID.xy);
 
+    if (texel_coord.x > output_size.x || texel_coord.y > output_size.y) return;
+
     for (int i = -2; i <= 2; i++) {
-        accumulated_color = imageLoad(bindless_textures[constants.input_tex_id], texel_coord + ivec2(i, 0));
+        ivec2 acc_texel_coord = texel_coord + ivec2(i, 0);
+        if (acc_texel_coord.x < 0 || acc_texel_coord.y < 0) continue;
+        if (acc_texel_coord.x > input_size.x || acc_texel_coord.y > input_size.y) continue;
+
+        accumulated_color += imageLoad(bindless_textures[constants.input_tex_id], acc_texel_coord);
         accumulation_count += 1.0f;
     }
 
     accumulated_color /= accumulation_count;
-    accumulated_color.w = 1.0f;
-    accumulated_color = vec4(1, 0, 0, 0);
+    accumulated_color.a = 1.0f;
     imageStore(bindless_textures[constants.output_tex_id], texel_coord, accumulated_color);
 }
