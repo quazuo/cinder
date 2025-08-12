@@ -38,7 +38,7 @@ VulkanRenderer::VulkanRenderer() {
 
     ctx.allocator = make_unique<VmaAllocatorWrapper>(**ctx.physical_device, **ctx.device, **instance);
 
-    resource_manager = make_unique<ResourceManager>(BINDLESS_ARRAY_SIZE);
+    resource_manager = make_unique<ResourceManager>(ctx, BINDLESS_ARRAY_SIZE);
 
     swap_chain = make_unique<SwapChain>(
         ctx,
@@ -253,9 +253,37 @@ void VulkanRenderer::recreate_swap_chain() {
         get_msaa_sample_count()
     );
 
-    for (auto& [node_handle, resources]: node_resources) {
-        if (render_graph->nodes().at(node_handle).is_graphics()) {
-            resources.render_infos = create_node_render_infos(node_handle);
+    for (auto& [handle, resources]: node_resources) {
+        if (render_graph->nodes().at(handle).is_graphics()) {
+            resources.render_infos = create_node_render_infos(handle);
+        }
+    }
+
+    const auto compute_accessed_resources = gather_compute_accessed_resources();
+    for (auto& [handle, description]: render_graph->target_tex_resources()) {
+        auto extent = description.extent;
+        if (extent.width != 0 || extent.height != 0) continue;
+
+        if (!resource_manager->contains_tex_builder(handle)) {
+            Logger::error("missing texture builder for window-sized texture ({}) during window resize",
+                resource_manager->get_name(handle));
+        }
+
+        auto& tex_builder = resource_manager->get_tex_builder(handle);
+        const auto swap_chain_extent = swap_chain->get_extent();
+        tex_builder.as_uninitialized({swap_chain_extent.width, swap_chain_extent.height, 1u});
+        tex_builder.use_layout(last_image_layouts.at(handle));
+
+        resource_manager->recreate(handle);
+
+        const bool is_compute_accessed = compute_accessed_resources.contains(handle);
+        const auto& texture = resource_manager->get_texture(handle);
+        const auto bindless_handle = resource_manager->get_bindless_handle(handle);
+
+        bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
+
+        if (is_compute_accessed) {
+            bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
         }
     }
 }
@@ -629,7 +657,7 @@ void VulkanRenderer::create_render_graph_resources() {
                 .use_layout(layout)
                 .use_usage(usage_flags);
 
-        resource_manager->add(handle, builder.create(ctx), description.name);
+        resource_manager->add_from_builder<TextureBuilder, Texture>(handle, std::move(builder), description.name);
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get_texture(handle);
 

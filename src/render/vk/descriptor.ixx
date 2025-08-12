@@ -38,15 +38,14 @@ struct DefaultDescriptorType<AccelerationStructure> {
 };
 
 template<typename T>
-struct is_valid_descriptor_resource : std::disjunction<
-            std::is_same<T, Texture>,
-            std::is_same<T, Buffer>,
-            std::is_same<T, BufferSlice>,
-            std::is_same<T, AccelerationStructure> > {
-};
+concept is_valid_descriptor_resource =
+            std::same_as<T, Texture>
+            || std::same_as<T, Buffer>
+            || std::same_as<T, BufferSlice>
+            || std::same_as<T, AccelerationStructure>;
 
 template<typename T>
-    requires is_valid_descriptor_resource<T>::value
+    requires is_valid_descriptor_resource<T>
 struct ResourcePack final {
     using ResourceSlot = optional<reference_wrapper<const T> >;
 
@@ -76,17 +75,16 @@ struct ResourcePack final {
 };
 
 template<int N, typename... Ts>
-using NthTypeOf = std::tuple_element_t<N, std::tuple<Ts...> >;
+using NthTypeOf = std::tuple_element_t<N, tuple<Ts...> >;
 
 /**
  * Fixed (or in other words, static) version of `DescriptorSet`.
  * Enables compile-time checks to typing of its bindings and doesn't allow changes in layout.
  */
-template<typename... Ts>
-    requires std::conjunction_v<is_valid_descriptor_resource<Ts>...>
+template<is_valid_descriptor_resource... Ts>
 class FixedDescriptorSet {
     reference_wrapper<const RendererContext> ctx;
-    std::tuple<ResourcePack<Ts>...> packs;
+    tuple<ResourcePack<Ts>...> packs;
     shared_ptr<vk::raii::DescriptorSetLayout> layout;
     unique_ptr<vk::raii::DescriptorSet> set;
 
@@ -113,15 +111,6 @@ public:
         do_full_update();
     }
 
-private:
-    // explicit FixedDescriptorSet(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
-    //                             const shared_ptr<vk::raii::DescriptorSetLayout> &layout, ResourcePack<Ts>... elems)
-    //     : ctx(ctx), packs(elems...), layout(layout) {
-    //     create_set(pool);
-    //     do_full_update();
-    // }
-
-public:
     auto operator*() const -> const vk::raii::DescriptorSet& { return *set; }
 
     auto get_layout() const -> const vk::raii::DescriptorSetLayout& { return *layout; }
@@ -475,12 +464,5 @@ namespace utils::desc {
                                      const vk::raii::DescriptorSetLayout &layout) -> vector<FixedDescriptorSet<Ts...>> {
         return create_fixed_descriptor_sets<Ts>(ctx, pool, layout, 1);
     }
-
-
-    // auto create_descriptor_sets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
-    //                             const vk::raii::DescriptorSetLayout &layout, uint32_t count) -> vector<DescriptorSet>;
-    //
-    // auto create_descriptor_set(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
-    //                            const vk::raii::DescriptorSetLayout &layout) -> DescriptorSet;
 } // utils::desc
 } // zrx

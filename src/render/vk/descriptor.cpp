@@ -224,33 +224,4 @@ void DescriptorSet::update_binding(const RendererContext &ctx, const uint32_t bi
 
     ctx.device->updateDescriptorSets(write, nullptr);
 }
-
-// vector<DescriptorSet>
-// utils::desc::create_descriptor_sets(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
-//                                     const vk::raii::DescriptorSetLayout &layout, const uint32_t count) {
-//     const vector set_layouts(count, *layout);
-//
-//     const vk::DescriptorSetAllocateInfo alloc_info{
-//         .descriptorPool = *pool,
-//         .descriptorSetCount = count,
-//         .pSetLayouts = set_layouts.data(),
-//     };
-//
-//     vector<vk::raii::DescriptorSet> descriptor_sets = ctx.device->allocateDescriptorSets(alloc_info);
-//
-//     vector<DescriptorSet> final_sets;
-//
-//     for (size_t i = 0; i < count; i++) {
-//         final_sets.emplace_back(layout, std::move(descriptor_sets[i]));
-//     }
-//
-//     return final_sets;
-// }
-//
-// DescriptorSet utils::desc::create_descriptor_set(const RendererContext &ctx, const vk::raii::DescriptorPool &pool,
-//                                                  const vk::raii::DescriptorSetLayout &layout) {
-//     auto sets = create_descriptor_sets(ctx, pool, layout, 1);
-//     auto set = std::move(sets[0]);
-//     return set;
-// }
 } // zrx
