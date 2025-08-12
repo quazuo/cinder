@@ -17,8 +17,8 @@ import Cinder.Render.Mesh;
 
 namespace zrx {
 VulkanRenderer::VulkanRenderer() {
-    constexpr int INIT_WINDOW_WIDTH = 1200;
-    constexpr int INIT_WINDOW_HEIGHT = 800;
+    constexpr int INIT_WINDOW_WIDTH = 1600;
+    constexpr int INIT_WINDOW_HEIGHT = 1200;
 
     glfwWindowHint(ZRX_GLFW_CLIENT_API, ZRX_GLFW_NO_API);
     window = glfwCreateWindow(INIT_WINDOW_WIDTH, INIT_WINDOW_HEIGHT, "Cinder", nullptr, nullptr);
@@ -168,6 +168,7 @@ vkb::PhysicalDevice VulkanRenderer::pick_physical_device(const vkb::Instance &vk
                 .descriptorBindingStorageBufferUpdateAfterBind = vk::True,
                 .descriptorBindingPartiallyBound = vk::True,
                 .runtimeDescriptorArray = vk::True,
+                .hostQueryReset = vk::True,
                 .timelineSemaphore = vk::True,
                 .bufferDeviceAddress = vk::True,
             })
@@ -195,6 +196,7 @@ vkb::PhysicalDevice VulkanRenderer::pick_physical_device(const vkb::Instance &vk
     ctx.physical_device = make_unique<vk::raii::PhysicalDevice>(
         *instance, physical_device_result.value().physical_device);
     msaa_sample_count = get_max_usable_sample_count();
+    timestamp_period = ctx.physical_device->getProperties().limits.timestampPeriod;
 
     return physical_device_result.value();
 }
@@ -543,6 +545,48 @@ void VulkanRenderer::render_gui_section() {
                 init_imgui();
             });
         }
+
+        float last_node_time = 0.0f;
+
+        vector<GuiRenderer::ProfilerNodeInfo> profiler_frame_infos;
+        const uint32_t timestamp_count = prev_frame_time_query_results.size();
+        auto nodes_range = prev_frame_partitioned_nodes | std::ranges::views::join;
+        auto curr_node = nodes_range.begin();
+        const uint64_t frame_start_timestamp = prev_frame_time_query_results.empty() ? 0 : prev_frame_time_query_results[0];
+
+        for (uint32_t i = 0; i < timestamp_count; i += 2) {
+            const uint64_t start_timestamp = prev_frame_time_query_results[i];
+            const uint64_t end_timestamp = prev_frame_time_query_results[i + 1];
+            const RenderNodeHandle node_handle = *(curr_node++);
+            const string& name = render_graph->nodes().at(node_handle).name();
+
+            ImVec4 color { 255, 255, 255, 255 };
+            ImGui::ColorConvertHSVtoRGB(
+                std::hash<std::string>()(name) % 255 / 255.0f,
+                1.0f,
+                1.0f,
+                color.x,
+                color.y,
+                color.z
+            );
+
+            const std::chrono::nanoseconds start_ns {
+                static_cast<long long>(timestamp_period * static_cast<float>(start_timestamp - frame_start_timestamp)) };
+            const std::chrono::nanoseconds end_ns {
+                static_cast<long long>(timestamp_period * static_cast<float>(end_timestamp - frame_start_timestamp)) };
+            const std::chrono::duration<float, std::milli> node_time = end_ns - start_ns;
+
+            profiler_frame_infos.emplace_back(GuiRenderer::ProfilerNodeInfo {
+                .start_time = last_node_time,
+                .end_time = last_node_time + node_time.count(),
+                .name = name,
+                .color = color
+            });
+
+            last_node_time += node_time.count();
+        }
+
+        gui_renderer->render_profiler(profiler_frame_infos);
     }
 }
 
@@ -856,7 +900,9 @@ void VulkanRenderer::run_render_graph() {
     if (start_frame()) {
         Logger::debug("starting frame");
 
+        prev_frame_partitioned_nodes = partitioned_nodes;
         partitioned_nodes = render_graph->get_partitioned();
+        const auto node_count = std::ranges::distance(partitioned_nodes | std::ranges::views::join);
 
         node_resources.clear();
         for (const auto& [node_handle, _]: render_graph->nodes()) {
@@ -868,6 +914,9 @@ void VulkanRenderer::run_render_graph() {
                 });
             }
         }
+
+        time_query_pool = make_unique<QueryPool>(ctx, vk::QueryType::eTimestamp, 2 * node_count);
+        current_query_idx = 0;
 
         record_graph_commands();
         end_frame();
@@ -923,6 +972,7 @@ void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_h
     const auto &node_render_info = render_infos[subresource_index];
 
     // command_buffer.debugMarkerBeginEXT(vk::DebugMarkerMarkerInfoEXT { .pMarkerName = node.name.c_str(), });
+    command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eTopOfPipe, **time_query_pool, current_query_idx++);
 
     command_buffer.beginRendering(node_render_info.get(
             get_node_target_extent(node_handle),
@@ -934,6 +984,7 @@ void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_h
     // regenerate mipmaps for each target that had them
     record_regenerate_mipmaps_commands(node_handle);
 
+    command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eBottomOfPipe, **time_query_pool, current_query_idx++);
     // command_buffer.debugMarkerEndEXT();
 }
 
@@ -1170,7 +1221,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
     barriers.record_cmd(command_buffer);
 }
 
-void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_handle) const {
+void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_handle) {
     const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
     const auto &node = render_graph->nodes().at(node_handle).get_compute();
 
@@ -1187,6 +1238,8 @@ void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_ha
 
     // command_buffer.debugMarkerBeginEXT(vk::DebugMarkerMarkerInfoEXT { .pMarkerName = node.name.c_str(), });
 
+    command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eTopOfPipe, **time_query_pool, current_query_idx++);
+
     ComputePassContext ctx{
         command_buffer,
         *resource_manager,
@@ -1194,6 +1247,8 @@ void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_ha
         **bindless_descriptor_set
     };
     node.body(ctx);
+
+    command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eBottomOfPipe, **time_query_pool, current_query_idx++);
 
     // todo
     // regenerate mipmaps for each target that had them
@@ -1411,6 +1466,8 @@ void VulkanRenderer::end_frame() {
         present_result = present_queue->presentKHR(present_info);
     } catch (...) {
     }
+
+    prev_frame_time_query_results = time_query_pool->get_results();
 
     const bool did_resize = present_result == vk::Result::eErrorOutOfDateKHR
                             || present_result == vk::Result::eSuboptimalKHR

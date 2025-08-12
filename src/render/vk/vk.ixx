@@ -8,4 +8,5 @@ export import :Descriptor;
 export import :Image;
 export import :Pipeline;
 export import :Swapchain;
+export import :Query;
 export import :Queue;

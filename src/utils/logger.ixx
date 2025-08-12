@@ -18,9 +18,10 @@ class Logger {
 public:
     template<typename T, typename... Ts>
     static void error(const T& fmt_str, Ts... args) {
+        log(std::cout, LogLevel::FATAL_ERROR, fmt_str, args...);
         std::stringstream ss;
         ss << "FATAL_ERROR: " << std::vformat(fmt_str, std::make_format_args(args...));
-       throw std::runtime_error(ss.str());
+        throw std::runtime_error(ss.str());
     }
 
     template<typename T, typename... Ts>

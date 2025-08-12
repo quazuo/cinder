@@ -19,8 +19,11 @@ export {
     using ::ImGui_ImplGlfw_NewFrame;
     using ::ImGuiWindowFlags;
     using ::ImVec2;
+    using ::ImVec4;
     using ::ImGui_ImplVulkan_RenderDrawData;
     using ::ImDrawList;
+    using ::ImColor;
+    using ::ImU32;
 
     using ::ImGuiWindowFlags_NoTitleBar;
     using ::ImGuiWindowFlags_NoCollapse;
@@ -77,4 +80,6 @@ export namespace ImGui {
     using ImGui::GetWindowPos;
     using ImGui::EndChild;
     using ImGui::RadioButton;
+    using ImGui::SliderInt;
+    using ImGui::ColorConvertHSVtoRGB;
 }

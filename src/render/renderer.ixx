@@ -58,6 +58,8 @@ class VulkanRenderer {
 
     unique_ptr<vk::raii::DescriptorPool> descriptor_pool;
 
+    unique_ptr<QueryPool> time_query_pool;
+
     // bindless resources
 
     using BindlessDescriptorSet = FixedDescriptorSet<Texture, Texture, Buffer>;
@@ -128,7 +130,10 @@ class VulkanRenderer {
     vk::SampleCountFlagBits msaa_sample_count = vk::SampleCountFlagBits::e1;
     bool use_msaa = false;
 
-    friend RenderPassContext;
+    vector<vector<RenderNodeHandle>> prev_frame_partitioned_nodes;
+    vector<uint64_t> prev_frame_time_query_results;
+    uint32_t current_query_idx = 0;
+    float timestamp_period = 0.0f;
 
 public:
     explicit VulkanRenderer();
@@ -231,7 +236,7 @@ private:
 
     void record_pre_partition_commands(const vector<RenderNodeHandle> &partition);
 
-    void record_compute_node_commands(RenderNodeHandle node_handle) const;
+    void record_compute_node_commands(RenderNodeHandle node_handle);
 
     auto gather_attachment_resources() const -> set<ResourceHandle>;
 

@@ -102,6 +102,7 @@ include_directories(
         deps/glm/
         deps/imGuIZMO.quat/
         deps/pix/Include/
+        deps/LegitProfiler/
         .
 )
 

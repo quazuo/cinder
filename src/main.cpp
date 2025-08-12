@@ -95,7 +95,7 @@ class Engine {
 
     float debug_number = 0;
 
-    bool is_gui_enabled        = false;
+    bool is_gui_enabled        = true;
     bool show_debug_quad       = false;
     bool use_ssao              = false;
     bool should_capture_skybox = true;
@@ -553,46 +553,46 @@ private:
         if (ImGui::CollapsingHeader("Engine ", section_flags)) {
             ImGui::Text("FPS: %.2f", fps);
 
-            ImGui::Checkbox("Debug quad", &show_debug_quad);
-            ImGui::Separator();
-
-            if (ImGui::Button("Reload shaders")) {
-                // renderer.reload_shaders();
-            }
-            ImGui::Separator();
-
-            render_load_model_popup();
-
-            if (!curr_error_message.empty()) {
-                ImGui::OpenPopup("Model load error");
-            }
-
-            render_model_load_error_popup();
+            // ImGui::Checkbox("Debug quad", &show_debug_quad);
+            // ImGui::Separator();
+            //
+            // if (ImGui::Button("Reload shaders")) {
+            //     // renderer.reload_shaders();
+            // }
+            // ImGui::Separator();
+            //
+            // render_load_model_popup();
+            //
+            // if (!curr_error_message.empty()) {
+            //     ImGui::OpenPopup("Model load error");
+            // }
+            //
+            // render_model_load_error_popup();
         }
 
-        if (ImGui::CollapsingHeader("Environment ", section_flags)) {
-            render_tex_load_button("Choose environment map...", FileType::ENVMAP_HDR, {".hdr"});
+        // if (ImGui::CollapsingHeader("Environment ", section_flags)) {
+        //     render_tex_load_button("Choose environment map...", FileType::ENVMAP_HDR, {".hdr"});
+        //
+        //     file_browser.Display();
+        // }
 
-            file_browser.Display();
-        }
-
-        if (ImGui::CollapsingHeader("Model ", section_flags)) {
-            if (ImGui::Button("Load model...")) {
-                ImGui::OpenPopup("Load model");
-            }
-
-            ImGui::Separator();
-
-            ImGui::DragFloat("Model scale", &model_scale, 0.01, 0, numeric_limits<float>::max());
-
-            ImGui::gizmo3D("Model rotation", model_rotation, 160);
-
-            if (ImGui::Button("Reset scale")) { model_scale = 1; }
-            ImGui::SameLine();
-            if (ImGui::Button("Reset rotation")) { model_rotation = {1, 0, 0, 0}; }
-            ImGui::SameLine();
-            if (ImGui::Button("Reset position")) { model_translate = {0, 0, 0}; }
-        }
+        // if (ImGui::CollapsingHeader("Model ", section_flags)) {
+        //     if (ImGui::Button("Load model...")) {
+        //         ImGui::OpenPopup("Load model");
+        //     }
+        //
+        //     ImGui::Separator();
+        //
+        //     ImGui::DragFloat("Model scale", &model_scale, 0.01, 0, numeric_limits<float>::max());
+        //
+        //     ImGui::gizmo3D("Model rotation", model_rotation, 160);
+        //
+        //     if (ImGui::Button("Reset scale")) { model_scale = 1; }
+        //     ImGui::SameLine();
+        //     if (ImGui::Button("Reset rotation")) { model_rotation = {1, 0, 0, 0}; }
+        //     ImGui::SameLine();
+        //     if (ImGui::Button("Reset position")) { model_translate = {0, 0, 0}; }
+        // }
 
         if (ImGui::CollapsingHeader("Advanced ", section_flags)) {
             ImGui::Checkbox("SSAO", &use_ssao);
@@ -603,11 +603,11 @@ private:
 #endif
         }
 
-        if (ImGui::CollapsingHeader("Lighting ", section_flags)) {
-            ImGui::SliderFloat("Light intensity", &light_intensity, 0.0f, 100.0f, "%.2f");
-            ImGui::ColorEdit3("Light color", &light_color.x);
-            ImGui::gizmo3D("Light direction", light_direction, 160, imguiGizmo::modeDirection);
-        }
+        // if (ImGui::CollapsingHeader("Lighting ", section_flags)) {
+        //     ImGui::SliderFloat("Light intensity", &light_intensity, 0.0f, 100.0f, "%.2f");
+        //     ImGui::ColorEdit3("Light color", &light_color.x);
+        //     ImGui::gizmo3D("Light direction", light_direction, 160, imguiGizmo::modeDirection);
+        // }
 
         camera->render_gui_section();
         renderer.render_gui_section();
