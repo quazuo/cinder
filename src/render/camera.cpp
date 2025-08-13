@@ -17,7 +17,7 @@ Rotator &Rotator::operator=(const glm::vec2 other) {
 }
 
 Rotator &Rotator::operator+=(const glm::vec2 other) {
-    static constexpr float y_angle_limit = glm::pi<float>() / 2 - 0.1f;
+    static constexpr float y_angle_limit = glm::gtc::pi<float>() / 2 - 0.1f;
 
     rot.x += other.x;
     rot.y = std::clamp(
@@ -42,9 +42,9 @@ Rotator::ViewVectors Rotator::get_view_vectors() const {
     };
 
     const glm::vec3 right = {
-        std::sin(rot.x - glm::pi<float>() / 2.0f),
+        std::sin(rot.x - glm::gtc::pi<float>() / 2.0f),
         0,
-        std::cos(rot.x - glm::pi<float>() / 2.0f)
+        std::cos(rot.x - glm::gtc::pi<float>() / 2.0f)
     };
 
     return {
@@ -88,15 +88,15 @@ void Camera::tick(const float delta_time) {
 }
 
 glm::mat4 Camera::get_view_matrix() const {
-    return glm::lookAt(pos, pos + front, glm::vec3(0, 1, 0));
+    return glm::gtc::lookAt(pos, pos + front, glm::vec3(0, 1, 0));
 }
 
 glm::mat4 Camera::get_static_view_matrix() const {
-    return glm::lookAt(glm::vec3(0), front, glm::vec3(0, 1, 0));
+    return glm::gtc::lookAt(glm::vec3(0), front, glm::vec3(0, 1, 0));
 }
 
 glm::mat4 Camera::get_projection_matrix() const {
-    return glm::perspective(glm::radians(field_of_view), aspect_ratio, z_near, z_far);
+    return glm::gtc::perspective(glm::radians(field_of_view), aspect_ratio, z_near, z_far);
 }
 
 void Camera::render_gui_section() {
@@ -302,7 +302,7 @@ void Camera::tick_locked_mode() {
     };
 
     rotator = {
-        rot.x - glm::pi<float>(),
+        rot.x - glm::gtc::pi<float>(),
         rot.y
     };
 }

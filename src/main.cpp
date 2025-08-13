@@ -460,9 +460,9 @@ private:
     }
 
     void update_graphics_uniform_buffer(Buffer &buffer) const {
-        const glm::mat4 model = glm::translate(glm::identity<glm::mat4>(), model_translate)
-                                * glm::mat4_cast(model_rotation)
-                                * glm::scale(glm::identity<glm::mat4>(), glm::vec3(model_scale));
+        const glm::mat4 model = glm::gtc::translate(glm::gtc::identity<glm::mat4>(), model_translate)
+                                * glm::gtc::mat4_cast(model_rotation)
+                                * glm::gtc::scale(glm::gtc::identity<glm::mat4>(), glm::vec3(model_scale));
         const glm::mat4 view = camera->get_view_matrix();
         const glm::mat4 proj = camera->get_projection_matrix();
 
@@ -471,7 +471,7 @@ private:
 
         const auto [z_near, z_far] = camera->get_clipping_planes();
 
-        static const glm::mat4 cubemap_face_projection = glm::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
+        static const glm::mat4 cubemap_face_projection = glm::gtc::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
 
         GraphicsUBO graphics_ubo{
             .window = {
@@ -494,19 +494,19 @@ private:
                 .z_far = z_far,
                 .use_ssao = use_ssao ? 1u : 0,
                 .light_intensity = light_intensity,
-                .light_dir = glm::vec3(mat4_cast(light_direction) * glm::vec4(-1, 0, 0, 0)),
+                .light_dir = glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(-1, 0, 0, 0)),
                 .light_color = light_color,
                 .camera_pos = camera->get_pos(),
             }
         };
 
         static const array cubemap_face_views{
-            glm::lookAt(glm::vec3(0), glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0)),
-            glm::lookAt(glm::vec3(0), glm::vec3(1, 0, 0), glm::vec3(0, 1, 0)),
-            glm::lookAt(glm::vec3(0), glm::vec3(0, 1, 0), glm::vec3(0, 0, -1)),
-            glm::lookAt(glm::vec3(0), glm::vec3(0, -1, 0), glm::vec3(0, 0, 1)),
-            glm::lookAt(glm::vec3(0), glm::vec3(0, 0, 1), glm::vec3(0, 1, 0)),
-            glm::lookAt(glm::vec3(0), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0))
+            glm::gtc::lookAt(glm::vec3(0), glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0)),
+            glm::gtc::lookAt(glm::vec3(0), glm::vec3(1, 0, 0), glm::vec3(0, 1, 0)),
+            glm::gtc::lookAt(glm::vec3(0), glm::vec3(0, 1, 0), glm::vec3(0, 0, -1)),
+            glm::gtc::lookAt(glm::vec3(0), glm::vec3(0, -1, 0), glm::vec3(0, 0, 1)),
+            glm::gtc::lookAt(glm::vec3(0), glm::vec3(0, 0, 1), glm::vec3(0, 1, 0)),
+            glm::gtc::lookAt(glm::vec3(0), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0))
         };
 
         for (size_t i = 0; i < 6; i++) {

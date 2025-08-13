@@ -211,7 +211,7 @@ Model::Model(const RendererContext &ctx, const std::filesystem::path &path, cons
         }
     }
 
-    add_instances(scene->mRootNode, glm::identity<glm::mat4>());
+    add_instances(scene->mRootNode, glm::gtc::identity<glm::mat4>());
 
     normalize_scale();
 
@@ -429,7 +429,7 @@ void Model::create_blas(const RendererContext &ctx) {
 void Model::normalize_scale() {
     constexpr float standard_scale = 10.0f;
     const float largest_distance = get_max_vertex_distance();
-    const glm::mat4 scale_matrix = glm::scale(glm::identity<glm::mat4>(), glm::vec3(standard_scale / largest_distance));
+    const glm::mat4 scale_matrix = glm::gtc::scale(glm::gtc::identity<glm::mat4>(), glm::vec3(standard_scale / largest_distance));
 
     for (auto &mesh: meshes) {
         for (auto &transform: mesh.instances) {
