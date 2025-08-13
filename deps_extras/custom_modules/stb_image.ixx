@@ -1,7 +1,7 @@
 module;
 
-#include "../stb/stb_image.h"
-#include "../stb/stb_image_write.h"
+#include "deps/stb/stb_image.h"
+#include "deps/stb/stb_image_write.h"
 
 export module stb_image;
 

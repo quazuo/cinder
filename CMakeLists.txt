@@ -85,6 +85,11 @@ set(IMGUIZMO_QUAT_SRCS
 
 add_subdirectory(deps/vk-bootstrap)
 
+# ========================= vk-bootstrap =========================
+
+set(SPIRV_REFLECT_STATIC_LIB ON)
+add_subdirectory(deps/SPIRV-Reflect)
+
 # ========================= glm =========================
 
 FetchContent_Declare(
@@ -117,16 +122,16 @@ set(ALL_LIBS
         VulkanHppModule
         GPUOpen::VulkanMemoryAllocator
         vk-bootstrap::vk-bootstrap
+        spirv-reflect-static
 )
 
-file(GLOB HEADER_ONLY_DEPS_SRCS
-        "deps/stb/*"
-        "deps/vma/*"
-        "deps/SPIRV-Reflect/spirv_reflect.cpp"
+file(GLOB HEADER_ONLY_DEPS_IMPL_SRCS
+        "deps_extras/impls/stb_image.cpp"
+        "deps_extras/impls/vma.cpp"
 )
 
 file(GLOB DEPS_CUSTOM_MODULES
-        "deps/custom_modules/*.ixx"
+        "deps_extras/custom_modules/*.ixx"
 )
 
 file(GLOB CINDER_SRCS
@@ -163,8 +168,7 @@ target_sources(cinder
                 ${IMGUI_SRCS}
                 ${IMGUI_IMPL_SRCS}
                 ${IMGUIZMO_QUAT_SRCS}
-                ${VK_BOOTSTRAP_SRCS}
-                ${HEADER_ONLY_DEPS_SRCS})
+                ${HEADER_ONLY_DEPS_IMPL_SRCS})
 
 target_link_libraries(cinder PRIVATE ${ALL_LIBS})
 
