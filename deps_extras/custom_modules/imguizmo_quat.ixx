@@ -5,7 +5,7 @@ module;
 #include <../imgui/imgui.h>
 #include <../imgui/backends/imgui_impl_glfw.h>
 #include <../imgui/backends/imgui_impl_vulkan.h>
-#include "../imGuIZMO.quat/imGuIZMO.quat/imGuIZMOquat.h"
+#include "../imGuIZMO.quat/imguizmo_quat/imguizmo_quat.h"
 
 export module imguizmo_quat;
 

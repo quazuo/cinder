@@ -78,14 +78,14 @@ add_subdirectory(deps/assimp)
 # ========================= imGuIZMO.quat =========================
 
 set(IMGUIZMO_QUAT_SRCS
-        deps/imGuIZMO.quat/imGuIZMO.quat/imGuIZMOquat.cpp
+        deps/imGuIZMO.quat/imguizmo_quat/imguizmo_quat.cpp
 )
 
 # ========================= vk-bootstrap =========================
 
 add_subdirectory(deps/vk-bootstrap)
 
-# ========================= vk-bootstrap =========================
+# ========================= SPIRV-Reflect =========================
 
 set(SPIRV_REFLECT_STATIC_LIB ON)
 add_subdirectory(deps/SPIRV-Reflect)

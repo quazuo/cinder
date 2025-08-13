@@ -10,3 +10,6 @@
 [submodule "deps/SPIRV-Reflect"]
 	path = deps/SPIRV-Reflect
 	url = https://github.com/KhronosGroup/SPIRV-Reflect
+[submodule "deps/imGuIZMO.quat"]
+	path = deps/imGuIZMO.quat
+	url = https://github.com/BrutPitt/imGuIZMO.quat
