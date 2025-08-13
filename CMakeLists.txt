@@ -83,9 +83,7 @@ set(IMGUIZMO_QUAT_SRCS
 
 # ========================= vk-bootstrap =========================
 
-set(VK_BOOTSTRAP_SRCS
-        deps/vk-bootstrap/VkBootstrap.cpp
-)
+add_subdirectory(deps/vk-bootstrap)
 
 # ========================= glm =========================
 
@@ -118,6 +116,7 @@ set(ALL_LIBS
         Vulkan::Vulkan
         VulkanHppModule
         GPUOpen::VulkanMemoryAllocator
+        vk-bootstrap::vk-bootstrap
 )
 
 file(GLOB HEADER_ONLY_DEPS_SRCS
