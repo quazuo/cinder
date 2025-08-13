@@ -1,13 +1,13 @@
 module;
 
-#include "../vma/vma.h"
+#include "../VulkanMemoryAllocator/include/vk_mem_alloc.h"
 
 export module vma;
 
 export {
     using ::VmaAllocator_T;
-    using ::VmaAllocation_T;
     using ::VmaAllocator;
+    using ::VmaAllocation_T;
     using ::VmaAllocation;
 
     using ::VmaVulkanFunctions;

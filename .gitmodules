@@ -1,3 +1,7 @@
 [submodule "deps/LegitProfiler"]
 	path = deps/LegitProfiler
 	url = https://github.com/quazuo/LegitProfiler
+
+[submodule "deps/VulkanMemoryAllocator"]
+	path = deps/VulkanMemoryAllocator
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator

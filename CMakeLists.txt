@@ -35,6 +35,11 @@ target_compile_definitions(VulkanHppModule PUBLIC
 target_compile_features(VulkanHppModule PUBLIC cxx_std_20)
 target_link_libraries(VulkanHppModule PUBLIC Vulkan::Vulkan)
 
+# ========================= VulkanMemoryAllocator =========================
+
+add_subdirectory(deps/VulkanMemoryAllocator)
+# find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+
 # ========================= GLFW =========================
 
 set(GLFW_BUILD_DOCS OFF CACHE BOOL "GLFW build documentation" FORCE)
@@ -112,6 +117,7 @@ set(ALL_LIBS
         glm::glm
         Vulkan::Vulkan
         VulkanHppModule
+        GPUOpen::VulkanMemoryAllocator
 )
 
 file(GLOB HEADER_ONLY_DEPS_SRCS
