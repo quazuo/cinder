@@ -1,0 +1,3 @@
+[submodule "deps/deps/LegitProfiler"]
+	path = deps/deps/LegitProfiler
+	url = https://github.com/Raikiri/LegitProfiler
