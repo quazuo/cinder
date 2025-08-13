@@ -13,3 +13,6 @@
 [submodule "deps/imGuIZMO.quat"]
 	path = deps/imGuIZMO.quat
 	url = https://github.com/BrutPitt/imGuIZMO.quat
+[submodule "deps/imgui-filebrowser"]
+	path = deps/imgui-filebrowser
+	url = https://github.com/AirGuanZ/imgui-filebrowser
