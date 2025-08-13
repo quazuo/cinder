@@ -513,6 +513,8 @@ void VulkanRenderer::init_imgui() {
 
     const uint32_t image_count = SwapChain::get_image_count(ctx, *surface);
 
+    const vector color_attachment_formats { swap_chain->get_image_format() };
+
     ImGui_ImplVulkan_InitInfo imgui_init_info = {
         .Instance = **instance,
         .PhysicalDevice = **ctx.physical_device,
@@ -523,7 +525,10 @@ void VulkanRenderer::init_imgui() {
         .ImageCount = image_count,
         .MSAASamples = static_cast<VkSampleCountFlagBits>(get_msaa_sample_count()),
         .UseDynamicRendering = true,
-        .ColorAttachmentFormat = static_cast<VkFormat>(swap_chain->get_image_format()),
+        .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
+            .colorAttachmentCount = static_cast<uint32_t>(color_attachment_formats.size()),
+            .pColorAttachmentFormats = color_attachment_formats.data(),
+        }
     };
 
     gui_renderer = make_unique<GuiRenderer>(window, imgui_init_info);

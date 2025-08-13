@@ -17,7 +17,7 @@ GuiRenderer::GuiRenderer(GLFWwindow *w, ImGui_ImplVulkan_InitInfo &imgui_init_in
 
     ImGui_ImplGlfw_InitForOpenGL(window, true);
 
-    ImGui_ImplVulkan_Init(&imgui_init_info, nullptr);
+    ImGui_ImplVulkan_Init(&imgui_init_info);
 
     imguiGizmo::setGizmoFeelingRot(0.3);
 }

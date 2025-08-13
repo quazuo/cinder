@@ -99,6 +99,7 @@ add_subdirectory(deps/glm)
 include_directories(
         cmake-build-debug/deps/assimp/include/
         deps/
+        deps/imgui/
         deps/assimp/include/
         deps/glfw/include/
         deps/glm/

@@ -1,5 +1,6 @@
 module;
 
+#define IMGUI_IMPL_VULKAN_HAS_DYNAMIC_RENDERING
 #define IMGUI_DEFINE_MATH_OPERATORS
 #define NOMINMAX 1
 #include <../imgui/imgui.h>
