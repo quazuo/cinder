@@ -16,3 +16,6 @@
 [submodule "deps/imgui-filebrowser"]
 	path = deps/imgui-filebrowser
 	url = https://github.com/AirGuanZ/imgui-filebrowser
+[submodule "deps/assimp"]
+	path = deps/assimp
+	url = https://github.com/assimp/assimp
