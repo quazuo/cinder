@@ -543,10 +543,10 @@ private:
     // ========================== gui ==========================
 
     void render_gui_section(const float delta_time) {
+        static constexpr float smoothing = 0.95f;
         static float fps = 1 / delta_time;
 
-        constexpr float smoothing = 0.95f;
-        fps                       = fps * smoothing + (1 / delta_time) * (1.0f - smoothing);
+        fps = fps * smoothing + (1 / delta_time) * (1.0f - smoothing);
 
         constexpr auto section_flags = ImGuiTreeNodeFlags_DefaultOpen;
 
@@ -611,6 +611,7 @@ private:
 
         camera->render_gui_section();
         renderer.render_gui_section();
+        Logger::render_gui_section();
     }
 
     void render_tex_load_button(const string &label, const FileType file_type, const vector<string> &type_filters) {
