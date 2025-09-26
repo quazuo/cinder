@@ -65,7 +65,7 @@ class VulkanRenderer {
     using BindlessDescriptorSet = FixedDescriptorSet<Texture, Texture, Buffer>;
     unique_ptr<BindlessDescriptorSet> bindless_descriptor_set;
 
-    static constexpr uint32_t BINDLESS_ARRAY_SIZE = 64;
+    static constexpr uint32_t BINDLESS_ARRAY_SIZE = 256;
 
     static constexpr uint32_t BINDLESS_SAMPLER_BINDING = 0;
     static constexpr uint32_t BINDLESS_STORAGE_TEXTURE_BINDING = 1;

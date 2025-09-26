@@ -608,8 +608,25 @@ void VulkanRenderer::create_render_graph_resources() {
     const auto compute_accessed_resources = gather_compute_accessed_resources();
 
     for (const auto &[handle, description]: render_graph->model_resources()) {
-        auto model = make_unique<Model>(ctx, description.path, false);
-        resource_manager->add(handle, std::move(model), description.name);
+        resource_manager->add(handle, make_unique<Model>(ctx, description.path, description.has_materials), description.name);
+
+        const auto& materials = resource_manager->get_model(handle).get_materials();
+        const auto& mat_tex_handles = resource_manager->get_model_mat_tex_handles(handle);
+
+        for (size_t i = 0; i < materials.size(); i++) {
+            const Material& material = materials[i];
+            const ResourceManager::MaterialTextureHandles& tex_handles = mat_tex_handles[i];
+
+            if (material.base_color) {
+                bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(*material.base_color, tex_handles.base_color);
+            }
+            if (material.normal) {
+                bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(*material.normal, tex_handles.normal);
+            }
+            if (material.orm) {
+                bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(*material.orm, tex_handles.orm);
+            }
+        }
     }
 
     for (const auto &[handle, description]: render_graph->vertex_buffers()) {
@@ -625,7 +642,7 @@ void VulkanRenderer::create_render_graph_resources() {
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& buffer = resource_manager->get_buffer(handle);
-        bindless_descriptor_set->update_binding<BINDLESS_UBO_BINDING>(buffer, bindless_handle);
+        bindless_descriptor_set->queue_update<BINDLESS_UBO_BINDING>(buffer, bindless_handle);
     }
 
     for (const auto &[handle, description]: render_graph->external_tex_resources()) {
@@ -663,10 +680,10 @@ void VulkanRenderer::create_render_graph_resources() {
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get_texture(handle);
 
-        bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
+        bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
 
         if (is_compute_accessed) {
-            bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
+            bindless_descriptor_set->queue_update<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
         }
     }
 
@@ -710,10 +727,10 @@ void VulkanRenderer::create_render_graph_resources() {
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get_texture(handle);
 
-        bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
+        bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
 
         if (is_compute_accessed) {
-            bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
+            bindless_descriptor_set->queue_update<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
         }
     }
 
@@ -743,6 +760,8 @@ void VulkanRenderer::create_render_graph_resources() {
         auto builder = create_graph_compute_pipeline_builder(handle);
         compute_pipelines.emplace(handle, builder.create(ctx));
     }
+
+    bindless_descriptor_set->commit_updates();
 }
 
 GraphicsPipelineBuilder

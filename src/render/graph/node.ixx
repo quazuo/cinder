@@ -22,6 +22,8 @@ class RenderPassContext {
     optional<ResourceHandle> last_bound_pipeline;
     std::vector<ResourceHandle> bound_resource_ids;
 
+    optional<uint32_t> current_material_id;
+
 public:
     explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, ResourceManager &rm,
                                const map<ResourceHandle, GraphicsPipeline> &graphics_pipelines,
@@ -37,13 +39,13 @@ public:
 
     void bind_resources(const std::vector<ResourceHandle>& handles);
 
-    void draw_model(ResourceHandle model_handle) const;
+    void draw_model(ResourceHandle model_handle);
 
     void draw(ResourceHandle vertices_handle, uint32_t vertex_count, uint32_t instance_count,
-              uint32_t first_vertex, uint32_t first_instance) const;
+              uint32_t first_vertex, uint32_t first_instance);
 
 private:
-    void push_constants() const;
+    void push_constants();
 };
 
 class ComputePassContext {

@@ -10,7 +10,9 @@ import Cinder.Render.Mesh;
 import Cinder.Globals;
 
 export namespace zrx {
-constexpr ResourceHandle FINAL_IMAGE_HANDLE  = -1;
+constexpr ResourceHandle FINAL_IMAGE_HANDLE      = -1;
+constexpr ResourceHandle CURRENT_MATERIAL_HANDLE = -2;
+
 const string FINAL_IMAGE_NAME = "final-image";
 constexpr std::monostate EMPTY_DESCRIPTOR_SET_BINDING = {};
 
@@ -55,6 +57,7 @@ struct TransientTextureResourceDesc {
 struct ModelResourceDesc {
     string name{};
     std::filesystem::path path{};
+    bool has_materials = false;
 };
 
 // basically same purpose as std::monostate but with a specific name

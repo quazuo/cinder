@@ -29,41 +29,25 @@ import Cinder.Globals;
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
 #endif
 
-struct GraphicsUBO {
-    struct WindowRes {
-        uint32_t window_width;
-        uint32_t window_height;
-    };
-
-    struct Matrices {
-        glm::mat4 model;
-        glm::mat4 view;
-        glm::mat4 proj;
-        glm::mat4 view_inverse;
-        glm::mat4 proj_inverse;
-        glm::mat4 vp_inverse;
-        glm::mat4 static_view;
-        glm::mat4 cubemap_capture_views[6];
-        glm::mat4 cubemap_capture_proj;
-    };
-
-    struct MiscData {
-        float debug_number;
-        float z_near;
-        float z_far;
-        uint32_t use_ssao;
-        float light_intensity;
-        glm::vec3 light_dir;
-        glm::vec3 light_color;
-        glm::vec3 camera_pos;
-    };
-
-    alignas(16) WindowRes window{};
-    alignas(16) Matrices matrices{};
-    alignas(16) MiscData misc{};
-};
-
 namespace zrx {
+namespace glsl {
+    #include "render/glsl_to_cpp.inl"
+    #include "shaders/utils/ubo.glsl"
+    #include "shaders/utils/material.glsl"
+}
+
+#define GLSL_ALIGN alignas(16)
+
+    struct GraphicsUBO {
+        GLSL_ALIGN glsl::WindowRes window{};
+        GLSL_ALIGN glsl::Matrices matrices{};
+        GLSL_ALIGN glsl::MiscData misc{};
+    };
+
+    struct MaterialsUBO {
+        GLSL_ALIGN glsl::Material mats[MATERIAL_MAX_COUNT];
+    };
+
 class Engine {
     GLFWwindow *window = nullptr;
     VulkanRenderer renderer;
@@ -160,7 +144,8 @@ private:
 
         const auto scene_model = render_graph.add_resource(ModelResourceDesc{
             .name = "scene-model",
-            .path = "../assets/example models/kettle/kettle.obj"
+            .path = "../assets/example models/Sponza/Sponza.gltf",
+            .has_materials = true,
         });
 
         const auto skybox_vert_buf = render_graph.add_resource(VertexBufferResourceDesc{
@@ -177,13 +162,28 @@ private:
 
         // ================== uniform buffers ==================
 
-        const auto uniform_buffer = render_graph.add_resource(UniformBufferResourceDesc{
+        const auto general_ubo = render_graph.add_resource(UniformBufferResourceDesc{
             .name = "general-ubo",
             .size = sizeof(GraphicsUBO)
         });
 
-        render_graph.add_frame_begin_action([this, uniform_buffer](const FrameBeginActionContext &fba_ctx) {
-            update_graphics_uniform_buffer(fba_ctx.resource_manager.get().get_buffer(uniform_buffer));
+        render_graph.add_frame_begin_action([=](const FrameBeginActionContext &fba_ctx) {
+            update_graphics_uniform_buffer(fba_ctx.resource_manager.get().get_buffer(general_ubo));
+        });
+
+        const auto material_ubo = render_graph.add_resource(UniformBufferResourceDesc{
+            .name = "material-ubo",
+            .size = sizeof(MaterialsUBO)
+        });
+
+        render_graph.add_frame_begin_action([=](const FrameBeginActionContext &fba_ctx) {
+            static bool has_been_done = false;
+            if (!has_been_done) {
+                auto& resource_manager = fba_ctx.resource_manager.get();
+                Buffer& material_ubo_buffer = resource_manager.get_buffer(material_ubo);
+                update_materials_uniform_buffer(material_ubo_buffer, scene_model, resource_manager);
+                has_been_done = true;
+            }
         });
 
         // ================== external textures ==================
@@ -340,11 +340,11 @@ private:
 
         render_graph.add_node(RenderNodeGraphics {
             .name = "cubemap-capture",
-            .bound_resources = {uniform_buffer, envmap_texture},
+            .bound_resources = {general_ubo, envmap_texture},
             .color_targets = {skybox_texture},
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(cubecap_pipeline);
-                ctx.bind_resources({uniform_buffer, envmap_texture});
+                ctx.bind_resources({general_ubo, envmap_texture});
                 ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
             },
             .should_run_predicate = [&] { return should_capture_skybox; },
@@ -355,12 +355,12 @@ private:
 
         render_graph.add_node(RenderNodeGraphics {
             .name = "prepass",
-            .bound_resources = {uniform_buffer},
+            .bound_resources = {general_ubo},
             .color_targets = {g_buffer_normal, g_buffer_pos},
             .depth_target = g_buffer_depth,
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(prepass_pipeline);
-                ctx.bind_resources({uniform_buffer});
+                ctx.bind_resources({general_ubo});
                 ctx.draw_model(scene_model);
             },
             .should_run_predicate = [&] { return use_ssao; }
@@ -368,11 +368,11 @@ private:
 
         render_graph.add_node(RenderNodeGraphics {
             .name = "ssao",
-            .bound_resources = {uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos},
+            .bound_resources = {general_ubo, g_buffer_depth, g_buffer_normal, g_buffer_pos},
             .color_targets = {ssao_texture},
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(ssao_pipeline);
-                ctx.bind_resources({uniform_buffer, g_buffer_depth, g_buffer_normal, g_buffer_pos});
+                ctx.bind_resources({general_ubo, g_buffer_depth, g_buffer_normal, g_buffer_pos});
                 ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
             },
             .should_run_predicate = [&] { return use_ssao; }
@@ -380,16 +380,16 @@ private:
 
         const auto main_node = render_graph.add_node(RenderNodeGraphics {
             .name = "main",
-            .bound_resources = {uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture, skybox_texture},
+            .bound_resources = {general_ubo, ssao_texture, skybox_texture},
             .color_targets = {base_pass_texture},
             .depth_target = FINAL_IMAGE_HANDLE,
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(main_pipeline);
-                ctx.bind_resources({uniform_buffer, ssao_texture, base_color_texture, normal_texture, orm_texture});
+                ctx.bind_resources({general_ubo, ssao_texture, material_ubo, CURRENT_MATERIAL_HANDLE});
                 ctx.draw_model(scene_model);
 
                 ctx.bind_pipeline(skybox_pipeline);
-                ctx.bind_resources({uniform_buffer, skybox_texture});
+                ctx.bind_resources({general_ubo, skybox_texture});
                 ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
             },
         });
@@ -475,8 +475,8 @@ private:
 
         GraphicsUBO graphics_ubo{
             .window = {
-                .window_width = static_cast<uint32_t>(window_size.x),
-                .window_height = static_cast<uint32_t>(window_size.y),
+                .width = static_cast<uint32_t>(window_size.x),
+                .height = static_cast<uint32_t>(window_size.y),
             },
             .matrices = {
                 .model = model,
@@ -494,7 +494,7 @@ private:
                 .z_far = z_far,
                 .use_ssao = use_ssao ? 1u : 0,
                 .light_intensity = light_intensity,
-                .light_dir = glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(-1, 0, 0, 0)),
+                .light_direction = glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(-1, 0, 0, 0)),
                 .light_color = light_color,
                 .camera_pos = camera->get_pos(),
             }
@@ -514,6 +514,25 @@ private:
         }
 
         std::memcpy(buffer.map(), &graphics_ubo, sizeof(graphics_ubo));
+    }
+
+    void update_materials_uniform_buffer(Buffer &buffer, const ResourceHandle model_handle, const ResourceManager& resource_manager) const {
+        MaterialsUBO materials_ubo {};
+        std::memset(&materials_ubo, 0, sizeof(materials_ubo));
+
+        const auto& material_handles = resource_manager.get_model_material_handles(model_handle);
+
+        for (const auto material_handle : material_handles) {
+            const auto& texture_handles = resource_manager.get_material_tex_handles(material_handle);
+
+            materials_ubo.mats[material_handle] = glsl::Material {
+                .base_color = texture_handles.base_color,
+                .normal = texture_handles.normal,
+                .orm = texture_handles.orm,
+            };
+        }
+
+        std::memcpy(buffer.map(), &materials_ubo, sizeof(materials_ubo));
     }
 
     void bind_key_actions() {
@@ -769,8 +788,8 @@ int main() {
         engine.run();
     } catch (std::exception &e) {
         show_error_box(string("Fatal error: ") + e.what());
-        glfw_terminate();
-        return EXIT_FAILURE;
+        glfwTerminate();
+        return 1; // EXIT_FAILURE;
     }
 #else
     zrx::Engine engine;

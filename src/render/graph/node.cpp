@@ -26,11 +26,19 @@ void RenderPassContext::bind_resources(const std::vector<ResourceHandle> &handle
     bound_resource_ids = handles;
 
     for (auto& res_id: bound_resource_ids) {
-        res_id = resource_manager.get().get_bindless_handle(res_id);
+        if (res_id == CURRENT_MATERIAL_HANDLE) {
+            // do nothing, will set this to a valid handle when pushing constants
+
+        } else if (res_id == FINAL_IMAGE_HANDLE) {
+            Logger::error("Cannot bind final image inside a render pass context");
+
+        } else {
+            res_id = resource_manager.get().get_bindless_handle(res_id);
+        }
     }
 }
 
-void RenderPassContext::draw_model(const ResourceHandle model_handle) const {
+void RenderPassContext::draw_model(const ResourceHandle model_handle) {
     if (!last_bound_pipeline) {
         Logger::error("no pipeline bound during draw!");
     }
@@ -43,7 +51,9 @@ void RenderPassContext::draw_model(const ResourceHandle model_handle) const {
     model.bind_buffers(command_buffer);
 
     for (const auto &mesh: model.get_meshes()) {
+        current_material_id = mesh.material_id;
         push_constants();
+        current_material_id.reset();
 
         command_buffer.get().drawIndexed(
             static_cast<uint32_t>(mesh.indices.size()),
@@ -61,24 +71,37 @@ void RenderPassContext::draw_model(const ResourceHandle model_handle) const {
 
 void RenderPassContext::draw(const ResourceHandle vertices_handle,
                              const uint32_t vertex_count, const uint32_t instance_count,
-                             const uint32_t first_vertex, const uint32_t first_instance) const {
+                             const uint32_t first_vertex, const uint32_t first_instance) {
     const Buffer &vertex_buffer = resource_manager.get().get_buffer(vertices_handle);
     command_buffer.get().bindVertexBuffers(0, *vertex_buffer, {0});
     push_constants();
     command_buffer.get().draw(vertex_count, instance_count, first_vertex, first_instance);
 }
 
-void RenderPassContext::push_constants() const {
+void RenderPassContext::push_constants() {
     if (!last_bound_pipeline) {
         Logger::error("no pipeline bound during draw!");
     }
 
-    if (!bound_resource_ids.empty()) {
+    auto resource_ids = bound_resource_ids;
+
+    for (auto& res_id: resource_ids) {
+        if (res_id == CURRENT_MATERIAL_HANDLE) {
+            if (!current_material_id) {
+                Logger::error("No available current material in RenderPassContext::bind_resources. "
+                              "Did you forget to load model materials?");
+            }
+
+            res_id = *current_material_id;
+        }
+    }
+
+    if (!resource_ids.empty()) {
         command_buffer.get().pushConstants<ResourceHandle>(
             *graphics_pipelines.get().at(*last_bound_pipeline).get_layout(),
             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
             0,
-            bound_resource_ids
+            resource_ids
         );
     }
 }
