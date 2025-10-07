@@ -91,9 +91,9 @@ Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material
 
         try {
             base_color = TextureBuilder()
-                    .with_flags(vk::TextureFlagBitsZRX::MIPMAPS)
-                    .from_paths({path})
-                    .create(ctx);
+                         .with_format(vk::Format::eR8G8B8A8Srgb)
+                         .from_paths({path})
+                         .create(ctx);
         } catch (std::exception &e) {
             std::cerr << "failed to allocate buffer for texture: " << path << std::endl;
             base_color = nullptr;
@@ -113,9 +113,8 @@ Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material
         path.make_preferred();
 
         normal = TextureBuilder()
-                .use_format(vk::Format::eR8G8B8A8Unorm)
+                .with_format(vk::Format::eR8G8B8A8Unorm)
                 .from_paths({path})
-                .with_flags(vk::TextureFlagBitsZRX::MIPMAPS)
                 .create(ctx);
     }
 
@@ -145,8 +144,7 @@ Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material
     }
 
     auto orm_builder = TextureBuilder()
-            .use_format(vk::Format::eR8G8B8A8Unorm)
-            .with_flags(vk::TextureFlagBitsZRX::MIPMAPS)
+            .with_format(vk::Format::eR8G8B8A8Unorm)
             .with_swizzle({
                 ao_path.empty() ? SwizzleComponent::MAX : SwizzleComponent::R,
                 roughness_path.empty() ? SwizzleComponent::MAX : SwizzleComponent::G,

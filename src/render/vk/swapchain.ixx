@@ -73,6 +73,21 @@ public:
     auto get_current_image_index() const -> uint32_t { return current_image_index; }
 
     /**
+     * Returns the image that was most recently acquired and will be presented next.
+     * @return Index of the current image.
+     */
+    auto get_current_image() const -> const vk::Image& { return images[current_image_index]; }
+
+    /**
+     * Returns the image that is being rendered to during the current frame.
+     * @return Index of the current image.
+     */
+    auto get_current_rendered_image() const -> const vk::Image& {
+        const bool is_msaa = msaa_sample_count != vk::SampleCountFlagBits::e1;
+        return is_msaa ? **color_image : images[current_image_index];
+    }
+
+    /**
      * Wraps swapchain image views in `RenderTarget` objects and returns them.
      * When called the first time, these views are created and cached for later.
      */

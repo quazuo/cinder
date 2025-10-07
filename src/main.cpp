@@ -38,15 +38,15 @@ namespace glsl {
 
 #define GLSL_ALIGN alignas(16)
 
-    struct GraphicsUBO {
-        GLSL_ALIGN glsl::WindowRes window{};
-        GLSL_ALIGN glsl::Matrices matrices{};
-        GLSL_ALIGN glsl::MiscData misc{};
-    };
+struct GraphicsUBO {
+    GLSL_ALIGN glsl::WindowRes window{};
+    GLSL_ALIGN glsl::Matrices matrices{};
+    GLSL_ALIGN glsl::MiscData misc{};
+};
 
-    struct MaterialsUBO {
-        GLSL_ALIGN glsl::Material mats[MATERIAL_MAX_COUNT];
-    };
+struct MaterialsUBO {
+    GLSL_ALIGN glsl::Material mats[MATERIAL_MAX_COUNT];
+};
 
 class Engine {
     GLFWwindow *window = nullptr;
@@ -191,7 +191,7 @@ private:
         const auto base_color_texture = render_graph.add_resource(ExternalTextureResourceDesc{
             .name = "base-color-texture",
             .paths = {"../assets/example models/kettle/kettle-albedo.png"},
-            .format = vk::Format::eR8G8B8A8Srgb
+            .format = vk::Format::eR8G8B8A8Srgb,
         });
 
         const auto normal_texture = render_graph.add_resource(ExternalTextureResourceDesc{
@@ -210,7 +210,7 @@ private:
             .name = "envmap-texture",
             .paths = {"../assets/envmaps/vienna.hdr"},
             .format = vk::Format::eR32G32B32A32Sfloat,
-            .flags = vk::TextureFlagBitsZRX::HDR | vk::TextureFlagBitsZRX::MIPMAPS
+            .flags = TextureFlags::HDR
         });
 
         // ================== render target textures ==================
@@ -220,7 +220,7 @@ private:
             .name = "skybox-texture",
             .format = skybox_tex_format,
             .extent = {2048, 2048},
-            .flags = vk::TextureFlagBitsZRX::CUBEMAP // | vk::TextureFlagBitsZRX::MIPMAPS
+            .flags = TextureFlags::CUBEMAP | TextureFlags::NO_MIPMAPS
         });
 
         constexpr auto g_buffer_color_format = vk::Format::eR16G16B16A16Sfloat;
@@ -238,7 +238,7 @@ private:
         const auto g_buffer_depth = render_graph.add_resource(TargetTextureResourceDesc{
             .name = "g-buffer-depth",
             .format = g_buffer_depth_format,
-            .flags = {},
+            .flags = TextureFlags::NO_MIPMAPS,
         });
 
         constexpr auto ssao_tex_format = vk::Format::eR8G8B8A8Unorm;
@@ -247,26 +247,38 @@ private:
             .format = ssao_tex_format,
         });
 
+        constexpr auto shadowmap_tex_format = vk::Format::eD32Sfloat;
+        const auto shadowmap_texture = render_graph.add_resource(TargetTextureResourceDesc{
+            .name = "shadowmap-texture",
+            .format = shadowmap_tex_format,
+            .extent = {2048, 2048},
+            .overrides = {
+                .mag_filter = vk::Filter::eNearest,
+                .min_filter = vk::Filter::eNearest,
+            },
+            .flags = TextureFlags::NO_MIPMAPS,
+        });
+
         constexpr auto final_no_gamma_format = vk::Format::eR8G8B8A8Unorm;
         const auto base_pass_texture = render_graph.add_resource(TargetTextureResourceDesc{
             .name = "base-pass-texture",
             .format = final_no_gamma_format,
-            .flags = {}
+            .flags = TextureFlags::NO_MIPMAPS
         });
         const auto post_blur_x_texture = render_graph.add_resource(TargetTextureResourceDesc{
             .name = "post-blur-x-texture",
             .format = final_no_gamma_format,
-            .flags = {}
+            .flags = TextureFlags::NO_MIPMAPS
         });
         const auto post_blur_y_texture = render_graph.add_resource(TargetTextureResourceDesc{
             .name = "post-blur-y-texture",
             .format = final_no_gamma_format,
-            .flags = {}
+            .flags = TextureFlags::NO_MIPMAPS
         });
         const auto post_gui_texture = render_graph.add_resource(TargetTextureResourceDesc{
             .name = "post-gui-texture",
             .format = final_no_gamma_format,
-            .flags = {}
+            .flags = TextureFlags::NO_MIPMAPS
         });
 
         // ================== shaders ==================
@@ -622,11 +634,11 @@ private:
 #endif
         }
 
-        // if (ImGui::CollapsingHeader("Lighting ", section_flags)) {
-        //     ImGui::SliderFloat("Light intensity", &light_intensity, 0.0f, 100.0f, "%.2f");
-        //     ImGui::ColorEdit3("Light color", &light_color.x);
-        //     ImGui::gizmo3D("Light direction", light_direction, 160, imguiGizmo::modeDirection);
-        // }
+        if (ImGui::CollapsingHeader("Lighting ", section_flags)) {
+            ImGui::SliderFloat("Light intensity", &light_intensity, 0.0f, 100.0f, "%.2f");
+            ImGui::ColorEdit3("Light color", &light_color.x);
+            ImGui::gizmo3D("Light direction", light_direction, 160.0f, imguiGizmo::modeDirection);
+        }
 
         camera->render_gui_section();
         renderer.render_gui_section();
@@ -779,7 +791,7 @@ static void show_error_box(const string &message) {
 int main() {
     if (!glfwInit()) {
         show_error_box("Fatal error: GLFW initialization failed.");
-        return 1; //EXIT_FAILURE;
+        return 1; // EXIT_FAILURE;
     }
 
 #ifdef NDEBUG

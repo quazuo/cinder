@@ -274,7 +274,7 @@ void VulkanRenderer::recreate_swap_chain() {
         auto& tex_builder = resource_manager->get_tex_builder(handle);
         const auto swap_chain_extent = swap_chain->get_extent();
         tex_builder.as_uninitialized({swap_chain_extent.width, swap_chain_extent.height, 1u});
-        tex_builder.use_layout(last_image_layouts.at(handle));
+        tex_builder.with_layout(last_image_layouts.at(handle));
 
         resource_manager->recreate(handle);
 
@@ -666,11 +666,11 @@ void VulkanRenderer::create_render_graph_resources() {
                 .with_flags(description.flags)
                 .with_name(description.name.c_str())
                 .from_paths(description.paths)
-                .use_format(description.format)
-                .use_layout(layout)
-                .use_usage(usage_flags);
+                .with_format(description.format)
+                .with_layout(layout)
+                .with_usage(usage_flags);
 
-        if (description.paths.size() > 1 && !(description.flags & vk::TextureFlagBitsZRX::CUBEMAP))
+        if (description.paths.size() > 1 && !(description.flags & TextureFlags::CUBEMAP))
             builder.as_separate_channels();
         if (description.swizzle)
             builder.with_swizzle(*description.swizzle);
@@ -719,9 +719,9 @@ void VulkanRenderer::create_render_graph_resources() {
                 .with_flags(description.flags)
                 .with_name(description.name.c_str())
                 .as_uninitialized({extent.width, extent.height, 1u})
-                .use_format(description.format)
-                .use_layout(layout)
-                .use_usage(usage_flags);
+                .with_format(description.format)
+                .with_layout(layout)
+                .with_usage(usage_flags);
 
         resource_manager->add_from_builder<TextureBuilder, Texture>(handle, std::move(builder), description.name);
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
@@ -744,8 +744,8 @@ void VulkanRenderer::create_render_graph_resources() {
                 .with_flags(description.flags)
                 .with_name(description.name.c_str())
                 .as_uninitialized({extent.width, extent.height, 1u})
-                .use_format(description.format)
-                .use_usage(vk::ImageUsageFlagBits::eTransientAttachment
+                .with_format(description.format)
+                .with_usage(vk::ImageUsageFlagBits::eTransientAttachment
                            | utils::img::get_format_attachment_type(description.format));
 
         resource_manager->add(handle, builder.create(ctx), description.name);
@@ -1138,7 +1138,21 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
         Logger::debug("inserting pre-partition (target) barrier for texture: {}", resource_manager->get_name(handle));
 
         if (handle == FINAL_IMAGE_HANDLE) {
-            Logger::warning("skipping barrier for final image. reason: unimplemented");
+            barriers.insert(vk::ImageMemoryBarrier2 {
+                .srcStageMask = vk::PipelineStageFlagBits2::eAllGraphics,
+                .srcAccessMask = vk::AccessFlagBits2::eColorAttachmentWrite,
+                .dstStageMask = vk::PipelineStageFlagBits2::eAllGraphics,
+                .dstAccessMask = vk::AccessFlagBits2::eShaderRead,
+                .oldLayout = vk::ImageLayout::eColorAttachmentOptimal,
+                .newLayout = vk::ImageLayout::eColorAttachmentOptimal,
+                .image = swap_chain->get_current_rendered_image(),
+                .subresourceRange = {
+                    .aspectMask = vk::ImageAspectFlagBits::eColor,
+                    .levelCount = 1,
+                    .layerCount = 1,
+                }
+            });
+
             continue;
         }
 

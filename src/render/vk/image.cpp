@@ -163,24 +163,24 @@ Image::~Image() {
     vmaDestroyImage(allocator, static_cast<VkImage>(image), allocation);
 }
 
-shared_ptr<vk::raii::ImageView> Image::get_view(const RendererContext &ctx) {
+auto Image::get_view(const RendererContext &ctx) -> shared_ptr<vk::raii::ImageView> {
     return get_cached_view(ctx, {0, mip_levels, 0, 1});
 }
 
-shared_ptr<vk::raii::ImageView> Image::get_mip_view(const RendererContext &ctx, const uint32_t mip_level) {
+auto Image::get_mip_view(const RendererContext &ctx, const uint32_t mip_level) -> shared_ptr<vk::raii::ImageView> {
     return get_cached_view(ctx, {mip_level, 1, 0, 1});
 }
 
-shared_ptr<vk::raii::ImageView> Image::get_layer_view(const RendererContext &ctx, const uint32_t layer) {
+auto Image::get_layer_view(const RendererContext &ctx, const uint32_t layer) -> shared_ptr<vk::raii::ImageView> {
     return get_cached_view(ctx, {0, mip_levels, layer, 1});
 }
 
-shared_ptr<vk::raii::ImageView> Image::get_layer_mip_view(const RendererContext &ctx, const uint32_t layer,
-                                                          const uint32_t mip_level) {
+auto Image::get_layer_mip_view(const RendererContext &ctx, const uint32_t layer,
+                                                          const uint32_t mip_level) -> shared_ptr<vk::raii::ImageView> {
     return get_cached_view(ctx, {mip_level, 1, layer, 1});
 }
 
-shared_ptr<vk::raii::ImageView> Image::get_cached_view(const RendererContext &ctx, ViewParams params) {
+auto Image::get_cached_view(const RendererContext &ctx, ViewParams params) -> shared_ptr<vk::raii::ImageView> {
     if (cached_views.contains(params)) {
         return cached_views.at(params);
     }
@@ -416,11 +416,11 @@ CubeImage::CubeImage(const RendererContext &ctx, const vk::ImageCreateInfo &imag
     : Image(ctx, image_info, properties, vk::ImageAspectFlagBits::eColor) {
 }
 
-shared_ptr<vk::raii::ImageView> CubeImage::get_view(const RendererContext &ctx) {
+auto CubeImage::get_view(const RendererContext &ctx) -> shared_ptr<vk::raii::ImageView> {
     return get_cached_view(ctx, {0, mip_levels, 0, 6});
 }
 
-shared_ptr<vk::raii::ImageView> CubeImage::get_mip_view(const RendererContext &ctx, const uint32_t mip_level) {
+auto CubeImage::get_mip_view(const RendererContext &ctx, const uint32_t mip_level) -> shared_ptr<vk::raii::ImageView> {
     return get_cached_view(ctx, {mip_level, 1, 0, 6});
 }
 
@@ -579,84 +579,85 @@ void Texture::generate_mipmaps(const RendererContext &ctx, const vk::ImageLayout
     utils::cmd::end_single_time_commands(command_buffer, *ctx.graphics_queue);
 }
 
-void Texture::create_sampler(const RendererContext &ctx, const vk::SamplerAddressMode address_mode) {
-    const vk::PhysicalDeviceProperties properties = ctx.physical_device->getProperties();
-
-    const vk::SamplerCreateInfo sampler_info{
-        .magFilter = vk::Filter::eLinear,
-        .minFilter = vk::Filter::eLinear,
-        .mipmapMode = vk::SamplerMipmapMode::eLinear,
-        .addressModeU = address_mode,
-        .addressModeV = address_mode,
-        .addressModeW = address_mode,
-        .mipLodBias = 0.0f,
-        .anisotropyEnable = vk::True,
-        .maxAnisotropy = properties.limits.maxSamplerAnisotropy,
-        .compareEnable = vk::False,
-        .compareOp = vk::CompareOp::eAlways,
-        .minLod = 0.0f,
-        .maxLod = static_cast<float>(image->get_mip_levels()),
-        .borderColor = vk::BorderColor::eIntOpaqueBlack,
-        .unnormalizedCoordinates = vk::False,
-    };
-
-    sampler = make_unique<vk::raii::Sampler>(*ctx.device, sampler_info);
-}
-
 // ==================== TextureBuilder ====================
 
-TextureBuilder &TextureBuilder::use_format(const vk::Format f) {
+auto TextureBuilder::with_config(const TextureOverrides &_config) -> TextureBuilder& {
+    config = _config;
+    return *this;
+}
+
+auto TextureBuilder::with_format(const vk::Format f) -> TextureBuilder& {
     format = f;
     return *this;
 }
 
-TextureBuilder &TextureBuilder::use_layout(const vk::ImageLayout l) {
+auto TextureBuilder::with_layout(const vk::ImageLayout l) -> TextureBuilder& {
     layout = l;
     return *this;
 }
 
-TextureBuilder &TextureBuilder::use_usage(const vk::ImageUsageFlags u) {
+auto TextureBuilder::with_usage(const vk::ImageUsageFlags u) -> TextureBuilder& {
     usage = u;
     return *this;
 }
 
-TextureBuilder &TextureBuilder::with_flags(const vk::TextureFlagsZRX flags) {
+auto TextureBuilder::with_mag_filter(const vk::Filter f) -> TextureBuilder& {
+    config.mag_filter = f;
+    return *this;
+}
+
+auto TextureBuilder::with_min_filter(const vk::Filter f) -> TextureBuilder& {
+    config.min_filter = f;
+    return *this;
+}
+
+auto TextureBuilder::with_mipmap_mode(const vk::SamplerMipmapMode m) -> TextureBuilder& {
+    config.mipmap_mode = m;
+    return *this;
+}
+
+auto TextureBuilder::with_mip_lod_bias(const float lod_bias) -> TextureBuilder& {
+    config.mip_lod_bias = lod_bias;
+    return *this;
+}
+
+auto TextureBuilder::with_flags(const TextureFlags flags) -> TextureBuilder& {
     tex_flags = flags;
     return *this;
 }
 
-TextureBuilder &TextureBuilder::as_separate_channels() {
+auto TextureBuilder::as_separate_channels() -> TextureBuilder& {
     is_separate_channels = true;
     return *this;
 }
 
-TextureBuilder &TextureBuilder::with_sampler_address_mode(const vk::SamplerAddressMode mode) {
+auto TextureBuilder::with_sampler_address_mode(const vk::SamplerAddressMode mode) -> TextureBuilder& {
     address_mode = mode;
     return *this;
 }
 
-TextureBuilder &TextureBuilder::as_uninitialized(const vk::Extent3D extent) {
+auto TextureBuilder::as_uninitialized(const vk::Extent3D extent) -> TextureBuilder& {
     is_uninitialized = true;
     desired_extent   = extent;
     return *this;
 }
 
-TextureBuilder &TextureBuilder::with_swizzle(const SwizzleDesc &sw) {
+auto TextureBuilder::with_swizzle(const SwizzleDesc &sw) -> TextureBuilder& {
     swizzle = sw;
     return *this;
 }
 
-TextureBuilder &TextureBuilder::with_name(const char *n) {
+auto TextureBuilder::with_name(const char *n) -> TextureBuilder& {
     name = n;
     return *this;
 }
 
-TextureBuilder &TextureBuilder::from_paths(const vector<std::filesystem::path> &sources) {
+auto TextureBuilder::from_paths(const vector<std::filesystem::path> &sources) -> TextureBuilder& {
     paths = sources;
     return *this;
 }
 
-TextureBuilder &TextureBuilder::from_memory(void *ptr, const vk::Extent3D extent) {
+auto TextureBuilder::from_memory(void *ptr, const vk::Extent3D extent) -> TextureBuilder& {
     if (!ptr) {
         Logger::error("cannot specify null memory source!");
     }
@@ -666,13 +667,13 @@ TextureBuilder &TextureBuilder::from_memory(void *ptr, const vk::Extent3D extent
     return *this;
 }
 
-TextureBuilder &TextureBuilder::from_swizzle_fill(vk::Extent3D extent) {
+auto TextureBuilder::from_swizzle_fill(vk::Extent3D extent) -> TextureBuilder& {
     is_from_swizzle_fill = true;
     desired_extent       = extent;
     return *this;
 }
 
-unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
+auto TextureBuilder::create(const RendererContext &ctx) const -> unique_ptr<Texture> {
     check_params();
 
     // stupid workaround because std::unique_ptr doesn't have access to the Texture ctor
@@ -691,17 +692,16 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
     const auto extent         = loaded_tex_data.extent;
     const auto staging_buffer = is_uninitialized ? nullptr : make_staging_buffer(ctx, loaded_tex_data);
 
-    uint32_t mip_levels = 1;
-    if (tex_flags & vk::TextureFlagBitsZRX::MIPMAPS) {
-        mip_levels = static_cast<uint32_t>(std::floor(std::log2(std::max(extent.width, extent.height)))) + 1;
-    }
+    const uint32_t mip_levels = !!(tex_flags & TextureFlags::NO_MIPMAPS)
+                                ? 1
+                                : static_cast<uint32_t>(std::floor(std::log2(std::max(extent.width, extent.height)))) + 1;
 
     const vk::ImageCreateInfo image_info{
-        .flags = tex_flags & vk::TextureFlagBitsZRX::CUBEMAP
+        .flags = !!(tex_flags & TextureFlags::CUBEMAP)
                      ? vk::ImageCreateFlagBits::eCubeCompatible
                      : static_cast<vk::ImageCreateFlags>(0),
         .imageType = vk::ImageType::e2D,
-        .format = format,
+        .format = *format,
         .extent = extent,
         .mipLevels = mip_levels,
         .arrayLayers = loaded_tex_data.layer_count,
@@ -715,7 +715,7 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
     const bool is_depth     = !!(usage & vk::ImageUsageFlagBits::eDepthStencilAttachment);
     const auto aspect_flags = is_depth ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor;
 
-    if (tex_flags & vk::TextureFlagBitsZRX::CUBEMAP) {
+    if (!!(tex_flags & TextureFlags::CUBEMAP)) {
         texture->image = make_unique<CubeImage>(
             ctx,
             image_info,
@@ -730,9 +730,9 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
         );
     }
 
-    texture->create_sampler(ctx, address_mode);
+    create_sampler(ctx, *texture);
 
-    if (is_uninitialized && !(tex_flags & vk::TextureFlagBitsZRX::MIPMAPS)) {
+    if (is_uninitialized && !!(tex_flags & TextureFlags::NO_MIPMAPS)) {
         utils::cmd::do_single_time_commands(ctx, [&](const auto &cmd_buffer) {
             texture->image->transition_layout(
                 vk::ImageLayout::eUndefined,
@@ -752,7 +752,7 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
                 texture->image->copy_from_buffer(**staging_buffer, cmd_buffer);
             }
 
-            if (!(tex_flags & vk::TextureFlagBitsZRX::MIPMAPS)) {
+            if (!!(tex_flags & TextureFlags::NO_MIPMAPS)) {
                 texture->image->transition_layout(
                     vk::ImageLayout::eTransferDstOptimal,
                     layout,
@@ -761,7 +761,7 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
             }
         });
 
-        if (tex_flags & vk::TextureFlagBitsZRX::MIPMAPS) {
+        if (!(tex_flags & TextureFlags::NO_MIPMAPS)) {
             texture->generate_mipmaps(ctx, layout);
         }
     }
@@ -778,8 +778,16 @@ unique_ptr<Texture> TextureBuilder::create(const RendererContext &ctx) const {
 }
 
 void TextureBuilder::check_params() const {
+    auto params_error = [&](const char* msg) {
+        Logger::error("error when creating texture {}: {}", msg, name);
+    };
+
+    if (!format) {
+        params_error("missing format");
+    }
+
     if (paths.empty() && !memory_source && !is_from_swizzle_fill && !is_uninitialized) {
-        Logger::error("no specified data source for texture!");
+        params_error("unspecified data source");
     }
 
     size_t sources_count = 0;
@@ -788,58 +796,55 @@ void TextureBuilder::check_params() const {
     if (is_from_swizzle_fill) sources_count++;
 
     if (sources_count > 1) {
-        Logger::error("cannot specify more than one texture source!");
+        params_error("cannot specify more than one texture source");
     }
 
     if (sources_count != 0 && is_uninitialized) {
-        Logger::error("cannot simultaneously set texture as uninitialized and specify sources!");
+        params_error("cannot simultaneously set texture as uninitialized and specify sources");
     }
 
-    if (tex_flags & vk::TextureFlagBitsZRX::CUBEMAP) {
+    if (!!(tex_flags & TextureFlags::CUBEMAP)) {
         if (memory_source) {
-            Logger::error("cubemaps from a memory source are currently not supported!");
+            params_error("cubemaps from a memory source are currently not supported");
         }
 
         if (is_separate_channels) {
-            Logger::error("cubemaps from separated channels are currently not supported!");
+            params_error("cubemaps from separated channels are currently not supported");
         }
 
         if (is_from_swizzle_fill) {
-            Logger::error("cubemaps from swizzle fill are currently not supported!");
+            params_error("cubemaps from swizzle fill are currently not supported");
         }
 
         if (usage & vk::ImageUsageFlagBits::eDepthStencilAttachment) {
-            Logger::error("cubemaps cannot be depth/stencil attachments!");
+            params_error("cubemaps cannot be depth/stencil attachments");
         }
 
         if (paths.size() != 6 && !is_uninitialized) {
-            Logger::error("invalid layer count for cubemap texture!");
+            params_error("invalid layer count for cubemap texture");
         }
     } else {
         // non-cubemap
         if (is_separate_channels) {
             if (paths.size() != 3) {
-                Logger::error("unsupported channel count for separate-channelled non-cubemap texture!");
+                params_error("unsupported channel count for separate-channelled non-cubemap texture");
             }
         } else if (!memory_source && !is_from_swizzle_fill && !is_uninitialized && paths.size() != 1) {
-            Logger::error("invalid layer count for non-cubemap texture!");
+            params_error("invalid layer count for non-cubemap texture");
         }
     }
 
     if (is_separate_channels) {
         if (paths.empty()) {
-            Logger::error("separate-channeled textures must provide path sources!");
+            params_error("separate-channeled textures must provide path sources");
         }
 
-        if (utils::img::get_format_size_in_bytes(format) != 4) {
-            throw std::invalid_argument(
-                "currently only 4-byte formats are supported when using separate channel mode!");
+        if (utils::img::get_format_size_in_bytes(*format) != 4) {
+            params_error("currently only 4-byte formats are supported when using separate channel mode");
         }
 
-        if (utils::img::get_format_size_in_bytes(format) % 4 != 0) {
-            throw std::invalid_argument(
-                "currently only 4-component formats are supported when using separate channel mode!"
-            );
+        if (utils::img::get_format_size_in_bytes(*format) % 4 != 0) {
+            params_error("currently only 4-component formats are supported when using separate channel mode");
         }
 
         if (swizzle) {
@@ -849,7 +854,7 @@ void TextureBuilder::check_params() const {
                     && (*swizzle)[comp] != SwizzleComponent::ONE
                     && (*swizzle)[comp] != SwizzleComponent::MAX
                     && (*swizzle)[comp] != SwizzleComponent::HALF_MAX) {
-                    Logger::error("invalid swizzle component for channel provided by an empty path!");
+                    params_error("invalid swizzle component for channel provided by an empty path");
                 }
             }
         }
@@ -857,7 +862,7 @@ void TextureBuilder::check_params() const {
 
     if (is_from_swizzle_fill) {
         if (!swizzle) {
-            Logger::error("textures filled from swizzle must provide a swizzle!");
+            params_error("textures filled from swizzle must provide a swizzle");
         }
 
         for (size_t comp = 0; comp < 3; comp++) {
@@ -865,7 +870,7 @@ void TextureBuilder::check_params() const {
                 && (*swizzle)[comp] != SwizzleComponent::ONE
                 && (*swizzle)[comp] != SwizzleComponent::MAX
                 && (*swizzle)[comp] != SwizzleComponent::HALF_MAX) {
-                Logger::error("invalid swizzle component for swizzle-filled texture!");
+                params_error("invalid swizzle component for swizzle-filled texture");
             }
         }
     }
@@ -875,12 +880,12 @@ uint32_t TextureBuilder::get_layer_count() const {
     if (memory_source || is_from_swizzle_fill) return 1;
 
     const uint32_t sources_count = is_uninitialized
-                                       ? (tex_flags & vk::TextureFlagBitsZRX::CUBEMAP ? 6 : 1)
+                                       ? (!!(tex_flags & TextureFlags::CUBEMAP) ? 6 : 1)
                                        : paths.size();
     return is_separate_channels ? sources_count / 3 : sources_count;
 }
 
-TextureBuilder::LoadedTextureData TextureBuilder::load_from_paths() const {
+auto TextureBuilder::load_from_paths() const -> LoadedTextureData {
     vector<void *> data_sources;
     int tex_width           = 0, tex_height = 0, tex_channels;
     bool is_first_non_empty = true;
@@ -891,13 +896,13 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_paths() const {
             continue;
         }
 
-        stbi_set_flip_vertically_on_load(tex_flags & vk::TextureFlagBitsZRX::HDR ? 1 : 0);
+        stbi_set_flip_vertically_on_load(!!(tex_flags & TextureFlags::HDR) ? 1 : 0);
         const int desired_channels = is_separate_channels ? STBI_grey : STBI_rgb_alpha;
         void *src;
 
         int curr_tex_width, curr_tex_height;
 
-        if (tex_flags & vk::TextureFlagBitsZRX::HDR) {
+        if (!!(tex_flags & TextureFlags::HDR)) {
             src = stbi_loadf(path.string().c_str(), &curr_tex_width, &curr_tex_height, &tex_channels, desired_channels);
         } else {
             src = stbi_load(path.string().c_str(), &curr_tex_width, &curr_tex_height, &tex_channels, desired_channels);
@@ -919,7 +924,7 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_paths() const {
     }
 
     const uint32_t layer_count        = get_layer_count();
-    const vk::DeviceSize format_size  = utils::img::get_format_size_in_bytes(format);
+    const vk::DeviceSize format_size  = utils::img::get_format_size_in_bytes(*format);
     const vk::DeviceSize layer_size   = tex_width * tex_height * format_size;
     const vk::DeviceSize texture_size = layer_size * layer_count;
 
@@ -949,14 +954,14 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_paths() const {
     };
 }
 
-TextureBuilder::LoadedTextureData TextureBuilder::load_from_memory() const {
+auto TextureBuilder::load_from_memory() const -> LoadedTextureData {
     const vector<void *> data_sources = {memory_source};
 
     const uint32_t tex_width  = desired_extent->width;
     const uint32_t tex_height = desired_extent->height;
 
     const uint32_t layer_count       = get_layer_count();
-    const vk::DeviceSize format_size = utils::img::get_format_size_in_bytes(format);
+    const vk::DeviceSize format_size = utils::img::get_format_size_in_bytes(*format);
     const vk::DeviceSize layer_size  = tex_width * tex_height * format_size;
 
     constexpr uint32_t component_count = 4;
@@ -981,11 +986,11 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_memory() const {
     };
 }
 
-TextureBuilder::LoadedTextureData TextureBuilder::load_from_swizzle_fill() const {
+auto TextureBuilder::load_from_swizzle_fill() const -> LoadedTextureData {
     const uint32_t tex_width          = desired_extent->width;
     const uint32_t tex_height         = desired_extent->height;
     const uint32_t layer_count        = get_layer_count();
-    const vk::DeviceSize format_size  = utils::img::get_format_size_in_bytes(format);
+    const vk::DeviceSize format_size  = utils::img::get_format_size_in_bytes(*format);
     const vk::DeviceSize layer_size   = tex_width * tex_height * format_size;
     const vk::DeviceSize texture_size = layer_size * layer_count;
 
@@ -1011,10 +1016,9 @@ TextureBuilder::LoadedTextureData TextureBuilder::load_from_swizzle_fill() const
     };
 }
 
-unique_ptr<Buffer>
-TextureBuilder::make_staging_buffer(const RendererContext &ctx, const LoadedTextureData &data) const {
+auto TextureBuilder::make_staging_buffer(const RendererContext &ctx, const LoadedTextureData &data) const -> unique_ptr<Buffer> {
     const uint32_t layer_count        = get_layer_count();
-    const vk::DeviceSize format_size  = utils::img::get_format_size_in_bytes(format);
+    const vk::DeviceSize format_size  = utils::img::get_format_size_in_bytes(*format);
     const vk::DeviceSize layer_size   = data.extent.width * data.extent.height * format_size;
     const vk::DeviceSize texture_size = layer_size * layer_count;
 
@@ -1043,8 +1047,9 @@ TextureBuilder::make_staging_buffer(const RendererContext &ctx, const LoadedText
     return staging_buffer;
 }
 
-void *TextureBuilder::merge_channels(const vector<void *> &channels_data, const size_t texture_size,
-                                     const size_t component_count) {
+auto TextureBuilder::merge_channels(const vector<void *> &channels_data,
+                                    const size_t texture_size,
+                                    const size_t component_count) -> void * {
     auto *merged = static_cast<uint8_t *>(std::malloc(texture_size));
     if (!merged) {
         Logger::error("malloc failed");
@@ -1103,6 +1108,30 @@ void TextureBuilder::perform_swizzle(uint8_t *data, const size_t size) const {
             }
         }
     }
+}
+
+void TextureBuilder::create_sampler(const RendererContext &ctx, Texture& texture) const {
+    const vk::PhysicalDeviceProperties properties = ctx.physical_device->getProperties();
+
+    const vk::SamplerCreateInfo sampler_info{
+        .magFilter = config.mag_filter ? *config.mag_filter : *default_config.mag_filter,
+        .minFilter = config.min_filter ? *config.min_filter : *default_config.min_filter,
+        .mipmapMode = config.mipmap_mode ? *config.mipmap_mode : *default_config.mipmap_mode,
+        .addressModeU = address_mode,
+        .addressModeV = address_mode,
+        .addressModeW = address_mode,
+        .mipLodBias = config.mip_lod_bias ? *config.mip_lod_bias : *default_config.mip_lod_bias,
+        .anisotropyEnable = vk::True,
+        .maxAnisotropy = properties.limits.maxSamplerAnisotropy,
+        .compareEnable = vk::False,
+        .compareOp = vk::CompareOp::eAlways,
+        .minLod = 0.0f,
+        .maxLod = static_cast<float>(texture.image->get_mip_levels()),
+        .borderColor = vk::BorderColor::eIntOpaqueBlack,
+        .unnormalizedCoordinates = vk::False,
+    };
+
+    texture.sampler = make_unique<vk::raii::Sampler>(*ctx.device, sampler_info);
 }
 
 // ==================== RenderTarget ====================

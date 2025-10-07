@@ -14,25 +14,7 @@ import :Buffer;
 import :Context;
 
 import Cinder.Globals;
-
-// for these bits, we're leveraging the already available flag system from vulkan-hpp.
-// for this reason, the following code needs to be in the vulkan-hpp namespace.
-export namespace VULKAN_HPP_NAMESPACE {
-enum class TextureFlagBitsZRX : uint32_t {
-    CUBEMAP = 1 << 0,
-    HDR     = 1 << 1,
-    MIPMAPS = 1 << 2,
-};
-
-using TextureFlagsZRX = vk::Flags<TextureFlagBitsZRX>;
-
-template<>
-struct FlagTraits<TextureFlagBitsZRX> {
-    static VULKAN_HPP_CONST_OR_CONSTEXPR bool isBitmask = true;
-    static VULKAN_HPP_CONST_OR_CONSTEXPR TextureFlagsZRX allFlags =
-            TextureFlagBitsZRX::CUBEMAP | TextureFlagBitsZRX::HDR | TextureFlagBitsZRX::MIPMAPS;
-};
-} // VULKAN_HPP_NAMESPACE
+import Cinder.Utils;
 
 export namespace zrx {
 /**
@@ -210,9 +192,6 @@ public:
     vk::Format get_format() const { return image->get_format(); }
 
     void generate_mipmaps(const RendererContext &ctx, vk::ImageLayout final_layout) const;
-
-private:
-    void create_sampler(const RendererContext &ctx, vk::SamplerAddressMode address_mode);
 };
 
 enum class SwizzleComponent {
@@ -235,18 +214,44 @@ constexpr SwizzleDesc default_swizzle = {
     SwizzleComponent::A
 };
 
+struct TextureOverrides {
+    optional<vk::Filter>            mag_filter;
+    optional<vk::Filter>            min_filter;
+    optional<vk::SamplerMipmapMode> mipmap_mode;
+    optional<float>                 mip_lod_bias;
+};
+
+enum class TextureFlags : uint32_t {
+    CUBEMAP    = 1 << 0,
+    HDR        = 1 << 1,
+    NO_MIPMAPS = 1 << 2,
+};
+
+template <>
+struct enable_bitmask_operators<TextureFlags> : std::true_type {};
+
 /**
  * Builder used to streamline texture creation due to a huge amount of different parameters.
  * Currently only some specific scenarios are supported and some parameter combinations
  * might not be implemented, due to them not being needed at the moment.
  */
 class TextureBuilder {
-    vk::Format format = vk::Format::eR8G8B8A8Srgb;
+    TextureOverrides default_config = {
+        .mag_filter   = vk::Filter::eLinear,
+        .min_filter   = vk::Filter::eLinear,
+        .mipmap_mode  = vk::SamplerMipmapMode::eLinear,
+        .mip_lod_bias = 0.0f,
+    };
+
+    TextureOverrides config;
+
+    optional<vk::Format> format{};
     vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal;
     vk::ImageUsageFlags usage = vk::ImageUsageFlagBits::eTransferSrc
                                 | vk::ImageUsageFlagBits::eTransferDst
                                 | vk::ImageUsageFlagBits::eSampled;
-    vk::TextureFlagsZRX tex_flags{};
+
+    TextureFlags tex_flags{};
     bool is_separate_channels = false;
     bool is_uninitialized = false;
 
@@ -269,10 +274,15 @@ class TextureBuilder {
     };
 
 public:
-    auto use_format(vk::Format f)                               -> TextureBuilder&;
-    auto use_layout(vk::ImageLayout l)                          -> TextureBuilder&;
-    auto use_usage(vk::ImageUsageFlags u)                       -> TextureBuilder&;
-    auto with_flags(vk::TextureFlagsZRX flags)                  -> TextureBuilder&;
+    auto with_config(const TextureOverrides &config)               -> TextureBuilder&;
+    auto with_format(vk::Format f)                              -> TextureBuilder&;
+    auto with_layout(vk::ImageLayout l)                         -> TextureBuilder&;
+    auto with_usage(vk::ImageUsageFlags u)                      -> TextureBuilder&;
+    auto with_mag_filter(vk::Filter f)                          -> TextureBuilder&;
+    auto with_min_filter(vk::Filter f)                          -> TextureBuilder&;
+    auto with_mipmap_mode(vk::SamplerMipmapMode m)              -> TextureBuilder&;
+    auto with_mip_lod_bias(float lod_bias)                      -> TextureBuilder&;
+    auto with_flags(TextureFlags flags)                         -> TextureBuilder&;
     auto as_separate_channels()                                 -> TextureBuilder&;
     auto with_sampler_address_mode(vk::SamplerAddressMode mode) -> TextureBuilder&;
     auto as_uninitialized(vk::Extent3D extent)                  -> TextureBuilder&;
@@ -313,6 +323,8 @@ private:
     static auto merge_channels(const vector<void *> &channels_data, size_t texture_size, size_t component_count) -> void*;
 
     void perform_swizzle(uint8_t *data, size_t size) const;
+
+    void create_sampler(const RendererContext &ctx, Texture& texture) const;
 };
 
 /**

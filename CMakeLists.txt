@@ -78,7 +78,7 @@ add_subdirectory(deps/assimp)
 # ========================= imGuIZMO.quat =========================
 
 set(IMGUIZMO_QUAT_SRCS
-        deps/imGuIZMO.quat/imguizmo_quat/imguizmo_quat.cpp
+        deps/imGuIZMO.quat/imguizmo_quat/imGuIZMOquat.cpp
 )
 
 # ========================= vk-bootstrap =========================
@@ -167,6 +167,8 @@ target_sources(cinder
                 ${HEADER_ONLY_DEPS_IMPL_SRCS})
 
 target_link_libraries(cinder PRIVATE ${ALL_LIBS})
+
+target_compile_options(cinder PRIVATE -DIMGUIZMO_USES_GLM)
 
 #find_package(glm CONFIG REQUIRED)
 #target_link_libraries(main PRIVATE glm::glm)
