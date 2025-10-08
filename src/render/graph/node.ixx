@@ -32,7 +32,6 @@ public:
           graphics_pipelines(graphics_pipelines), bindless_set(bindless_set) {
     }
 
-    [[nodiscard]]
     auto get_raw_cmd_buffer() const -> const vk::raii::CommandBuffer& { return command_buffer.get(); }
 
     void bind_pipeline(ResourceHandle pipeline_handle);
@@ -134,9 +133,9 @@ public:
     auto explicit_dependencies() const -> const std::vector<RenderNodeHandle>&;
 
     template <typename Functor>
-    auto visit(Functor&& fn) const { return std::visit(std::forward<Functor>(fn), node_); }
+    decltype(auto) visit(Functor&& fn) const { return std::visit(std::forward<Functor>(fn), node_); }
 
     template <typename Functor>
-    auto visit(Functor&& fn) { return std::visit(std::forward<Functor>(fn), node_); }
+    decltype(auto) visit(Functor&& fn) { return std::visit(std::forward<Functor>(fn), node_); }
 };
 } // zrx

@@ -83,7 +83,7 @@ class Engine {
     bool show_debug_quad       = false;
     bool use_ssao              = false;
     bool should_capture_skybox = true;
-    bool do_blur               = true;
+    bool do_blur               = false;
 
 public:
     Engine() {

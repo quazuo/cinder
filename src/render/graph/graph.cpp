@@ -203,7 +203,7 @@ vector<RenderNodeHandle> RenderGraph::add_nodes_sequential(vector<RenderNode> no
     vector<RenderNodeHandle> new_handles;
 
     for (auto& node: nodes) {
-        node.visit([&](auto&& n) {
+        node.visit([&](auto& n) {
             if (!new_handles.empty()) {
                 n.explicit_dependencies.emplace_back(new_handles.back());
             }

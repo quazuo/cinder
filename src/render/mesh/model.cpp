@@ -39,40 +39,37 @@ static glm::mat4 assimp_matrix_to_glm(const aiMatrix4x4 &m) {
 }
 
 Mesh::Mesh(const aiMesh *assimp_mesh) : material_id(assimp_mesh->mMaterialIndex) {
-    std::unordered_map<ModelVertex, uint32_t> unique_vertices;
+    for (size_t vert_idx = 0; vert_idx < assimp_mesh->mNumVertices; vert_idx++) {
+        ModelVertex vertex;
 
-    for (size_t faceIdx = 0; faceIdx < assimp_mesh->mNumFaces; faceIdx++) {
-        const auto &face = assimp_mesh->mFaces[faceIdx];
+        if (assimp_mesh->HasPositions()) {
+            vertex.pos = assimp_vec_to_glm(assimp_mesh->mVertices[vert_idx]);
+        }
 
-        for (size_t i = 0; i < face.mNumIndices; i++) {
-            ModelVertex vertex{};
+        if (assimp_mesh->HasTextureCoords(0)) {
+            vertex.tex_coord = {
+                assimp_mesh->mTextureCoords[0][vert_idx].x,
+                1.0f - assimp_mesh->mTextureCoords[0][vert_idx].y
+            };
+        }
 
-            if (assimp_mesh->HasPositions()) {
-                vertex.pos = assimp_vec_to_glm(assimp_mesh->mVertices[face.mIndices[i]]);
-            }
+        if (assimp_mesh->HasTangentsAndBitangents()) {
+            vertex.normal = assimp_vec_to_glm(assimp_mesh->mNormals[vert_idx]);
+        }
 
-            if (assimp_mesh->HasTextureCoords(0)) {
-                vertex.tex_coord = {
-                    assimp_mesh->mTextureCoords[0][face.mIndices[i]].x,
-                    1.0f - assimp_mesh->mTextureCoords[0][face.mIndices[i]].y
-                };
-            }
+        if (assimp_mesh->HasTangentsAndBitangents()) {
+            vertex.tangent   = assimp_vec_to_glm(assimp_mesh->mTangents[vert_idx]);
+            vertex.bitangent = assimp_vec_to_glm(assimp_mesh->mBitangents[vert_idx]);
+        }
 
-            if (assimp_mesh->HasTangentsAndBitangents()) {
-                vertex.normal = assimp_vec_to_glm(assimp_mesh->mNormals[face.mIndices[i]]);
-            }
+        vertices.push_back(vertex);
+    }
 
-            if (assimp_mesh->HasTangentsAndBitangents()) {
-                vertex.tangent   = assimp_vec_to_glm(assimp_mesh->mTangents[face.mIndices[i]]);
-                vertex.bitangent = assimp_vec_to_glm(assimp_mesh->mBitangents[face.mIndices[i]]);
-            }
+    for (size_t face_idx = 0; face_idx < assimp_mesh->mNumFaces; face_idx++) {
+        const auto &face = assimp_mesh->mFaces[face_idx];
 
-            if (!unique_vertices.contains(vertex)) {
-                unique_vertices[vertex] = vertices.size();
-                vertices.push_back(vertex);
-            }
-
-            indices.push_back(unique_vertices.at(vertex));
+        for (uint32_t i = 0; i < face.mNumIndices; i++) {
+            indices.push_back(face.mIndices[i]);
         }
     }
 }
@@ -337,6 +334,8 @@ void Model::create_buffers(const RendererContext &ctx) {
 }
 
 void Model::create_blas(const RendererContext &ctx) {
+    // todo - convert some of the stuff to VMA calls
+
     const vk::DeviceAddress vertex_address = ctx.device->getBufferAddress({.buffer = **vertex_buffer});
     const vk::DeviceAddress index_address  = ctx.device->getBufferAddress({.buffer = **index_buffer});
 

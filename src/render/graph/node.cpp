@@ -156,34 +156,17 @@ set<ResourceHandle> RenderNodeGraphics::get_all_targets_set() const {
 }
 
 const string& RenderNode::name() const {
-    if (std::holds_alternative<RenderNodeGraphics>(node_)) {
-        return std::get<RenderNodeGraphics>(node_).name;
-    }
-    if (std::holds_alternative<RenderNodeCompute>(node_)) {
-        return std::get<RenderNodeCompute>(node_).name;
-    }
-    throw std::runtime_error("illegal type in RenderNode");
+    return visit([](const auto& n) -> const auto& { return n.name; });
 }
 
 bool RenderNode::should_run() const {
-    if (std::holds_alternative<RenderNodeGraphics>(node_)) {
-        const auto& pred = std::get<RenderNodeGraphics>(node_).should_run_predicate;
+    return visit([](const auto& n) {
+        const auto& pred = n.should_run_predicate;
         return !pred || (*pred)();
-    }
-    if (std::holds_alternative<RenderNodeCompute>(node_)) {
-        const auto& pred = std::get<RenderNodeCompute>(node_).should_run_predicate;
-        return !pred || (*pred)();
-    }
-    throw std::runtime_error("illegal type in RenderNode");
+    });
 }
 
 const std::vector<RenderNodeHandle>& RenderNode::explicit_dependencies() const {
-    if (std::holds_alternative<RenderNodeGraphics>(node_)) {
-        return std::get<RenderNodeGraphics>(node_).explicit_dependencies;
-    }
-    if (std::holds_alternative<RenderNodeCompute>(node_)) {
-        return std::get<RenderNodeCompute>(node_).explicit_dependencies;
-    }
-    throw std::runtime_error("illegal type in RenderNode");
+    return visit([](const auto& n) -> const auto& { return n.explicit_dependencies; });
 }
 } // zrx

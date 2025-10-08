@@ -75,6 +75,13 @@ set(ASSIMP_INSTALL OFF CACHE BOOL "Assimp install" FORCE)
 set(ASSIMP_INSTALL_PDB OFF CACHE BOOL "Assimp install PDB" FORCE)
 add_subdirectory(deps/assimp)
 
+# ========================= enkiTS =========================
+
+add_subdirectory(deps/enkiTS)
+set(ENKITS_SRCS
+        "deps/enkiTS/src/TaskScheduler.cpp"
+)
+
 # ========================= imGuIZMO.quat =========================
 
 set(IMGUIZMO_QUAT_SRCS
@@ -97,16 +104,16 @@ add_subdirectory(deps/glm)
 # ========================= General =========================
 
 include_directories(
-        cmake-build-debug/deps/assimp/include/
         deps/
-        deps/glfw/include/GLFW
-        deps/imgui/
         deps/assimp/include/
+        deps/enkiTS/src/
         deps/glfw/include/
+        deps/glfw/include/GLFW
         deps/glm/
+        deps/imgui/
         deps/imGuIZMO.quat/
-        deps/pix/Include/
         deps/LegitProfiler/
+        deps/pix/Include/
         .
 )
 
@@ -161,6 +168,7 @@ target_sources(cinder
                 "deps/glm/glm/glm.cppm"
         PRIVATE
                 ${CINDER_SRCS}
+                ${ENKITS_SRCS}
                 ${IMGUI_SRCS}
                 ${IMGUI_IMPL_SRCS}
                 ${IMGUIZMO_QUAT_SRCS}

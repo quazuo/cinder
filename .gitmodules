@@ -1,24 +1,9 @@
-[submodule "deps/LegitProfiler"]
-	path = deps/LegitProfiler
-	url = https://github.com/quazuo/LegitProfiler
-[submodule "deps/VulkanMemoryAllocator"]
-	path = deps/VulkanMemoryAllocator
-	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
-[submodule "deps/vk-bootstrap"]
-	path = deps/vk-bootstrap
-	url = https://github.com/charles-lunarg/vk-bootstrap
-[submodule "deps/SPIRV-Reflect"]
-	path = deps/SPIRV-Reflect
-	url = https://github.com/KhronosGroup/SPIRV-Reflect
-[submodule "deps/imGuIZMO.quat"]
-	path = deps/imGuIZMO.quat
-	url = https://github.com/BrutPitt/imGuIZMO.quat
-[submodule "deps/imgui-filebrowser"]
-	path = deps/imgui-filebrowser
-	url = https://github.com/AirGuanZ/imgui-filebrowser
 [submodule "deps/assimp"]
 	path = deps/assimp
 	url = https://github.com/assimp/assimp
+[submodule "deps/enkiTS"]
+    path = deps/enkiTS
+    url = https://github.com/dougbinks/enkiTS
 [submodule "deps/glfw"]
 	path = deps/glfw
 	url = https://github.com/glfw/glfw
@@ -28,3 +13,21 @@
 [submodule "deps/imgui"]
 	path = deps/imgui
 	url = https://github.com/ocornut/imgui
+[submodule "deps/imGuIZMO.quat"]
+	path = deps/imGuIZMO.quat
+	url = https://github.com/BrutPitt/imGuIZMO.quat
+[submodule "deps/imgui-filebrowser"]
+	path = deps/imgui-filebrowser
+	url = https://github.com/AirGuanZ/imgui-filebrowser
+[submodule "deps/LegitProfiler"]
+	path = deps/LegitProfiler
+	url = https://github.com/quazuo/LegitProfiler
+[submodule "deps/SPIRV-Reflect"]
+	path = deps/SPIRV-Reflect
+	url = https://github.com/KhronosGroup/SPIRV-Reflect
+[submodule "deps/vk-bootstrap"]
+	path = deps/vk-bootstrap
+	url = https://github.com/charles-lunarg/vk-bootstrap
+[submodule "deps/VulkanMemoryAllocator"]
+	path = deps/VulkanMemoryAllocator
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator
