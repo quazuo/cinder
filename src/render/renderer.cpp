@@ -20,7 +20,7 @@ VulkanRenderer::VulkanRenderer() {
     constexpr int INIT_WINDOW_WIDTH = 1600;
     constexpr int INIT_WINDOW_HEIGHT = 1200;
 
-    glfwWindowHint(ZRX_GLFW_CLIENT_API, ZRX_GLFW_NO_API);
+    glfwWindowHint(glfw::CLIENT_API, glfw::NO_API);
     window = glfwCreateWindow(INIT_WINDOW_WIDTH, INIT_WINDOW_HEIGHT, "Cinder", nullptr, nullptr);
 
     init_glfw_user_pointer(window);

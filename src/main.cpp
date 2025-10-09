@@ -548,19 +548,19 @@ private:
     }
 
     void bind_key_actions() {
-        input_manager->bind_callback(ZRX_GLFW_KEY_GRAVE_ACCENT, EActivationType::PRESS_ONCE, [&](const float delta_time) {
+        input_manager->bind_callback(glfw::Key::KEY_GRAVE_ACCENT, EActivationType::PRESS_ONCE, [&](const float delta_time) {
             (void) delta_time;
             is_gui_enabled = !is_gui_enabled;
         });
 
-        input_manager->bind_callback(ZRX_GLFW_KEY_F1, EActivationType::PRESS_ONCE, [&](const float delta_time) {
+        input_manager->bind_callback(glfw::Key::KEY_F1, EActivationType::PRESS_ONCE, [&](const float delta_time) {
             (void) delta_time;
             do_blur = !do_blur;
         });
     }
 
     void bind_mouse_drag_actions() {
-        input_manager->bind_mouse_drag_callback(ZRX_GLFW_MOUSE_BUTTON_RIGHT, [&](const double dx, const double dy) {
+        input_manager->bind_mouse_drag_callback(glfw::MouseButton::MOUSE_BUTTON_RIGHT, [&](const double dx, const double dy) {
             static constexpr float speed = 0.002;
             const float camera_distance  = glm::length(camera->get_pos());
 

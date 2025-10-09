@@ -9,7 +9,8 @@ module;
 
 export module glfw;
 
-export {
+export
+{
     using ::GLFWwindow;
     using ::glfwWindowShouldClose;
     using ::glfwTerminate;
@@ -35,159 +36,167 @@ export {
     using ::glfwCreateWindowSurface;
     using ::glfwWaitEvents;
 
-    constexpr int ZRX_GLFW_CLIENT_API = GLFW_CLIENT_API;
-    constexpr int ZRX_GLFW_NO_API = GLFW_NO_API;
-
-    /* The unknown key */
-    constexpr uint32_t ZRX_GLFW_KEY_UNKNOWN = GLFW_KEY_UNKNOWN;
-
-    /* Printable keys */
-    constexpr uint32_t ZRX_GLFW_KEY_SPACE = GLFW_KEY_SPACE;
-    constexpr uint32_t ZRX_GLFW_KEY_APOSTROPHE = GLFW_KEY_APOSTROPHE;
-    constexpr uint32_t ZRX_GLFW_KEY_COMMA = GLFW_KEY_COMMA;
-    constexpr uint32_t ZRX_GLFW_KEY_MINUS = GLFW_KEY_MINUS;
-    constexpr uint32_t ZRX_GLFW_KEY_PERIOD = GLFW_KEY_PERIOD;
-    constexpr uint32_t ZRX_GLFW_KEY_SLASH = GLFW_KEY_SLASH;
-    constexpr uint32_t ZRX_GLFW_KEY_0 = GLFW_KEY_0;
-    constexpr uint32_t ZRX_GLFW_KEY_1 = GLFW_KEY_1;
-    constexpr uint32_t ZRX_GLFW_KEY_2 = GLFW_KEY_2;
-    constexpr uint32_t ZRX_GLFW_KEY_3 = GLFW_KEY_3;
-    constexpr uint32_t ZRX_GLFW_KEY_4 = GLFW_KEY_4;
-    constexpr uint32_t ZRX_GLFW_KEY_5 = GLFW_KEY_5;
-    constexpr uint32_t ZRX_GLFW_KEY_6 = GLFW_KEY_6;
-    constexpr uint32_t ZRX_GLFW_KEY_7 = GLFW_KEY_7;
-    constexpr uint32_t ZRX_GLFW_KEY_8 = GLFW_KEY_8;
-    constexpr uint32_t ZRX_GLFW_KEY_9 = GLFW_KEY_9;
-    constexpr uint32_t ZRX_GLFW_KEY_SEMICOLON = GLFW_KEY_SEMICOLON;
-    constexpr uint32_t ZRX_GLFW_KEY_EQUAL = GLFW_KEY_EQUAL;
-    constexpr uint32_t ZRX_GLFW_KEY_A = GLFW_KEY_A;
-    constexpr uint32_t ZRX_GLFW_KEY_B = GLFW_KEY_B;
-    constexpr uint32_t ZRX_GLFW_KEY_C = GLFW_KEY_C;
-    constexpr uint32_t ZRX_GLFW_KEY_D = GLFW_KEY_D;
-    constexpr uint32_t ZRX_GLFW_KEY_E = GLFW_KEY_E;
-    constexpr uint32_t ZRX_GLFW_KEY_F = GLFW_KEY_F;
-    constexpr uint32_t ZRX_GLFW_KEY_G = GLFW_KEY_G;
-    constexpr uint32_t ZRX_GLFW_KEY_H = GLFW_KEY_H;
-    constexpr uint32_t ZRX_GLFW_KEY_I = GLFW_KEY_I;
-    constexpr uint32_t ZRX_GLFW_KEY_J = GLFW_KEY_J;
-    constexpr uint32_t ZRX_GLFW_KEY_K = GLFW_KEY_K;
-    constexpr uint32_t ZRX_GLFW_KEY_L = GLFW_KEY_L;
-    constexpr uint32_t ZRX_GLFW_KEY_M = GLFW_KEY_M;
-    constexpr uint32_t ZRX_GLFW_KEY_N = GLFW_KEY_N;
-    constexpr uint32_t ZRX_GLFW_KEY_O = GLFW_KEY_O;
-    constexpr uint32_t ZRX_GLFW_KEY_P = GLFW_KEY_P;
-    constexpr uint32_t ZRX_GLFW_KEY_Q = GLFW_KEY_Q;
-    constexpr uint32_t ZRX_GLFW_KEY_R = GLFW_KEY_R;
-    constexpr uint32_t ZRX_GLFW_KEY_S = GLFW_KEY_S;
-    constexpr uint32_t ZRX_GLFW_KEY_T = GLFW_KEY_T;
-    constexpr uint32_t ZRX_GLFW_KEY_U = GLFW_KEY_U;
-    constexpr uint32_t ZRX_GLFW_KEY_V = GLFW_KEY_V;
-    constexpr uint32_t ZRX_GLFW_KEY_W = GLFW_KEY_W;
-    constexpr uint32_t ZRX_GLFW_KEY_X = GLFW_KEY_X;
-    constexpr uint32_t ZRX_GLFW_KEY_Y = GLFW_KEY_Y;
-    constexpr uint32_t ZRX_GLFW_KEY_Z = GLFW_KEY_Z;
-    constexpr uint32_t ZRX_GLFW_KEY_LEFT_BRACKET = GLFW_KEY_LEFT_BRACKET;
-    constexpr uint32_t ZRX_GLFW_KEY_BACKSLASH = GLFW_KEY_BACKSLASH;
-    constexpr uint32_t ZRX_GLFW_KEY_RIGHT_BRACKET = GLFW_KEY_RIGHT_BRACKET;
-    constexpr uint32_t ZRX_GLFW_KEY_GRAVE_ACCENT = GLFW_KEY_GRAVE_ACCENT;
-    constexpr uint32_t ZRX_GLFW_KEY_WORLD_1 = GLFW_KEY_WORLD_1;
-    constexpr uint32_t ZRX_GLFW_KEY_WORLD_2 = GLFW_KEY_WORLD_2;
-
-    /* Function keys */
-    constexpr uint32_t ZRX_GLFW_KEY_ESCAPE = GLFW_KEY_ESCAPE;
-    constexpr uint32_t ZRX_GLFW_KEY_ENTER = GLFW_KEY_ENTER;
-    constexpr uint32_t ZRX_GLFW_KEY_TAB = GLFW_KEY_TAB;
-    constexpr uint32_t ZRX_GLFW_KEY_BACKSPACE = GLFW_KEY_BACKSPACE;
-    constexpr uint32_t ZRX_GLFW_KEY_INSERT = GLFW_KEY_INSERT;
-    constexpr uint32_t ZRX_GLFW_KEY_DELETE = GLFW_KEY_DELETE;
-    constexpr uint32_t ZRX_GLFW_KEY_RIGHT = GLFW_KEY_RIGHT;
-    constexpr uint32_t ZRX_GLFW_KEY_LEFT = GLFW_KEY_LEFT;
-    constexpr uint32_t ZRX_GLFW_KEY_DOWN = GLFW_KEY_DOWN;
-    constexpr uint32_t ZRX_GLFW_KEY_UP = GLFW_KEY_UP;
-    constexpr uint32_t ZRX_GLFW_KEY_PAGE_UP = GLFW_KEY_PAGE_UP;
-    constexpr uint32_t ZRX_GLFW_KEY_PAGE_DOWN = GLFW_KEY_PAGE_DOWN;
-    constexpr uint32_t ZRX_GLFW_KEY_HOME = GLFW_KEY_HOME;
-    constexpr uint32_t ZRX_GLFW_KEY_END = GLFW_KEY_END;
-    constexpr uint32_t ZRX_GLFW_KEY_CAPS_LOCK = GLFW_KEY_CAPS_LOCK;
-    constexpr uint32_t ZRX_GLFW_KEY_SCROLL_LOCK = GLFW_KEY_SCROLL_LOCK;
-    constexpr uint32_t ZRX_GLFW_KEY_NUM_LOCK = GLFW_KEY_NUM_LOCK;
-    constexpr uint32_t ZRX_GLFW_KEY_PRINT_SCREEN = GLFW_KEY_PRINT_SCREEN;
-    constexpr uint32_t ZRX_GLFW_KEY_PAUSE = GLFW_KEY_PAUSE;
-    constexpr uint32_t ZRX_GLFW_KEY_F1 = GLFW_KEY_F1;
-    constexpr uint32_t ZRX_GLFW_KEY_F2 = GLFW_KEY_F2;
-    constexpr uint32_t ZRX_GLFW_KEY_F3 = GLFW_KEY_F3;
-    constexpr uint32_t ZRX_GLFW_KEY_F4 = GLFW_KEY_F4;
-    constexpr uint32_t ZRX_GLFW_KEY_F5 = GLFW_KEY_F5;
-    constexpr uint32_t ZRX_GLFW_KEY_F6 = GLFW_KEY_F6;
-    constexpr uint32_t ZRX_GLFW_KEY_F7 = GLFW_KEY_F7;
-    constexpr uint32_t ZRX_GLFW_KEY_F8 = GLFW_KEY_F8;
-    constexpr uint32_t ZRX_GLFW_KEY_F9 = GLFW_KEY_F9;
-    constexpr uint32_t ZRX_GLFW_KEY_F10 = GLFW_KEY_F10;
-    constexpr uint32_t ZRX_GLFW_KEY_F11 = GLFW_KEY_F11;
-    constexpr uint32_t ZRX_GLFW_KEY_F12 = GLFW_KEY_F12;
-    constexpr uint32_t ZRX_GLFW_KEY_F13 = GLFW_KEY_F13;
-    constexpr uint32_t ZRX_GLFW_KEY_F14 = GLFW_KEY_F14;
-    constexpr uint32_t ZRX_GLFW_KEY_F15 = GLFW_KEY_F15;
-    constexpr uint32_t ZRX_GLFW_KEY_F16 = GLFW_KEY_F16;
-    constexpr uint32_t ZRX_GLFW_KEY_F17 = GLFW_KEY_F17;
-    constexpr uint32_t ZRX_GLFW_KEY_F18 = GLFW_KEY_F18;
-    constexpr uint32_t ZRX_GLFW_KEY_F19 = GLFW_KEY_F19;
-    constexpr uint32_t ZRX_GLFW_KEY_F20 = GLFW_KEY_F20;
-    constexpr uint32_t ZRX_GLFW_KEY_F21 = GLFW_KEY_F21;
-    constexpr uint32_t ZRX_GLFW_KEY_F22 = GLFW_KEY_F22;
-    constexpr uint32_t ZRX_GLFW_KEY_F23 = GLFW_KEY_F23;
-    constexpr uint32_t ZRX_GLFW_KEY_F24 = GLFW_KEY_F24;
-    constexpr uint32_t ZRX_GLFW_KEY_F25 = GLFW_KEY_F25;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_0 = GLFW_KEY_KP_0;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_1 = GLFW_KEY_KP_1;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_2 = GLFW_KEY_KP_2;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_3 = GLFW_KEY_KP_3;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_4 = GLFW_KEY_KP_4;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_5 = GLFW_KEY_KP_5;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_6 = GLFW_KEY_KP_6;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_7 = GLFW_KEY_KP_7;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_8 = GLFW_KEY_KP_8;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_9 = GLFW_KEY_KP_9;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_DECIMAL = GLFW_KEY_KP_DECIMAL;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_DIVIDE = GLFW_KEY_KP_DIVIDE;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_MULTIPLY = GLFW_KEY_KP_MULTIPLY;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_SUBTRACT = GLFW_KEY_KP_SUBTRACT;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_ADD = GLFW_KEY_KP_ADD;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_ENTER = GLFW_KEY_KP_ENTER;
-    constexpr uint32_t ZRX_GLFW_KEY_KP_EQUAL = GLFW_KEY_KP_EQUAL;
-    constexpr uint32_t ZRX_GLFW_KEY_LEFT_SHIFT = GLFW_KEY_LEFT_SHIFT;
-    constexpr uint32_t ZRX_GLFW_KEY_LEFT_CONTROL = GLFW_KEY_LEFT_CONTROL;
-    constexpr uint32_t ZRX_GLFW_KEY_LEFT_ALT = GLFW_KEY_LEFT_ALT;
-    constexpr uint32_t ZRX_GLFW_KEY_LEFT_SUPER = GLFW_KEY_LEFT_SUPER;
-    constexpr uint32_t ZRX_GLFW_KEY_RIGHT_SHIFT = GLFW_KEY_RIGHT_SHIFT;
-    constexpr uint32_t ZRX_GLFW_KEY_RIGHT_CONTROL = GLFW_KEY_RIGHT_CONTROL;
-    constexpr uint32_t ZRX_GLFW_KEY_RIGHT_ALT = GLFW_KEY_RIGHT_ALT;
-    constexpr uint32_t ZRX_GLFW_KEY_RIGHT_SUPER = GLFW_KEY_RIGHT_SUPER;
-    constexpr uint32_t ZRX_GLFW_KEY_MENU = GLFW_KEY_MENU;
-
-    constexpr uint32_t ZRX_GLFW_KEY_LAST = GLFW_KEY_LAST;
-
-    /* Mouse buttons */
-    constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_1 = GLFW_MOUSE_BUTTON_1;
-    constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_2 = GLFW_MOUSE_BUTTON_2;
-    constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_3 = GLFW_MOUSE_BUTTON_3;
-    constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_4 = GLFW_MOUSE_BUTTON_4;
-    constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_5 = GLFW_MOUSE_BUTTON_5;
-    constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_6 = GLFW_MOUSE_BUTTON_6;
-    constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_7 = GLFW_MOUSE_BUTTON_7;
-    constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_8 = GLFW_MOUSE_BUTTON_8;
-    constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_LAST = GLFW_MOUSE_BUTTON_LAST;
-    constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_LEFT = GLFW_MOUSE_BUTTON_LEFT;
-    constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_RIGHT = GLFW_MOUSE_BUTTON_RIGHT;
-    constexpr uint32_t ZRX_GLFW_MOUSE_BUTTON_MIDDLE = GLFW_MOUSE_BUTTON_MIDDLE;
-
     /* Windows */
-
     using ::LPCSTR;
     using ::MessageBoxA;
+}
 
-    /* Other macros */
-    constexpr uint32_t WIN_MB_OK = MB_OK;
+export namespace glfw {
+    enum class Key : uint32_t {
+        /* The unknown key */
+        KEY_UNKNOWN = GLFW_KEY_UNKNOWN,
+
+        /* Printable keys */
+        KEY_SPACE         = GLFW_KEY_SPACE,
+        KEY_APOSTROPHE    = GLFW_KEY_APOSTROPHE,
+        KEY_COMMA         = GLFW_KEY_COMMA,
+        KEY_MINUS         = GLFW_KEY_MINUS,
+        KEY_PERIOD        = GLFW_KEY_PERIOD,
+        KEY_SLASH         = GLFW_KEY_SLASH,
+        KEY_0             = GLFW_KEY_0,
+        KEY_1             = GLFW_KEY_1,
+        KEY_2             = GLFW_KEY_2,
+        KEY_3             = GLFW_KEY_3,
+        KEY_4             = GLFW_KEY_4,
+        KEY_5             = GLFW_KEY_5,
+        KEY_6             = GLFW_KEY_6,
+        KEY_7             = GLFW_KEY_7,
+        KEY_8             = GLFW_KEY_8,
+        KEY_9             = GLFW_KEY_9,
+        KEY_SEMICOLON     = GLFW_KEY_SEMICOLON,
+        KEY_EQUAL         = GLFW_KEY_EQUAL,
+        KEY_A             = GLFW_KEY_A,
+        KEY_B             = GLFW_KEY_B,
+        KEY_C             = GLFW_KEY_C,
+        KEY_D             = GLFW_KEY_D,
+        KEY_E             = GLFW_KEY_E,
+        KEY_F             = GLFW_KEY_F,
+        KEY_G             = GLFW_KEY_G,
+        KEY_H             = GLFW_KEY_H,
+        KEY_I             = GLFW_KEY_I,
+        KEY_J             = GLFW_KEY_J,
+        KEY_K             = GLFW_KEY_K,
+        KEY_L             = GLFW_KEY_L,
+        KEY_M             = GLFW_KEY_M,
+        KEY_N             = GLFW_KEY_N,
+        KEY_O             = GLFW_KEY_O,
+        KEY_P             = GLFW_KEY_P,
+        KEY_Q             = GLFW_KEY_Q,
+        KEY_R             = GLFW_KEY_R,
+        KEY_S             = GLFW_KEY_S,
+        KEY_T             = GLFW_KEY_T,
+        KEY_U             = GLFW_KEY_U,
+        KEY_V             = GLFW_KEY_V,
+        KEY_W             = GLFW_KEY_W,
+        KEY_X             = GLFW_KEY_X,
+        KEY_Y             = GLFW_KEY_Y,
+        KEY_Z             = GLFW_KEY_Z,
+        KEY_LEFT_BRACKET  = GLFW_KEY_LEFT_BRACKET,
+        KEY_BACKSLASH     = GLFW_KEY_BACKSLASH,
+        KEY_RIGHT_BRACKET = GLFW_KEY_RIGHT_BRACKET,
+        KEY_GRAVE_ACCENT  = GLFW_KEY_GRAVE_ACCENT,
+        KEY_WORLD_1       = GLFW_KEY_WORLD_1,
+        KEY_WORLD_2       = GLFW_KEY_WORLD_2,
+
+        /* Function keys */
+        KEY_ESCAPE        = GLFW_KEY_ESCAPE,
+        KEY_ENTER         = GLFW_KEY_ENTER,
+        KEY_TAB           = GLFW_KEY_TAB,
+        KEY_BACKSPACE     = GLFW_KEY_BACKSPACE,
+        KEY_INSERT        = GLFW_KEY_INSERT,
+        KEY_DELETE        = GLFW_KEY_DELETE,
+        KEY_RIGHT         = GLFW_KEY_RIGHT,
+        KEY_LEFT          = GLFW_KEY_LEFT,
+        KEY_DOWN          = GLFW_KEY_DOWN,
+        KEY_UP            = GLFW_KEY_UP,
+        KEY_PAGE_UP       = GLFW_KEY_PAGE_UP,
+        KEY_PAGE_DOWN     = GLFW_KEY_PAGE_DOWN,
+        KEY_HOME          = GLFW_KEY_HOME,
+        KEY_END           = GLFW_KEY_END,
+        KEY_CAPS_LOCK     = GLFW_KEY_CAPS_LOCK,
+        KEY_SCROLL_LOCK   = GLFW_KEY_SCROLL_LOCK,
+        KEY_NUM_LOCK      = GLFW_KEY_NUM_LOCK,
+        KEY_PRINT_SCREEN  = GLFW_KEY_PRINT_SCREEN,
+        KEY_PAUSE         = GLFW_KEY_PAUSE,
+        KEY_F1            = GLFW_KEY_F1,
+        KEY_F2            = GLFW_KEY_F2,
+        KEY_F3            = GLFW_KEY_F3,
+        KEY_F4            = GLFW_KEY_F4,
+        KEY_F5            = GLFW_KEY_F5,
+        KEY_F6            = GLFW_KEY_F6,
+        KEY_F7            = GLFW_KEY_F7,
+        KEY_F8            = GLFW_KEY_F8,
+        KEY_F9            = GLFW_KEY_F9,
+        KEY_F10           = GLFW_KEY_F10,
+        KEY_F11           = GLFW_KEY_F11,
+        KEY_F12           = GLFW_KEY_F12,
+        KEY_F13           = GLFW_KEY_F13,
+        KEY_F14           = GLFW_KEY_F14,
+        KEY_F15           = GLFW_KEY_F15,
+        KEY_F16           = GLFW_KEY_F16,
+        KEY_F17           = GLFW_KEY_F17,
+        KEY_F18           = GLFW_KEY_F18,
+        KEY_F19           = GLFW_KEY_F19,
+        KEY_F20           = GLFW_KEY_F20,
+        KEY_F21           = GLFW_KEY_F21,
+        KEY_F22           = GLFW_KEY_F22,
+        KEY_F23           = GLFW_KEY_F23,
+        KEY_F24           = GLFW_KEY_F24,
+        KEY_F25           = GLFW_KEY_F25,
+        KEY_KP_0          = GLFW_KEY_KP_0,
+        KEY_KP_1          = GLFW_KEY_KP_1,
+        KEY_KP_2          = GLFW_KEY_KP_2,
+        KEY_KP_3          = GLFW_KEY_KP_3,
+        KEY_KP_4          = GLFW_KEY_KP_4,
+        KEY_KP_5          = GLFW_KEY_KP_5,
+        KEY_KP_6          = GLFW_KEY_KP_6,
+        KEY_KP_7          = GLFW_KEY_KP_7,
+        KEY_KP_8          = GLFW_KEY_KP_8,
+        KEY_KP_9          = GLFW_KEY_KP_9,
+        KEY_KP_DECIMAL    = GLFW_KEY_KP_DECIMAL,
+        KEY_KP_DIVIDE     = GLFW_KEY_KP_DIVIDE,
+        KEY_KP_MULTIPLY   = GLFW_KEY_KP_MULTIPLY,
+        KEY_KP_SUBTRACT   = GLFW_KEY_KP_SUBTRACT,
+        KEY_KP_ADD        = GLFW_KEY_KP_ADD,
+        KEY_KP_ENTER      = GLFW_KEY_KP_ENTER,
+        KEY_KP_EQUAL      = GLFW_KEY_KP_EQUAL,
+        KEY_LEFT_SHIFT    = GLFW_KEY_LEFT_SHIFT,
+        KEY_LEFT_CONTROL  = GLFW_KEY_LEFT_CONTROL,
+        KEY_LEFT_ALT      = GLFW_KEY_LEFT_ALT,
+        KEY_LEFT_SUPER    = GLFW_KEY_LEFT_SUPER,
+        KEY_RIGHT_SHIFT   = GLFW_KEY_RIGHT_SHIFT,
+        KEY_RIGHT_CONTROL = GLFW_KEY_RIGHT_CONTROL,
+        KEY_RIGHT_ALT     = GLFW_KEY_RIGHT_ALT,
+        KEY_RIGHT_SUPER   = GLFW_KEY_RIGHT_SUPER,
+        KEY_MENU          = GLFW_KEY_MENU,
+
+        KEY_LAST          = GLFW_KEY_LAST,
+    };
+
+    enum class MouseButton : uint32_t {
+        MOUSE_BUTTON_1      = GLFW_MOUSE_BUTTON_1,
+        MOUSE_BUTTON_2      = GLFW_MOUSE_BUTTON_2,
+        MOUSE_BUTTON_3      = GLFW_MOUSE_BUTTON_3,
+        MOUSE_BUTTON_4      = GLFW_MOUSE_BUTTON_4,
+        MOUSE_BUTTON_5      = GLFW_MOUSE_BUTTON_5,
+        MOUSE_BUTTON_6      = GLFW_MOUSE_BUTTON_6,
+        MOUSE_BUTTON_7      = GLFW_MOUSE_BUTTON_7,
+        MOUSE_BUTTON_8      = GLFW_MOUSE_BUTTON_8,
+        MOUSE_BUTTON_LAST   = GLFW_MOUSE_BUTTON_LAST,
+        MOUSE_BUTTON_LEFT   = GLFW_MOUSE_BUTTON_LEFT,
+        MOUSE_BUTTON_RIGHT  = GLFW_MOUSE_BUTTON_RIGHT,
+        MOUSE_BUTTON_MIDDLE = GLFW_MOUSE_BUTTON_MIDDLE,
+    };
+
+    constexpr int CLIENT_API = GLFW_CLIENT_API;
+    constexpr int NO_API     = GLFW_NO_API;
+
+    constexpr int CURSOR          = GLFW_CURSOR;
+    constexpr int CURSOR_HIDDEN   = GLFW_CURSOR_HIDDEN;
+    constexpr int CURSOR_NORMAL   = GLFW_CURSOR_NORMAL;
+    constexpr int CURSOR_DISABLED = GLFW_CURSOR_DISABLED;
+
+    constexpr uint32_t WIN_MB_OK        = MB_OK;
     constexpr uint32_t WIN_EXIT_FAILURE = EXIT_FAILURE;
     constexpr uint32_t WIN_EXIT_SUCCESS = EXIT_SUCCESS;
 }

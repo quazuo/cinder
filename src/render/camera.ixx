@@ -73,7 +73,7 @@ public:
 private:
     static void scroll_callback(GLFWwindow *window, double dx, double dy);
 
-    void bind_camera_lock_key();
+    void bind_cursor_lock_key();
 
     /**
      * Binds keys used to rotate the camera.

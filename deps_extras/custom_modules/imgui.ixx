@@ -40,6 +40,19 @@ export {
     using ::ImGuiComboFlags_WidthFitPreview;
 
     using ::ImGuiHoveredFlags_AnyWindow;
+
+    using ::operator+;
+    using ::operator/;
+    using ::operator+;
+    using ::operator-;
+
+    using ::operator+=;
+    using ::operator-=;
+    using ::operator*=;
+    using ::operator/=;
+
+    using ::operator==;
+    using ::operator!=;
 }
 
 export namespace ImGui {
