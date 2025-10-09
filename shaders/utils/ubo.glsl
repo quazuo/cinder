@@ -15,13 +15,17 @@ struct Matrices {
     mat4 cubemap_capture_proj;
 };
 
+struct LightData {
+    vec3 direction;
+    vec3 color;
+    float intensity;
+    mat4 proj_x_view;
+};
+
 struct MiscData {
     float debug_number;
     float z_near;
     float z_far;
     uint use_ssao;
-    float light_intensity;
-    vec3 light_direction;
-    vec3 light_color;
     vec3 camera_pos;
 };

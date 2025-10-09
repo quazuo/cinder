@@ -17,6 +17,7 @@ layout (push_constant) uniform PushResourceIDs {
 layout(set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform UniformBufferObject {
     WindowRes window;
     Matrices matrices;
+    LightData light;
     MiscData misc;
 } ubos[];
 

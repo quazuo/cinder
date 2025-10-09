@@ -2,7 +2,7 @@
 for /D %%i in (C:\VulkanSDK\*) do set "SDK_DIR=%%i"
 set "IS_ERROR=0"
 
-set graphics_shaders="main" "skybox" "prepass" "sphere-cube" "ss-quad" "ssao"
+set graphics_shaders="main" "skybox" "prepass" "sphere-cube" "ss-quad" "ssao" "shadowmap"
 set compute_shaders="blur-x" "blur-y"
 set rt_shaders="raytrace"
 

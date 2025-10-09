@@ -22,6 +22,7 @@ layout (push_constant) uniform PushResourceIDs {
 layout(set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform GeneralUniforms {
     WindowRes window;
     Matrices matrices;
+    LightData light;
     MiscData misc;
 } ubos[];
 
@@ -75,8 +76,8 @@ void main() {
     float metallic = orm.b;
 
     // light related values
-    vec3 light_dir = normalize(ubos[ubo_id].misc.light_direction);
-    vec3 light_color = ubos[ubo_id].misc.light_color;
+    vec3 light_dir = normalize(ubos[ubo_id].light.direction);
+    vec3 light_color = ubos[ubo_id].light.intensity * ubos[ubo_id].light.color;
 
     // utility vectors
     vec3 view = normalize(ubos[ubo_id].misc.camera_pos - worldPosition);

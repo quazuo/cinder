@@ -41,6 +41,7 @@ namespace glsl {
 struct GraphicsUBO {
     GLSL_ALIGN glsl::WindowRes window{};
     GLSL_ALIGN glsl::Matrices matrices{};
+    GLSL_ALIGN glsl::LightData light{};
     GLSL_ALIGN glsl::MiscData misc{};
 };
 
@@ -283,9 +284,11 @@ private:
 
         // ================== shaders ==================
 
+        const std::string shader_path_prefix = "../shaders/obj/";
+
         const auto cubecap_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = "../shaders/obj/sphere-cube-vert.spv",
-            .fragment_path = "../shaders/obj/sphere-cube-frag.spv",
+            .vertex_path = shader_path_prefix + "sphere-cube-vert.spv",
+            .fragment_path = shader_path_prefix + "sphere-cube-frag.spv",
             .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
             .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
             .color_formats = {skybox_tex_format},
@@ -294,9 +297,17 @@ private:
             }
         });
 
+        const auto shadowmap_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
+            .vertex_path = shader_path_prefix + "shadowmap-vert.spv",
+            .fragment_path = shader_path_prefix + "shadowmap-frag.spv",
+            .binding_descriptions = ModelVertex::get_binding_descriptions(),
+            .attr_descriptions = ModelVertex::get_attribute_descriptions(),
+            .depth_format = shadowmap_tex_format
+        });
+
         const auto prepass_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = "../shaders/obj/prepass-vert.spv",
-            .fragment_path = "../shaders/obj/prepass-frag.spv",
+            .vertex_path = shader_path_prefix + "prepass-vert.spv",
+            .fragment_path = shader_path_prefix + "prepass-frag.spv",
             .binding_descriptions = ModelVertex::get_binding_descriptions(),
             .attr_descriptions = ModelVertex::get_attribute_descriptions(),
             .color_formats = {g_buffer_color_format, g_buffer_color_format},
@@ -304,16 +315,16 @@ private:
         });
 
         const auto ssao_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = "../shaders/obj/ssao-vert.spv",
-            .fragment_path = "../shaders/obj/ssao-frag.spv",
+            .vertex_path = shader_path_prefix + "ssao-vert.spv",
+            .fragment_path = shader_path_prefix + "ssao-frag.spv",
             .binding_descriptions = ScreenSpaceQuadVertex::get_binding_descriptions(),
             .attr_descriptions = ScreenSpaceQuadVertex::get_attribute_descriptions(),
             .color_formats = {ssao_tex_format}
         });
 
         const auto skybox_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = "../shaders/obj/skybox-vert.spv",
-            .fragment_path = "../shaders/obj/skybox-frag.spv",
+            .vertex_path = shader_path_prefix + "skybox-vert.spv",
+            .fragment_path = shader_path_prefix + "skybox-frag.spv",
             .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
             .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
             .color_formats = {final_no_gamma_format},
@@ -324,8 +335,8 @@ private:
         });
 
         const auto main_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = "../shaders/obj/main-vert.spv",
-            .fragment_path = "../shaders/obj/main-frag.spv",
+            .vertex_path = shader_path_prefix + "main-vert.spv",
+            .fragment_path = shader_path_prefix + "main-frag.spv",
             .binding_descriptions = ModelVertex::get_binding_descriptions(),
             .attr_descriptions = ModelVertex::get_attribute_descriptions(),
             .color_formats = {final_no_gamma_format},
@@ -333,16 +344,16 @@ private:
         });
 
         const auto blur_x_pipeline = render_graph.add_pipeline(ComputePipelineDesc{
-            .path = "../shaders/obj/blur-x-comp.spv",
+            .path = shader_path_prefix + "blur-x-comp.spv",
         });
 
         const auto blur_y_pipeline = render_graph.add_pipeline(ComputePipelineDesc{
-            .path = "../shaders/obj/blur-y-comp.spv",
+            .path = shader_path_prefix + "blur-y-comp.spv",
         });
 
         const auto final_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = "../shaders/obj/ss-quad-vert.spv",
-            .fragment_path = "../shaders/obj/ss-quad-frag.spv",
+            .vertex_path = shader_path_prefix + "ss-quad-vert.spv",
+            .fragment_path = shader_path_prefix + "ss-quad-frag.spv",
             .binding_descriptions = ScreenSpaceQuadVertex::get_binding_descriptions(),
             .attr_descriptions = ScreenSpaceQuadVertex::get_attribute_descriptions(),
             .color_formats = {FINAL_FORMAT},
@@ -485,6 +496,10 @@ private:
 
         static const glm::mat4 cubemap_face_projection = glm::gtc::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
 
+        const auto light_direction_vec = glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(-1, 0, 0, 0));
+        const auto light_view = glm::gtc::lookAt(light_direction_vec, glm::vec3(0), glm::vec3(0, 1, 0));
+        const auto light_proj = glm::gtc::ortho(-100.0f, 100.0f, -100.0f, 100.0f, z_near, z_far);
+
         GraphicsUBO graphics_ubo{
             .window = {
                 .width = static_cast<uint32_t>(window_size.x),
@@ -500,14 +515,17 @@ private:
                 .static_view = camera->get_static_view_matrix(),
                 .cubemap_capture_proj = cubemap_face_projection
             },
+            .light = {
+                .direction = light_direction_vec,
+                .color = light_color,
+                .intensity = light_intensity,
+                .proj_x_view = light_proj * light_view,
+            },
             .misc = {
                 .debug_number = debug_number,
                 .z_near = z_near,
                 .z_far = z_far,
                 .use_ssao = use_ssao ? 1u : 0,
-                .light_intensity = light_intensity,
-                .light_direction = glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(-1, 0, 0, 0)),
-                .light_color = light_color,
                 .camera_pos = camera->get_pos(),
             }
         };

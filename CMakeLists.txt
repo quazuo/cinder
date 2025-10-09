@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.30.2 FATAL_ERROR)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_MODULE_STD 1)
-set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "a9e1cf81-9932-4810-974b-6eccaf14e457")
+set(CMAKE_EXPERIMENTAL_CXX_IMPORT_STD "d0edc3af-4c50-42ea-a356-e2862fe7a444")
 
 include(FetchContent)
 
@@ -15,7 +15,7 @@ project(cinder LANGUAGES CXX)
 
 find_package(Vulkan REQUIRED)
 
-if( ${Vulkan_VERSION} VERSION_LESS "1.3.256" )
+if(${Vulkan_VERSION} VERSION_LESS "1.3.256")
         message(FATAL_ERROR
                 "Minimum required Vulkan version for C++ modules is 1.3.256. "
                 "Found ${Vulkan_VERSION}."

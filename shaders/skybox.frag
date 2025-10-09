@@ -12,12 +12,6 @@ layout (push_constant) uniform PushResourceIDs {
     uint skybox_tex_id;
 } constants;
 
-layout (set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform UniformBufferObject {
-    WindowRes window;
-    Matrices matrices;
-    MiscData misc;
-} ubos[];
-
 void main() {
     vec3 color = texture(bindless_samplers_cube[constants.skybox_tex_id], texCoord).rgb;
 

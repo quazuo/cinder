@@ -296,23 +296,23 @@ void VulkanRenderer::create_descriptor_pool() {
     const vector<vk::DescriptorPoolSize> pool_sizes = {
         {
             .type = vk::DescriptorType::eUniformBuffer,
-            .descriptorCount = 100u,
+            .descriptorCount = BINDLESS_ARRAY_SIZE,
         },
         {
             .type = vk::DescriptorType::eCombinedImageSampler,
-            .descriptorCount = 1000u,
+            .descriptorCount = 2 * BINDLESS_ARRAY_SIZE,
         },
         {
             .type = vk::DescriptorType::eStorageImage,
-            .descriptorCount = 100u,
+            .descriptorCount = BINDLESS_ARRAY_SIZE,
         },
         {
             .type = vk::DescriptorType::eStorageBuffer,
-            .descriptorCount = 100u,
+            .descriptorCount = BINDLESS_ARRAY_SIZE,
         },
         {
             .type = vk::DescriptorType::eAccelerationStructureKHR,
-            .descriptorCount = 100u,
+            .descriptorCount = BINDLESS_ARRAY_SIZE,
         },
     };
 
