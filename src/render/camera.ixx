@@ -66,7 +66,7 @@ public:
 
     auto get_view_vectors() const -> Rotator::ViewVectors { return rotator.get_view_vectors(); }
 
-    auto get_clipping_planes() const -> std::pair<float, float> { return {z_near, z_far}; }
+    auto get_clipping_planes() const -> pair<float, float> { return {z_near, z_far}; }
 
     void render_gui_section();
 

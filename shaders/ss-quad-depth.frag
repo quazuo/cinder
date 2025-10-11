@@ -19,6 +19,15 @@ layout (push_constant) uniform PushResourceIDs {
     uint sampled_tex_id;
 } constants;
 
+float linearize_depth(float d) {
+    float z_near = ubos[constants.general_ubo_id].misc.z_near;
+    float z_far  = ubos[constants.general_ubo_id].misc.z_far;
+
+    return z_near * z_far / (z_far + d * (z_near - z_far));
+}
+
 void main() {
-    out_color = vec4(texture(bindless_samplers[constants.sampled_tex_id], tex_coords).rgb, 1.0);
+    float depth = texture(bindless_samplers[constants.sampled_tex_id], tex_coords).r;
+    float linearized = linearize_depth(depth);
+    out_color = vec4(depth == 1.0 ? 1.0 : 0.0);
 }

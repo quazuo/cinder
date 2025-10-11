@@ -12,24 +12,26 @@ layout (location = 5) in mat4 inInstanceTransform;
 
 layout (location = 0) out vec3 worldPosition;
 layout (location = 1) out vec2 fragTexCoord;
-layout (location = 2) out mat3 TBN;
+layout (location = 2) out vec4 lightSpacePosition;
+layout (location = 3) out mat3 TBN;
 
 layout (push_constant) uniform PushResourceIDs {
-    uint ubo_id;
+    uint general_ubo_id;
     uint ssao_tex_id;
-    uint base_color_tex_id;
-    uint normal_tex_id;
-    uint orm_tex_id;
+    uint shadowmap_id;
+    uint material_ubo_id;
+    uint material_id;
 } constants;
 
 layout (set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform UniformBufferObject {
     WindowRes window;
     Matrices matrices;
+    LightData light;
     MiscData misc;
 } ubos[];
 
 void main() {
-    const uint ubo_id = constants.ubo_id;
+    const uint ubo_id = constants.general_ubo_id;
 
     const mat4 model = ubos[ubo_id].matrices.model * inInstanceTransform;
     const mat4 mvp = ubos[ubo_id].matrices.proj * ubos[ubo_id].matrices.view * model;
@@ -46,4 +48,6 @@ void main() {
     vec3 N = normalize(normal_matrix * inNormal);
 
     TBN = mat3(T, B, N);
+
+    lightSpacePosition = ubos[ubo_id].light.proj_x_view * model * vec4(worldPosition, 1.0);
 }

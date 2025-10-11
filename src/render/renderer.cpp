@@ -523,12 +523,14 @@ void VulkanRenderer::init_imgui() {
         .DescriptorPool = static_cast<VkDescriptorPool>(**imgui_descriptor_pool),
         .MinImageCount = image_count,
         .ImageCount = image_count,
-        .MSAASamples = static_cast<VkSampleCountFlagBits>(get_msaa_sample_count()),
+        .PipelineInfoMain = {
+            .MSAASamples = static_cast<VkSampleCountFlagBits>(get_msaa_sample_count()),
+            .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
+                .colorAttachmentCount = static_cast<uint32_t>(color_attachment_formats.size()),
+                .pColorAttachmentFormats = color_attachment_formats.data(),
+            }
+        },
         .UseDynamicRendering = true,
-        .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
-            .colorAttachmentCount = static_cast<uint32_t>(color_attachment_formats.size()),
-            .pColorAttachmentFormats = color_attachment_formats.data(),
-        }
     };
 
     gui_renderer = make_unique<GuiRenderer>(window, imgui_init_info);
@@ -1344,13 +1346,17 @@ bool VulkanRenderer::should_run_node_pass(const RenderNodeHandle node_handle) co
 }
 
 vk::Extent2D VulkanRenderer::get_node_target_extent(const RenderNodeHandle node_handle) const {
-    const auto &node_info = render_graph->nodes().at(node_handle);
+    const auto &gfx_node_info = render_graph->nodes().at(node_handle).get_graphics();
 
-    return has_swapchain_target(node_handle)
-           ? swap_chain->get_extent()
-           : resource_manager->get_texture(node_info.get_graphics().color_targets[0])
-           .get_image()
-           .get_extent_2d();
+    if (has_swapchain_target(node_handle)) {
+        return swap_chain->get_extent();
+    }
+
+    if (gfx_node_info.color_targets.empty()) {
+        return resource_manager->get_texture(*gfx_node_info.depth_target).get_image().get_extent_2d();
+    }
+
+    return resource_manager->get_texture(gfx_node_info.color_targets[0]).get_image().get_extent_2d();
 }
 
 vk::Format VulkanRenderer::get_target_color_format(const ResourceHandle resource_handle) const {

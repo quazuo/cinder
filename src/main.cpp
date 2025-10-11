@@ -36,17 +36,15 @@ namespace glsl {
     #include "shaders/utils/material.glsl"
 }
 
-#define GLSL_ALIGN alignas(16)
-
 struct GraphicsUBO {
-    GLSL_ALIGN glsl::WindowRes window{};
-    GLSL_ALIGN glsl::Matrices matrices{};
-    GLSL_ALIGN glsl::LightData light{};
-    GLSL_ALIGN glsl::MiscData misc{};
+    GLSL_ALIGN16 glsl::WindowRes window{};
+    GLSL_ALIGN16 glsl::Matrices matrices{};
+    GLSL_ALIGN16 glsl::LightData light{};
+    GLSL_ALIGN16 glsl::MiscData misc{};
 };
 
 struct MaterialsUBO {
-    GLSL_ALIGN glsl::Material mats[MATERIAL_MAX_COUNT];
+    GLSL_ALIGN16 glsl::Material mats[MATERIAL_MAX_COUNT];
 };
 
 class Engine {
@@ -286,6 +284,14 @@ private:
 
         const std::string shader_path_prefix = "../shaders/obj/";
 
+        const auto ss_quad_depth_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
+            .vertex_path = shader_path_prefix + "ss-quad-depth-vert.spv",
+            .fragment_path = shader_path_prefix + "ss-quad-depth-frag.spv",
+            .binding_descriptions = ScreenSpaceQuadVertex::get_binding_descriptions(),
+            .attr_descriptions = ScreenSpaceQuadVertex::get_attribute_descriptions(),
+            .color_formats = { final_no_gamma_format },
+        });
+
         const auto cubecap_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
             .vertex_path = shader_path_prefix + "sphere-cube-vert.spv",
             .fragment_path = shader_path_prefix + "sphere-cube-frag.spv",
@@ -377,6 +383,17 @@ private:
         });
 
         render_graph.add_node(RenderNodeGraphics {
+            .name = "shadowmap",
+            .bound_resources = {general_ubo},
+            .depth_target = shadowmap_texture,
+            .body = [=](RenderPassContext &ctx) {
+                ctx.bind_pipeline(shadowmap_pipeline);
+                ctx.bind_resources({general_ubo});
+                ctx.draw_model(scene_model);
+            },
+        });
+
+        render_graph.add_node(RenderNodeGraphics {
             .name = "prepass",
             .bound_resources = {general_ubo},
             .color_targets = {g_buffer_normal, g_buffer_pos},
@@ -403,17 +420,23 @@ private:
 
         const auto main_node = render_graph.add_node(RenderNodeGraphics {
             .name = "main",
-            .bound_resources = {general_ubo, ssao_texture, skybox_texture},
+            .bound_resources = {general_ubo, ssao_texture, skybox_texture, shadowmap_texture},
             .color_targets = {base_pass_texture},
             .depth_target = FINAL_IMAGE_HANDLE,
             .body = [=](RenderPassContext &ctx) {
-                ctx.bind_pipeline(main_pipeline);
-                ctx.bind_resources({general_ubo, ssao_texture, material_ubo, CURRENT_MATERIAL_HANDLE});
-                ctx.draw_model(scene_model);
+                if (show_debug_quad) {
+                    ctx.bind_pipeline(ss_quad_depth_pipeline);
+                    ctx.bind_resources({ general_ubo, shadowmap_texture });
+                    ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
+                } else {
+                    ctx.bind_pipeline(main_pipeline);
+                    ctx.bind_resources({general_ubo, ssao_texture, shadowmap_texture, material_ubo, CURRENT_MATERIAL_HANDLE});
+                    ctx.draw_model(scene_model);
 
-                ctx.bind_pipeline(skybox_pipeline);
-                ctx.bind_resources({general_ubo, skybox_texture});
-                ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
+                    ctx.bind_pipeline(skybox_pipeline);
+                    ctx.bind_resources({general_ubo, skybox_texture});
+                    ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
+                }
             },
         });
 
@@ -448,7 +471,7 @@ private:
             .color_targets = {FINAL_IMAGE_HANDLE},
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(final_pipeline);
-                ctx.bind_resources({post_blur_y_texture});
+                ctx.bind_resources({general_ubo, post_blur_y_texture});
                 ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
             },
             .should_run_predicate = [&] { return do_blur; }
@@ -460,7 +483,7 @@ private:
             .color_targets = {FINAL_IMAGE_HANDLE},
             .body = [=](RenderPassContext &ctx) {
                 ctx.bind_pipeline(final_pipeline);
-                ctx.bind_resources({base_pass_texture});
+                ctx.bind_resources({general_ubo, base_pass_texture});
                 ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
             },
             .should_run_predicate = [&] { return !do_blur; }
@@ -496,9 +519,9 @@ private:
 
         static const glm::mat4 cubemap_face_projection = glm::gtc::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
 
-        const auto light_direction_vec = glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(-1, 0, 0, 0));
+        const auto light_direction_vec = camera->get_pos(); // glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(1)) * 100.0f;
         const auto light_view = glm::gtc::lookAt(light_direction_vec, glm::vec3(0), glm::vec3(0, 1, 0));
-        const auto light_proj = glm::gtc::ortho(-100.0f, 100.0f, -100.0f, 100.0f, z_near, z_far);
+        const auto light_proj = glm::gtc::ortho(-10.0f, 10.0f, -10.0f, 10.0f, z_near, z_far);
 
         GraphicsUBO graphics_ubo{
             .window = {
@@ -602,12 +625,13 @@ private:
         if (ImGui::CollapsingHeader("Engine ", section_flags)) {
             ImGui::Text("FPS: %.2f", fps);
 
-            // ImGui::Checkbox("Debug quad", &show_debug_quad);
-            // ImGui::Separator();
-            //
-            // if (ImGui::Button("Reload shaders")) {
-            //     // renderer.reload_shaders();
-            // }
+            ImGui::Checkbox("Debug quad", &show_debug_quad);
+            ImGui::Separator();
+
+            if (ImGui::Button("Reload shaders")) {
+                // renderer.reload_shaders();
+            }
+
             // ImGui::Separator();
             //
             // render_load_model_popup();
@@ -625,23 +649,23 @@ private:
         //     file_browser.Display();
         // }
 
-        // if (ImGui::CollapsingHeader("Model ", section_flags)) {
-        //     if (ImGui::Button("Load model...")) {
-        //         ImGui::OpenPopup("Load model");
-        //     }
-        //
-        //     ImGui::Separator();
-        //
-        //     ImGui::DragFloat("Model scale", &model_scale, 0.01, 0, numeric_limits<float>::max());
-        //
-        //     ImGui::gizmo3D("Model rotation", model_rotation, 160);
-        //
-        //     if (ImGui::Button("Reset scale")) { model_scale = 1; }
-        //     ImGui::SameLine();
-        //     if (ImGui::Button("Reset rotation")) { model_rotation = {1, 0, 0, 0}; }
-        //     ImGui::SameLine();
-        //     if (ImGui::Button("Reset position")) { model_translate = {0, 0, 0}; }
-        // }
+        if (ImGui::CollapsingHeader("Model ", section_flags)) {
+            if (ImGui::Button("Load model...")) {
+                ImGui::OpenPopup("Load model");
+            }
+
+            ImGui::Separator();
+
+            ImGui::DragFloat("Model scale", &model_scale, 0.01, 0, numeric_limits<float>::max());
+
+            ImGui::gizmo3D("Model rotation", model_rotation, 160);
+
+            if (ImGui::Button("Reset scale")) { model_scale = 1; }
+            ImGui::SameLine();
+            if (ImGui::Button("Reset rotation")) { model_rotation = {1, 0, 0, 0}; }
+            ImGui::SameLine();
+            if (ImGui::Button("Reset position")) { model_translate = {0, 0, 0}; }
+        }
 
         if (ImGui::CollapsingHeader("Advanced ", section_flags)) {
             ImGui::Checkbox("SSAO", &use_ssao);
