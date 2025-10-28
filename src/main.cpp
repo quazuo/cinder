@@ -23,6 +23,7 @@ import Cinder.Globals;
 
 // #define VULKAN_HPP_ENABLE_STD_MODULE
 // #define VULKAN_HPP_STD_MODULE
+
 // #include <vulkan/vulkan_hpp_macros.hpp>
 
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1
@@ -670,10 +671,8 @@ private:
         if (ImGui::CollapsingHeader("Advanced ", section_flags)) {
             ImGui::Checkbox("SSAO", &use_ssao);
 
-#ifndef NDEBUG
             ImGui::Separator();
             ImGui::DragFloat("Debug number", &debug_number, 0.01, 0, numeric_limits<float>::max());
-#endif
         }
 
         if (ImGui::CollapsingHeader("Lighting ", section_flags)) {

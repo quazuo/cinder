@@ -360,16 +360,12 @@ public:
 namespace utils::img {
     auto create_image_view(const RendererContext &ctx, vk::Image image,
                            vk::Format format, vk::ImageAspectFlags aspect_flags,
-                           uint32_t basemip_level = 0, uint32_t mip_levels = 1,
+                           uint32_t base_mip_level = 0, uint32_t mip_levels = 1,
                            uint32_t layer = 0) -> vk::raii::ImageView;
 
     auto create_cube_image_view(const RendererContext &ctx, vk::Image image,
                                 vk::Format format, vk::ImageAspectFlags aspect_flags,
                                 uint32_t base_mip_level = 0, uint32_t mip_levels = 1) -> vk::raii::ImageView;
-
-    auto is_depth_format(vk::Format format) -> bool;
-
-    auto get_format_size_in_bytes(vk::Format format) -> size_t;
 
     auto get_format_attachment_type(vk::Format format) -> vk::ImageUsageFlagBits;
 }
