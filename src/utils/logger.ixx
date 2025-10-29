@@ -17,19 +17,19 @@ enum class LogLevel : uint8_t {
 
 class Logger {
 public:
-    static inline bool ENABLE_ERROR_LOGS    = true;
-    static inline bool ENABLE_WARNING_LOGS  = true;
-    static inline bool ENABLE_INFO_LOGS     = true;
-    static inline bool ENABLE_DEBUG_LOGS    = true;
+    static inline bool ENABLE_ERROR_LOGS   = true;
+    static inline bool ENABLE_WARNING_LOGS = true;
+    static inline bool ENABLE_INFO_LOGS    = false;
+    static inline bool ENABLE_DEBUG_LOGS   = false;
 
     static void render_gui_section() {
         constexpr auto section_flags = ImGuiTreeNodeFlags_DefaultOpen;
 
         if (ImGui::CollapsingHeader("Logging ", section_flags)) {
-            ImGui::Checkbox("Error",    &ENABLE_ERROR_LOGS);
-            ImGui::Checkbox("Warning",  &ENABLE_WARNING_LOGS);
-            ImGui::Checkbox("Info",     &ENABLE_INFO_LOGS);
-            ImGui::Checkbox("Debug",    &ENABLE_DEBUG_LOGS);
+            ImGui::Checkbox("Error",   &ENABLE_ERROR_LOGS);
+            ImGui::Checkbox("Warning", &ENABLE_WARNING_LOGS);
+            ImGui::Checkbox("Info",    &ENABLE_INFO_LOGS);
+            ImGui::Checkbox("Debug",   &ENABLE_DEBUG_LOGS);
         }
     }
 
@@ -73,7 +73,7 @@ private:
     static auto to_string(const LogLevel level) -> string {
         switch (level) {
             case LogLevel::FATAL_ERROR:
-                return "FATAL ERROR";
+                return "FATAL_ERROR";
             case LogLevel::WARNING:
                 return "WARNING";
             case LogLevel::INFO:

@@ -395,7 +395,7 @@ void Image::save_to_file(const RendererContext &ctx, const std::filesystem::path
         static_cast<int>(temp_image.extent.height),
         STBI_rgb_alpha,
         data,
-        utils::img::get_format_size_in_bytes(temp_image.format) * temp_image.extent.width
+        vk::blockSize(temp_image.format) * temp_image.extent.width
     );
 
     vmaUnmapMemory(temp_image.allocator, temp_image.allocation);
@@ -839,11 +839,11 @@ void TextureBuilder::check_params() const {
             params_error("separate-channeled textures must provide path sources");
         }
 
-        if (utils::img::get_format_size_in_bytes(*format) != 4) {
+        if (vk::blockSize(*format) != 4) {
             params_error("currently only 4-byte formats are supported when using separate channel mode");
         }
 
-        if (utils::img::get_format_size_in_bytes(*format) % 4 != 0) {
+        if (vk::blockSize(*format) % 4 != 0) {
             params_error("currently only 4-component formats are supported when using separate channel mode");
         }
 
@@ -917,20 +917,20 @@ auto TextureBuilder::load_from_paths() const -> LoadedTextureData {
             tex_height         = curr_tex_height;
             is_first_non_empty = false;
         } else if (tex_width != curr_tex_width || tex_height != curr_tex_height) {
-            Logger::error("size mismatch while loading a texture from paths!");
+            Logger::error("size mismatch while loading a texture from paths");
         }
 
         data_sources.push_back(src);
     }
 
     const uint32_t layer_count        = get_layer_count();
-    const vk::DeviceSize format_size  = utils::img::get_format_size_in_bytes(*format);
+    const vk::DeviceSize format_size  = vk::blockSize(*format);
     const vk::DeviceSize layer_size   = tex_width * tex_height * format_size;
     const vk::DeviceSize texture_size = layer_size * layer_count;
 
     constexpr uint32_t component_count = 4;
     if (format_size % component_count != 0) {
-        Logger::error("texture formats with component count other than 4 are currently unsupported!");
+        Logger::error("texture formats with component count other than 4 are currently unsupported");
     }
 
     if (is_separate_channels) {
@@ -961,12 +961,12 @@ auto TextureBuilder::load_from_memory() const -> LoadedTextureData {
     const uint32_t tex_height = desired_extent->height;
 
     const uint32_t layer_count       = get_layer_count();
-    const vk::DeviceSize format_size = utils::img::get_format_size_in_bytes(*format);
+    const vk::DeviceSize format_size = vk::blockSize(*format);
     const vk::DeviceSize layer_size  = tex_width * tex_height * format_size;
 
     constexpr uint32_t component_count = 4;
     if (format_size % component_count != 0) {
-        Logger::error("texture formats with component count other than 4 are currently unsupported!");
+        Logger::error("texture formats with component count other than 4 are currently unsupported");
     }
 
     if (swizzle) {
@@ -990,16 +990,19 @@ auto TextureBuilder::load_from_swizzle_fill() const -> LoadedTextureData {
     const uint32_t tex_width          = desired_extent->width;
     const uint32_t tex_height         = desired_extent->height;
     const uint32_t layer_count        = get_layer_count();
-    const vk::DeviceSize format_size  = utils::img::get_format_size_in_bytes(*format);
+    const vk::DeviceSize format_size  = vk::blockSize(*format);
     const vk::DeviceSize layer_size   = tex_width * tex_height * format_size;
     const vk::DeviceSize texture_size = layer_size * layer_count;
 
     constexpr uint32_t component_count = 4;
     if (format_size % component_count != 0) {
-        Logger::error("texture formats with component count other than 4 are currently unsupported!");
+        Logger::error("texture formats with component count other than 4 are currently unsupported");
     }
 
     const vector<void *> data_sources = {std::malloc(texture_size)};
+    if (!data_sources[0]) {
+        Logger::error("malloc failed");
+    }
 
     for (const auto &source: data_sources) {
         perform_swizzle(static_cast<uint8_t *>(source), layer_size);
@@ -1018,7 +1021,7 @@ auto TextureBuilder::load_from_swizzle_fill() const -> LoadedTextureData {
 
 auto TextureBuilder::make_staging_buffer(const RendererContext &ctx, const LoadedTextureData &data) const -> unique_ptr<Buffer> {
     const uint32_t layer_count        = get_layer_count();
-    const vk::DeviceSize format_size  = utils::img::get_format_size_in_bytes(*format);
+    const vk::DeviceSize format_size  = vk::blockSize(*format);
     const vk::DeviceSize layer_size   = data.extent.width * data.extent.height * format_size;
     const vk::DeviceSize texture_size = layer_size * layer_count;
 
@@ -1150,12 +1153,12 @@ RenderTarget::RenderTarget(const RendererContext &ctx, const Texture &texture)
 }
 
 vk::RenderingAttachmentInfo RenderTarget::get_attachment_info() const {
-    const auto layout = utils::img::is_depth_format(format)
-                            ? vk::ImageLayout::eDepthStencilAttachmentOptimal
-                            : vk::ImageLayout::eColorAttachmentOptimal;
+    const auto layout = vk::hasDepthComponent(format)
+                        ? vk::ImageLayout::eDepthStencilAttachmentOptimal
+                        : vk::ImageLayout::eColorAttachmentOptimal;
 
     vk::ClearValue clear_value = vk::ClearColorValue(0.0f, 0.0f, 0.0f, 1.0f);
-    if (utils::img::is_depth_format(format)) {
+    if (vk::hasDepthComponent(format)) {
         clear_value = vk::ClearDepthStencilValue{
             .depth = 1.0f,
             .stencil = 0,
@@ -1189,9 +1192,9 @@ void RenderTarget::override_attachment_config(const vk::AttachmentLoadOp load_op
 
 namespace utils::img {
     vk::raii::ImageView
-    utils::img::create_image_view(const RendererContext &ctx, const vk::Image image, const vk::Format format,
-                                  const vk::ImageAspectFlags aspect_flags, const uint32_t base_mip_level,
-                                  const uint32_t mip_levels, const uint32_t layer) {
+    create_image_view(const RendererContext &ctx, const vk::Image image, const vk::Format format,
+                      const vk::ImageAspectFlags aspect_flags, const uint32_t base_mip_level,
+                      const uint32_t mip_levels, const uint32_t layer) {
         const vk::ImageViewCreateInfo create_info{
             .image = image,
             .viewType = vk::ImageViewType::e2D,
@@ -1208,9 +1211,10 @@ namespace utils::img {
         return {*ctx.device, create_info};
     }
 
-    vk::raii::ImageView create_cube_image_view(const RendererContext &ctx, const vk::Image image,
-                                               const vk::Format format, const vk::ImageAspectFlags aspect_flags,
-                                               const uint32_t base_mip_level, const uint32_t mip_levels) {
+    vk::raii::ImageView
+    create_cube_image_view(const RendererContext &ctx, const vk::Image image, const vk::Format format,
+                           const vk::ImageAspectFlags aspect_flags, const uint32_t base_mip_level,
+                           const uint32_t mip_levels) {
         const vk::ImageViewCreateInfo create_info{
             .image = image,
             .viewType = vk::ImageViewType::eCube,
@@ -1227,41 +1231,8 @@ namespace utils::img {
         return {*ctx.device, create_info};
     }
 
-    bool is_depth_format(const vk::Format format) {
-        switch (format) {
-            case vk::Format::eD16Unorm:
-            case vk::Format::eD32Sfloat:
-            case vk::Format::eD16UnormS8Uint:
-            case vk::Format::eD24UnormS8Uint:
-            case vk::Format::eD32SfloatS8Uint:
-                return true;
-            default:
-                return false;
-        }
-    }
-
-    size_t get_format_size_in_bytes(const vk::Format format) {
-        switch (format) {
-            case vk::Format::eB8G8R8A8Srgb:
-            case vk::Format::eR8G8B8A8Srgb:
-            case vk::Format::eR8G8B8A8Unorm:
-                return 4;
-            case vk::Format::eR16G16B16Sfloat:
-                return 6;
-            case vk::Format::eR16G16B16A16Sfloat:
-                return 8;
-            case vk::Format::eR32G32B32Sfloat:
-                return 12;
-            case vk::Format::eR32G32B32A32Sfloat:
-                return 16;
-            default:
-                Logger::error("unexpected_format_in_utils::img::get_format_size_in_bytes");
-                return 0;
-        }
-    }
-
     vk::ImageUsageFlagBits get_format_attachment_type(const vk::Format format) {
-        return utils::img::is_depth_format(format)
+        return vk::hasDepthComponent(format)
                ? vk::ImageUsageFlagBits::eDepthStencilAttachment
                : vk::ImageUsageFlagBits::eColorAttachment;
     }

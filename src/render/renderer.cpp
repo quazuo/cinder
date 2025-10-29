@@ -553,13 +553,12 @@ void VulkanRenderer::render_gui_section() {
             });
         }
 
-        float last_node_time = 0.0f;
-
         vector<GuiRenderer::ProfilerNodeInfo> profiler_frame_infos;
         const uint32_t timestamp_count = prev_frame_time_query_results.size();
         auto nodes_range = prev_frame_partitioned_nodes | std::ranges::views::join;
         auto curr_node = nodes_range.begin();
         const uint64_t frame_start_timestamp = prev_frame_time_query_results.empty() ? 0 : prev_frame_time_query_results[0];
+        float last_node_time = 0.0f;
 
         for (uint32_t i = 0; i < timestamp_count; i += 2) {
             const uint64_t start_timestamp = prev_frame_time_query_results[i];
@@ -567,14 +566,10 @@ void VulkanRenderer::render_gui_section() {
             const RenderNodeHandle node_handle = *(curr_node++);
             const string& name = render_graph->nodes().at(node_handle).name();
 
-            ImVec4 color { 255, 255, 255, 255 };
+            ImVec4 color{};
             ImGui::ColorConvertHSVtoRGB(
-                std::hash<std::string>()(name) % 255 / 255.0f,
-                1.0f,
-                1.0f,
-                color.x,
-                color.y,
-                color.z
+                std::hash<std::string>()(name) % 255 / 255.0f, 1.0f, 1.0f,
+                color.x, color.y, color.z
             );
 
             const std::chrono::nanoseconds start_ns {
@@ -708,7 +703,7 @@ void VulkanRenderer::create_render_graph_resources() {
 
         if (attachment_resources.contains(handle)) {
             usage_flags |= utils::img::get_format_attachment_type(description.format);
-            layout = utils::img::is_depth_format(description.format)
+            layout = vk::hasDepthComponent(description.format)
                      ? vk::ImageLayout::eDepthStencilAttachmentOptimal
                      : vk::ImageLayout::eColorAttachmentOptimal;
         } else if (is_compute_accessed) {
@@ -748,7 +743,7 @@ void VulkanRenderer::create_render_graph_resources() {
                 .as_uninitialized({extent.width, extent.height, 1u})
                 .with_format(description.format)
                 .with_usage(vk::ImageUsageFlagBits::eTransientAttachment
-                           | utils::img::get_format_attachment_type(description.format));
+                            | utils::img::get_format_attachment_type(description.format));
 
         resource_manager->add(handle, builder.create(ctx), description.name);
     }
@@ -1101,7 +1096,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
         Logger::debug("inserting pre-partition (sampled) barrier for texture: {}", resource_manager->get_name(handle));
 
         const Texture& texture = resource_manager->get_texture(handle);
-        const bool is_depth_texture = utils::img::is_depth_format(texture.get_image().get_format());
+        const bool is_depth_texture = vk::hasDepthComponent(texture.get_image().get_format());
         const auto old_layout = last_image_layouts[handle];
         constexpr auto new_layout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
@@ -1159,7 +1154,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
         }
 
         const Texture& texture = resource_manager->get_texture(handle);
-        const bool is_depth_texture = utils::img::is_depth_format(texture.get_image().get_format());
+        const bool is_depth_texture = vk::hasDepthComponent(texture.get_image().get_format());
         const auto expected_layout = is_depth_texture
                                      ? vk::ImageLayout::eDepthAttachmentOptimal
                                      : vk::ImageLayout::eColorAttachmentOptimal;
@@ -1195,7 +1190,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
         Logger::debug("inserting pre-partition (compute-read) barrier for texture: {}", resource_manager->get_name(handle));
 
         const Texture& texture = resource_manager->get_texture(handle);
-        const bool is_depth_texture = utils::img::is_depth_format(texture.get_image().get_format());
+        const bool is_depth_texture = vk::hasDepthComponent(texture.get_image().get_format());
         const auto old_layout = last_image_layouts[handle];
         constexpr auto new_layout = vk::ImageLayout::eShaderReadOnlyOptimal;
 
@@ -1232,7 +1227,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
         Logger::debug("inserting pre-partition (compute-write) barrier for texture: {}", resource_manager->get_name(handle));
 
         const Texture& texture = resource_manager->get_texture(handle);
-        const bool is_depth_texture = utils::img::is_depth_format(texture.get_image().get_format());
+        const bool is_depth_texture = vk::hasDepthComponent(texture.get_image().get_format());
         constexpr auto expected_layout = vk::ImageLayout::eGeneral;
         const auto current_layout = last_image_layouts.at(handle);
 
