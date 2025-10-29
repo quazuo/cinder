@@ -8,6 +8,10 @@ include(FetchContent)
 
 project(cinder LANGUAGES CXX)
 
+if(MSVC)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /EHsc /permissive- /Zc:wchar_t /Zc:forScope /Zc:inline")
+endif()
+
 # add_compile_options(-fsanitize=address)
 # add_link_options(-fsanitize=address)
 

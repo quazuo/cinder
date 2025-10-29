@@ -23,7 +23,8 @@ import Cinder.Globals;
 
 // #define VULKAN_HPP_ENABLE_STD_MODULE
 // #define VULKAN_HPP_STD_MODULE
-// #include <vulkan/vulkan_hpp_macros.hpp>
+
+#include <vulkan/vulkan_hpp_macros.hpp>
 
 #if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1
 VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
@@ -75,6 +76,16 @@ class Engine {
     glm::quat light_direction = glm::normalize(glm::vec3(1, 1.5, -2));
     glm::vec3 light_color     = glm::normalize(glm::vec3(23.47, 21.31, 20.79));
     float light_intensity     = 20.0f;
+
+    struct ShadowMapConfig {
+        float left = -100.0f;
+        float right = 100.0f;
+        float bottom = -100.0f;
+        float top = 100.0f;
+        float z_near = 0.01f;
+        float z_far = 100.0f;
+
+    } shadow_map_config;
 
     float debug_number = 0;
 
@@ -521,7 +532,9 @@ private:
 
         const auto light_direction_vec = camera->get_pos(); // glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(1)) * 100.0f;
         const auto light_view = glm::gtc::lookAt(light_direction_vec, glm::vec3(0), glm::vec3(0, 1, 0));
-        const auto light_proj = glm::gtc::ortho(-10.0f, 10.0f, -10.0f, 10.0f, z_near, z_far);
+        const auto light_proj = glm::gtc::ortho(shadow_map_config.left, shadow_map_config.right,
+                                                shadow_map_config.bottom, shadow_map_config.top,
+                                                shadow_map_config.z_near, shadow_map_config.z_far);
 
         GraphicsUBO graphics_ubo{
             .window = {
@@ -680,6 +693,15 @@ private:
             ImGui::SliderFloat("Light intensity", &light_intensity, 0.0f, 100.0f, "%.2f");
             ImGui::ColorEdit3("Light color", &light_color.x);
             ImGui::gizmo3D("Light direction", light_direction, 160.0f, imguiGizmo::modeDirection);
+        }
+
+        if (ImGui::CollapsingHeader("Shadowmap ", section_flags)) {
+            ImGui::SliderFloat("left",   &shadow_map_config.left,   -1000.0f, 1000.0f, "%.2f");
+            ImGui::SliderFloat("right",  &shadow_map_config.right,  -1000.0f, 1000.0f, "%.2f");
+            ImGui::SliderFloat("bottom", &shadow_map_config.bottom, -1000.0f, 1000.0f, "%.2f");
+            ImGui::SliderFloat("top",    &shadow_map_config.top,    -1000.0f, 1000.0f, "%.2f");
+            ImGui::SliderFloat("z_near", &shadow_map_config.z_near,     0.0f, 1000.0f, "%.2f");
+            ImGui::SliderFloat("z_far",  &shadow_map_config.z_far,      0.0f, 1000.0f, "%.2f");
         }
 
         camera->render_gui_section();
