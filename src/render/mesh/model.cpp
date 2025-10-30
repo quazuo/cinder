@@ -87,10 +87,12 @@ Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material
         path.make_preferred();
 
         try {
-            base_color = TextureBuilder()
-                         .with_format(vk::Format::eR8G8B8A8Srgb)
-                         .from_paths({path})
-                         .create(ctx);
+            base_color = make_unique<Texture>(
+                TextureBuilder()
+                    .with_format(vk::Format::eR8G8B8A8Srgb)
+                    .from_paths({path})
+                    .create(ctx)
+            );
         } catch (std::exception &e) {
             std::cerr << "failed to allocate buffer for texture: " << path << std::endl;
             base_color = nullptr;
@@ -109,10 +111,12 @@ Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material
         path /= normal_rel_path.C_Str();
         path.make_preferred();
 
-        normal = TextureBuilder()
+        normal = make_unique<Texture>(
+            TextureBuilder()
                 .with_format(vk::Format::eR8G8B8A8Unorm)
                 .from_paths({path})
-                .create(ctx);
+                .create(ctx)
+        );
     }
 
     // orm
@@ -161,7 +165,7 @@ Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material
         orm_builder.as_separate_channels().from_paths({ao_path, roughness_path, metallic_path});
     }
 
-    orm = orm_builder.create(ctx);
+    orm = make_unique<Texture>(orm_builder.create(ctx));
 }
 
 Model::Model(const RendererContext &ctx, const std::filesystem::path &path, const bool load_materials) {
@@ -308,29 +312,29 @@ void Model::create_buffers(const RendererContext &ctx) {
                                        | vk::BufferUsageFlagBits::eShaderDeviceAddress
                                        | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR;
 
-    vertex_buffer = utils::buf::create_local_buffer(
+    vertex_buffer = make_unique<Buffer>(utils::buf::create_local_buffer(
         ctx,
         get_vertices(),
         vk::BufferUsageFlagBits::eVertexBuffer | ray_tracing_flags
-    );
+    ));
 
-    instance_data_buffer = utils::buf::create_local_buffer(
+    instance_data_buffer = make_unique<Buffer>(utils::buf::create_local_buffer(
         ctx,
         get_instance_transforms(),
         vk::BufferUsageFlagBits::eVertexBuffer | ray_tracing_flags
-    );
+    ));
 
-    index_buffer = utils::buf::create_local_buffer(
+    index_buffer = make_unique<Buffer>(utils::buf::create_local_buffer(
         ctx,
         get_indices(),
         vk::BufferUsageFlagBits::eIndexBuffer | ray_tracing_flags
-    );
+    ));
 
-    mesh_descriptions_buffer = utils::buf::create_local_buffer(
+    mesh_descriptions_buffer = make_unique<Buffer>(utils::buf::create_local_buffer(
         ctx,
         get_mesh_descriptions(),
         ray_tracing_flags
-    );
+    ));
 }
 
 void Model::create_blas(const RendererContext &ctx) {

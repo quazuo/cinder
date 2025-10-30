@@ -77,6 +77,15 @@ class Engine {
     glm::vec3 light_color     = glm::normalize(glm::vec3(23.47, 21.31, 20.79));
     float light_intensity     = 20.0f;
 
+    struct ShadowMapConfig {
+        float left = -10.0f;
+        float right = 10.0f;
+        float bottom = -10.0f;
+        float top = 10.0f;
+        float z_near = 0.01f;
+        float z_far = 100.0f;
+    } shadow_map_config;
+
     float debug_number = 0;
 
     bool is_gui_enabled        = true;
@@ -168,7 +177,8 @@ private:
         });
 
         render_graph.add_frame_begin_action([=](const FrameBeginActionContext &fba_ctx) {
-            update_graphics_uniform_buffer(fba_ctx.resource_manager.get().get_buffer(general_ubo));
+            Buffer& buffer = fba_ctx.resource_manager.get().get<Buffer>(general_ubo);
+            update_graphics_uniform_buffer(buffer);
         });
 
         const auto material_ubo = render_graph.add_resource(UniformBufferResourceDesc{
@@ -180,7 +190,7 @@ private:
             static bool has_been_done = false;
             if (!has_been_done) {
                 auto& resource_manager = fba_ctx.resource_manager.get();
-                Buffer& material_ubo_buffer = resource_manager.get_buffer(material_ubo);
+                Buffer& material_ubo_buffer = resource_manager.get<Buffer>(material_ubo);
                 update_materials_uniform_buffer(material_ubo_buffer, scene_model, resource_manager);
                 has_been_done = true;
             }
@@ -522,7 +532,11 @@ private:
 
         const auto light_direction_vec = camera->get_pos(); // glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(1)) * 100.0f;
         const auto light_view = glm::gtc::lookAt(light_direction_vec, glm::vec3(0), glm::vec3(0, 1, 0));
-        const auto light_proj = glm::gtc::ortho(-10.0f, 10.0f, -10.0f, 10.0f, z_near, z_far);
+        const auto light_proj = glm::gtc::ortho(
+            shadow_map_config.left, shadow_map_config.right,
+            shadow_map_config.bottom, shadow_map_config.top,
+            shadow_map_config.z_near, shadow_map_config.z_far
+        );
 
         GraphicsUBO graphics_ubo{
             .window = {
@@ -630,7 +644,7 @@ private:
             ImGui::Separator();
 
             if (ImGui::Button("Reload shaders")) {
-                // renderer.reload_shaders();
+                renderer.reload_all_pipelines();
             }
 
             // ImGui::Separator();

@@ -58,8 +58,6 @@ class VulkanRenderer {
 
     unique_ptr<vk::raii::DescriptorPool> descriptor_pool;
 
-    unique_ptr<QueryPool> time_query_pool;
-
     // bindless resources
 
     using BindlessDescriptorSet = FixedDescriptorSet<Texture, Texture, Buffer>;
@@ -67,9 +65,9 @@ class VulkanRenderer {
 
     static constexpr uint32_t BINDLESS_ARRAY_SIZE = 256;
 
-    static constexpr uint32_t BINDLESS_SAMPLER_BINDING = 0;
+    static constexpr uint32_t BINDLESS_SAMPLER_BINDING         = 0;
     static constexpr uint32_t BINDLESS_STORAGE_TEXTURE_BINDING = 1;
-    static constexpr uint32_t BINDLESS_UBO_BINDING = 2;
+    static constexpr uint32_t BINDLESS_UBO_BINDING             = 2;
 
     // ================ render graph stuff ================
 
@@ -82,8 +80,6 @@ class VulkanRenderer {
     map<RenderNodeHandle, RenderNodeResources> node_resources;
 
     unique_ptr<ResourceManager> resource_manager;
-    map<ResourceHandle, GraphicsPipeline> graphics_pipelines;
-    map<ResourceHandle, ComputePipeline> compute_pipelines;
 
     // command recording state
     set<ResourceHandle> unbarriered_gfx_written_resources;
@@ -108,6 +104,8 @@ class VulkanRenderer {
         } sync;
 
         unique_ptr<vk::raii::CommandBuffer> main_cmd_buffer;
+
+        unique_ptr<QueryPool> time_query_pool;
     };
 
     static constexpr size_t MAX_FRAMES_IN_FLIGHT = 3;
@@ -162,6 +160,8 @@ public:
 
     void register_render_graph(const RenderGraph &graph);
 
+    void reload_all_pipelines();
+
 private:
     static void framebuffer_resize_callback(GLFWwindow *window, int width, int height);
 
@@ -190,10 +190,6 @@ private:
     // ==================== multisampling ====================
 
     auto get_max_usable_sample_count() const -> vk::SampleCountFlagBits;
-
-    // ==================== buffers ====================
-
-    auto create_local_buffer(const void* data, vk::DeviceSize size, vk::BufferUsageFlags usage) const -> unique_ptr<Buffer>;
 
     // ==================== commands ====================
 

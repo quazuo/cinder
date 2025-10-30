@@ -274,7 +274,7 @@ class TextureBuilder {
     };
 
 public:
-    auto with_config(const TextureOverrides &config)               -> TextureBuilder&;
+    auto with_config(const TextureOverrides &config)            -> TextureBuilder&;
     auto with_format(vk::Format f)                              -> TextureBuilder&;
     auto with_layout(vk::ImageLayout l)                         -> TextureBuilder&;
     auto with_usage(vk::ImageUsageFlags u)                      -> TextureBuilder&;
@@ -305,7 +305,7 @@ public:
      */
     auto from_swizzle_fill(vk::Extent3D extent) -> TextureBuilder&;
 
-    auto create(const RendererContext &ctx) const -> unique_ptr<Texture>;
+    auto create(const RendererContext &ctx) const -> Texture;
 
 private:
     void check_params() const;

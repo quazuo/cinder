@@ -33,11 +33,11 @@ public:
 
     Buffer(const Buffer &other) = delete;
 
-    Buffer(Buffer &&other) = delete;
+    Buffer(Buffer &&other);
 
     Buffer &operator=(const Buffer &other) = delete;
 
-    Buffer &operator=(Buffer &&other) = delete;
+    Buffer &operator=(Buffer &&other);
 
     /**
          * Returns a raw handle to the actual Vulkan buffer.
@@ -94,7 +94,7 @@ struct BufferSlice {
 namespace utils::buf {
     template<typename ElemType>
     auto create_local_buffer(const RendererContext &ctx, const vector<ElemType> &contents,
-                             const vk::BufferUsageFlags usage) -> unique_ptr<Buffer> {
+                             const vk::BufferUsageFlags usage) -> Buffer {
         const vk::DeviceSize buffer_size = sizeof(contents[0]) * contents.size();
 
         Buffer staging_buffer{
@@ -108,18 +108,43 @@ namespace utils::buf {
         std::memcpy(data, contents.data(), static_cast<size_t>(buffer_size));
         staging_buffer.unmap();
 
-        auto result_buffer = make_unique<Buffer>(
+        Buffer result_buffer {
             **ctx.allocator,
             buffer_size,
             vk::BufferUsageFlagBits::eTransferDst | usage,
             vk::MemoryPropertyFlagBits::eDeviceLocal
-        );
+        };
 
-        result_buffer->copy_from_buffer(ctx, staging_buffer, buffer_size);
+        result_buffer.copy_from_buffer(ctx, staging_buffer, buffer_size);
 
         return result_buffer;
     }
 
-    auto create_uniform_buffer(const RendererContext &ctx, vk::DeviceSize size) -> unique_ptr<Buffer>;
+    auto create_local_buffer(const RendererContext &ctx, const void *data, const vk::DeviceSize size,
+                             const vk::BufferUsageFlags usage) -> Buffer {
+        Buffer staging_buffer{
+            **ctx.allocator,
+            size,
+            vk::BufferUsageFlagBits::eTransferSrc,
+            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
+        };
+
+        void *staging_data = staging_buffer.map();
+        std::memcpy(staging_data, data, static_cast<size_t>(size));
+        staging_buffer.unmap();
+
+        Buffer result_buffer {
+            **ctx.allocator,
+            size,
+            vk::BufferUsageFlagBits::eTransferDst | usage,
+            vk::MemoryPropertyFlagBits::eDeviceLocal
+        };
+
+        result_buffer.copy_from_buffer(ctx, staging_buffer, size);
+
+        return result_buffer;
+    }
+
+    auto create_uniform_buffer(const RendererContext &ctx, vk::DeviceSize size) -> Buffer;
 } // utils::buf
 } // zrx

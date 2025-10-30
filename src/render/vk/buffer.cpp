@@ -51,6 +51,30 @@ Buffer::~Buffer() {
     vmaDestroyBuffer(allocator, static_cast<VkBuffer>(buffer), allocation);
 }
 
+Buffer::Buffer(Buffer &&other) {
+    allocator = other.allocator;
+    buffer = other.buffer;
+    allocation = other.allocation;
+    size = other.size;
+
+    other.buffer = nullptr;
+    other.allocation = nullptr;
+    other.size = 0;
+}
+
+Buffer& Buffer::operator=(Buffer &&other) {
+    allocator = other.allocator;
+    buffer = other.buffer;
+    allocation = other.allocation;
+    size = other.size;
+
+    other.buffer = nullptr;
+    other.allocation = nullptr;
+    other.size = 0;
+
+    return *this;
+}
+
 void *Buffer::map() {
     if (!mapped && vmaMapMemory(allocator, allocation, &mapped) != VK_SUCCESS) {
         Logger::error("failed to map buffer memory!");
@@ -85,13 +109,13 @@ void Buffer::copy_from_buffer(const RendererContext &ctx, const Buffer &other_bu
 }
 
 namespace utils::buf {
-    unique_ptr<Buffer> create_uniform_buffer(const RendererContext &ctx, const vk::DeviceSize size) {
-        return make_unique<Buffer>(
+    auto create_uniform_buffer(const RendererContext &ctx, const vk::DeviceSize size) -> Buffer {
+        return Buffer {
             **ctx.allocator,
             size,
             vk::BufferUsageFlagBits::eUniformBuffer,
             vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-        );
+        };
     }
 }
 } // zrx

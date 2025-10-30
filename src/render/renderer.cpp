@@ -73,7 +73,7 @@ void VulkanRenderer::framebuffer_resize_callback(GLFWwindow *window, const int w
 
 // ==================== instance creation ====================
 
-vkb::Instance VulkanRenderer::create_instance() {
+auto VulkanRenderer::create_instance() -> vkb::Instance  {
     const auto debug_callback = [](
             const VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
             const VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -108,7 +108,7 @@ vkb::Instance VulkanRenderer::create_instance() {
     return instance_result.value();
 }
 
-vector<const char *> VulkanRenderer::get_required_extensions() {
+auto VulkanRenderer::get_required_extensions() -> vector<const char *>  {
     uint32_t glfw_extension_count = 0;
     const char **glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
 
@@ -133,7 +133,7 @@ void VulkanRenderer::create_surface() {
     surface = make_unique<vk::raii::SurfaceKHR>(*instance, _surface);
 }
 
-vkb::PhysicalDevice VulkanRenderer::pick_physical_device(const vkb::Instance &vkb_instance) {
+auto VulkanRenderer::pick_physical_device(const vkb::Instance &vkb_instance) -> vkb::PhysicalDevice  {
     const vector device_extensions{
         vk::EXTDescriptorIndexingExtensionName,
         // vk::EXTDebugMarkerExtensionName,
@@ -266,12 +266,12 @@ void VulkanRenderer::recreate_swap_chain() {
         auto extent = description.extent;
         if (extent.width != 0 || extent.height != 0) continue;
 
-        if (!resource_manager->contains_tex_builder(handle)) {
+        if (!resource_manager->contains<TextureBuilder>(handle)) {
             Logger::error("missing texture builder for window-sized texture ({}) during window resize",
                 resource_manager->get_name(handle));
         }
 
-        auto& tex_builder = resource_manager->get_tex_builder(handle);
+        auto& tex_builder = resource_manager->get<TextureBuilder>(handle);
         const auto swap_chain_extent = swap_chain->get_extent();
         tex_builder.as_uninitialized({swap_chain_extent.width, swap_chain_extent.height, 1u});
         tex_builder.with_layout(last_image_layouts.at(handle));
@@ -279,7 +279,7 @@ void VulkanRenderer::recreate_swap_chain() {
         resource_manager->recreate(handle);
 
         const bool is_compute_accessed = compute_accessed_resources.contains(handle);
-        const auto& texture = resource_manager->get_texture(handle);
+        const auto& texture = resource_manager->get<Texture>(handle);
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
 
         bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
@@ -366,8 +366,9 @@ RenderInfo::RenderInfo(vector<RenderTarget> colors, RenderTarget depth)
     make_attachment_infos();
 }
 
-vk::RenderingInfo RenderInfo::get(const vk::Extent2D extent, const uint32_t views,
-                                  const vk::RenderingFlags flags) const {
+auto RenderInfo::get(
+    const vk::Extent2D extent, const uint32_t views, const vk::RenderingFlags flags
+) const -> vk::RenderingInfo {
     return {
         .flags = flags,
         .renderArea = {
@@ -395,47 +396,20 @@ void RenderInfo::make_attachment_infos() {
 
 // ==================== multisampling ====================
 
-vk::SampleCountFlagBits VulkanRenderer::get_max_usable_sample_count() const {
+auto VulkanRenderer::get_max_usable_sample_count() const -> vk::SampleCountFlagBits  {
     const vk::PhysicalDeviceProperties physical_device_properties = ctx.physical_device->getProperties();
 
     const vk::SampleCountFlags counts = physical_device_properties.limits.framebufferColorSampleCounts
                                         & physical_device_properties.limits.framebufferDepthSampleCounts;
 
-    if (counts & vk::SampleCountFlagBits::e64) { return vk::SampleCountFlagBits::e64; }
-    if (counts & vk::SampleCountFlagBits::e32) { return vk::SampleCountFlagBits::e32; }
-    if (counts & vk::SampleCountFlagBits::e16) { return vk::SampleCountFlagBits::e16; }
-    if (counts & vk::SampleCountFlagBits::e8) { return vk::SampleCountFlagBits::e8; }
-    if (counts & vk::SampleCountFlagBits::e4) { return vk::SampleCountFlagBits::e4; }
-    if (counts & vk::SampleCountFlagBits::e2) { return vk::SampleCountFlagBits::e2; }
+    if (counts & vk::SampleCountFlagBits::e64) return vk::SampleCountFlagBits::e64;
+    if (counts & vk::SampleCountFlagBits::e32) return vk::SampleCountFlagBits::e32;
+    if (counts & vk::SampleCountFlagBits::e16) return vk::SampleCountFlagBits::e16;
+    if (counts & vk::SampleCountFlagBits::e8)  return vk::SampleCountFlagBits::e8;
+    if (counts & vk::SampleCountFlagBits::e4)  return vk::SampleCountFlagBits::e4;
+    if (counts & vk::SampleCountFlagBits::e2)  return vk::SampleCountFlagBits::e2;
 
     return vk::SampleCountFlagBits::e1;
-}
-
-// ==================== buffers ====================
-
-unique_ptr<Buffer> VulkanRenderer::create_local_buffer(const void *data, const vk::DeviceSize size,
-                                                       const vk::BufferUsageFlags usage) const {
-    Buffer staging_buffer{
-        **ctx.allocator,
-        size,
-        vk::BufferUsageFlagBits::eTransferSrc,
-        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-    };
-
-    void *staging_data = staging_buffer.map();
-    std::memcpy(staging_data, data, static_cast<size_t>(size));
-    staging_buffer.unmap();
-
-    auto result_buffer = make_unique<Buffer>(
-        **ctx.allocator,
-        size,
-        vk::BufferUsageFlagBits::eTransferDst | usage,
-        vk::MemoryPropertyFlagBits::eDeviceLocal
-    );
-
-    result_buffer->copy_from_buffer(ctx, staging_buffer, size);
-
-    return result_buffer;
 }
 
 // ==================== commands ====================
@@ -452,12 +426,10 @@ void VulkanRenderer::create_command_pool() {
 void VulkanRenderer::create_command_buffers() {
     const uint32_t n_buffers = frame_resources.size();
 
-    auto graphics_command_buffers =
-            utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::ePrimary, n_buffers);
+    auto graphics_command_buffers = utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::ePrimary, n_buffers);
 
     for (size_t i = 0; i < graphics_command_buffers.size(); i++) {
-        frame_resources[i].main_cmd_buffer =
-                make_unique<vk::raii::CommandBuffer>(std::move(graphics_command_buffers[i]));
+        frame_resources[i].main_cmd_buffer =  make_unique<vk::raii::CommandBuffer>(std::move(graphics_command_buffers[i]));
     }
 }
 
@@ -600,14 +572,22 @@ void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
     repeated_frame_begin_actions = render_graph->frame_begin_callbacks();
 }
 
+void VulkanRenderer::reload_all_pipelines() {
+    wait_idle();
+
+    queued_frame_begin_actions.emplace([&](const FrameBeginActionContext& fba_ctx) {
+        resource_manager->reload_all_pipelines();
+    });
+}
+
 void VulkanRenderer::create_render_graph_resources() {
     const auto attachment_resources = gather_attachment_resources();
     const auto compute_accessed_resources = gather_compute_accessed_resources();
 
     for (const auto &[handle, description]: render_graph->model_resources()) {
-        resource_manager->add(handle, make_unique<Model>(ctx, description.path, description.has_materials), description.name);
+        resource_manager->add(handle, Model { ctx, description.path, description.has_materials }, description.name);
 
-        const auto& materials = resource_manager->get_model(handle).get_materials();
+        const auto& materials = resource_manager->get<Model>(handle).get_materials();
         const auto& mat_tex_handles = resource_manager->get_model_mat_tex_handles(handle);
 
         for (size_t i = 0; i < materials.size(); i++) {
@@ -629,7 +609,7 @@ void VulkanRenderer::create_render_graph_resources() {
     for (const auto &[handle, description]: render_graph->vertex_buffers()) {
         resource_manager->add(
             handle,
-            create_local_buffer(description.data, description.size, vk::BufferUsageFlagBits::eVertexBuffer),
+            utils::buf::create_local_buffer(ctx, description.data, description.size, vk::BufferUsageFlagBits::eVertexBuffer),
             description.name
         );
     }
@@ -638,7 +618,7 @@ void VulkanRenderer::create_render_graph_resources() {
         resource_manager->add(handle, utils::buf::create_uniform_buffer(ctx, description.size), description.name);
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
-        const auto& buffer = resource_manager->get_buffer(handle);
+        const auto& buffer = resource_manager->get<Buffer>(handle);
         bindless_descriptor_set->queue_update<BINDLESS_UBO_BINDING>(buffer, bindless_handle);
     }
 
@@ -675,7 +655,7 @@ void VulkanRenderer::create_render_graph_resources() {
         resource_manager->add(handle, builder.create(ctx), description.name);
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
-        const auto& texture = resource_manager->get_texture(handle);
+        const auto& texture = resource_manager->get<Texture>(handle);
 
         bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
 
@@ -720,9 +700,9 @@ void VulkanRenderer::create_render_graph_resources() {
                 .with_layout(layout)
                 .with_usage(usage_flags);
 
-        resource_manager->add_from_builder<TextureBuilder, Texture>(handle, std::move(builder), description.name);
+        resource_manager->add_from_builder<TextureBuilder>(handle, std::move(builder), description.name);
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
-        const auto& texture = resource_manager->get_texture(handle);
+        const auto& texture = resource_manager->get<Texture>(handle);
 
         bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
 
@@ -750,19 +730,18 @@ void VulkanRenderer::create_render_graph_resources() {
 
     for (const auto &[handle, description]: render_graph->graphics_pipelines()) {
         auto builder = create_graph_gfx_pipeline_builder(handle);
-        graphics_pipelines.emplace(handle, builder.create(ctx));
+        resource_manager->add_from_builder(handle, std::move(builder));
     }
 
     for (const auto &[handle, description]: render_graph->compute_pipelines()) {
         auto builder = create_graph_compute_pipeline_builder(handle);
-        compute_pipelines.emplace(handle, builder.create(ctx));
+        resource_manager->add_from_builder(handle, std::move(builder));
     }
 
     bindless_descriptor_set->commit_updates();
 }
 
-GraphicsPipelineBuilder
-VulkanRenderer::create_graph_gfx_pipeline_builder(const ResourceHandle pipeline_handle) const {
+auto VulkanRenderer::create_graph_gfx_pipeline_builder(const ResourceHandle pipeline_handle) const -> GraphicsPipelineBuilder {
     const auto &pipeline_info = render_graph->graphics_pipelines().at(pipeline_handle);
 
     vector<vk::Format> color_formats;
@@ -838,8 +817,8 @@ VulkanRenderer::create_graph_compute_pipeline_builder(const ResourceHandle pipel
 
 void VulkanRenderer::queue_set_update_with_handle(DescriptorSet &descriptor_set, const ResourceHandle res_handle,
                                                   const uint32_t binding, const uint32_t array_element) const {
-    if (resource_manager->contains_buffer(res_handle)) {
-        const auto &buffer = resource_manager->get_buffer(res_handle);
+    if (resource_manager->contains<Buffer>(res_handle)) {
+        const auto &buffer = resource_manager->get<Buffer>(res_handle);
         descriptor_set.queue_update(
             binding,
             buffer,
@@ -848,8 +827,8 @@ void VulkanRenderer::queue_set_update_with_handle(DescriptorSet &descriptor_set,
             0,
             array_element
         );
-    } else if (resource_manager->contains_texture(res_handle)) {
-        const auto &texture = resource_manager->get_texture(res_handle);
+    } else if (resource_manager->contains<Texture>(res_handle)) {
+        const auto &texture = resource_manager->get<Texture>(res_handle);
         descriptor_set.queue_update(
             ctx,
             binding,
@@ -880,7 +859,7 @@ vector<RenderInfo> VulkanRenderer::create_node_render_infos(const RenderNodeHand
                 if (color_target_handle == FINAL_IMAGE_HANDLE) {
                     color_targets.emplace_back(std::move(swap_chain_targets.color_target));
                 } else {
-                    const auto &target_texture = resource_manager->get_texture(color_target_handle);
+                    const auto &target_texture = resource_manager->get<Texture>(color_target_handle);
                     color_targets.emplace_back(target_texture.get_image().get_view(ctx), target_texture.get_format());
                 }
             }
@@ -896,13 +875,13 @@ vector<RenderInfo> VulkanRenderer::create_node_render_infos(const RenderNodeHand
         optional<RenderTarget> depth_target;
 
         for (auto color_target_handle: node_info.color_targets) {
-            const auto &target_texture = resource_manager->get_texture(color_target_handle);
+            const auto &target_texture = resource_manager->get<Texture>(color_target_handle);
             color_targets.emplace_back(target_texture.get_image().get_mip_view(ctx, 0),
                                        target_texture.get_format());
         }
 
         if (node_info.depth_target) {
-            const auto &target_texture = resource_manager->get_texture(*node_info.depth_target);
+            const auto &target_texture = resource_manager->get<Texture>(*node_info.depth_target);
             depth_target = RenderTarget(target_texture.get_image().get_layer_mip_view(ctx, 0, 0),
                                         target_texture.get_format());
         }
@@ -936,7 +915,8 @@ void VulkanRenderer::run_render_graph() {
             }
         }
 
-        time_query_pool = make_unique<QueryPool>(ctx, vk::QueryType::eTimestamp, 2 * node_count);
+        frame_resources[current_frame_idx].time_query_pool =
+            make_unique<QueryPool>(ctx, vk::QueryType::eTimestamp, 2 * node_count);
         current_query_idx = 0;
 
         record_graph_commands();
@@ -982,6 +962,7 @@ void VulkanRenderer::record_graph_commands() {
 
 void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_handle) {
     const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
+    const auto &time_query_pool = frame_resources[current_frame_idx].time_query_pool;
     const auto &node = render_graph->nodes().at(node_handle).get_graphics();
 
     Logger::debug("recording gfx node: {}", node.name);
@@ -1018,7 +999,6 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeHandle node_
     RenderPassContext ctx{
         command_buffer,
         *resource_manager,
-        graphics_pipelines,
         **bindless_descriptor_set
     };
     node_info.body(ctx);
@@ -1031,7 +1011,7 @@ void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeHandle n
     for (const auto color_target: node.color_targets) {
         if (color_target == FINAL_IMAGE_HANDLE) continue;
 
-        const auto &target_texture = resource_manager->get_texture(color_target);
+        const auto &target_texture = resource_manager->get<Texture>(color_target);
         if (target_texture.get_mip_levels() == 1) continue;
 
         Logger::debug("recording mipmap regeneration commands for texture: {}", resource_manager->get_name(color_target));
@@ -1095,7 +1075,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
 
         Logger::debug("inserting pre-partition (sampled) barrier for texture: {}", resource_manager->get_name(handle));
 
-        const Texture& texture = resource_manager->get_texture(handle);
+        const Texture& texture = resource_manager->get<Texture>(handle);
         const bool is_depth_texture = vk::hasDepthComponent(texture.get_image().get_format());
         const auto old_layout = last_image_layouts[handle];
         constexpr auto new_layout = vk::ImageLayout::eShaderReadOnlyOptimal;
@@ -1153,7 +1133,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
             continue;
         }
 
-        const Texture& texture = resource_manager->get_texture(handle);
+        const Texture& texture = resource_manager->get<Texture>(handle);
         const bool is_depth_texture = vk::hasDepthComponent(texture.get_image().get_format());
         const auto expected_layout = is_depth_texture
                                      ? vk::ImageLayout::eDepthAttachmentOptimal
@@ -1189,7 +1169,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
 
         Logger::debug("inserting pre-partition (compute-read) barrier for texture: {}", resource_manager->get_name(handle));
 
-        const Texture& texture = resource_manager->get_texture(handle);
+        const Texture& texture = resource_manager->get<Texture>(handle);
         const bool is_depth_texture = vk::hasDepthComponent(texture.get_image().get_format());
         const auto old_layout = last_image_layouts[handle];
         constexpr auto new_layout = vk::ImageLayout::eShaderReadOnlyOptimal;
@@ -1226,7 +1206,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
     for (const auto& handle: compute_write_resources) {
         Logger::debug("inserting pre-partition (compute-write) barrier for texture: {}", resource_manager->get_name(handle));
 
-        const Texture& texture = resource_manager->get_texture(handle);
+        const Texture& texture = resource_manager->get<Texture>(handle);
         const bool is_depth_texture = vk::hasDepthComponent(texture.get_image().get_format());
         constexpr auto expected_layout = vk::ImageLayout::eGeneral;
         const auto current_layout = last_image_layouts.at(handle);
@@ -1258,6 +1238,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
 
 void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_handle) {
     const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
+    const auto &time_query_pool = *frame_resources[current_frame_idx].time_query_pool;
     const auto &node = render_graph->nodes().at(node_handle).get_compute();
 
     Logger::debug("recording compute node: {}", node.name);
@@ -1278,7 +1259,6 @@ void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_ha
     ComputePassContext ctx{
         command_buffer,
         *resource_manager,
-        compute_pipelines,
         **bindless_descriptor_set
     };
     node.body(ctx);
@@ -1348,24 +1328,24 @@ vk::Extent2D VulkanRenderer::get_node_target_extent(const RenderNodeHandle node_
     }
 
     if (gfx_node_info.color_targets.empty()) {
-        return resource_manager->get_texture(*gfx_node_info.depth_target).get_image().get_extent_2d();
+        return resource_manager->get<Texture>(*gfx_node_info.depth_target).get_image().get_extent_2d();
     }
 
-    return resource_manager->get_texture(gfx_node_info.color_targets[0]).get_image().get_extent_2d();
+    return resource_manager->get<Texture>(gfx_node_info.color_targets[0]).get_image().get_extent_2d();
 }
 
 vk::Format VulkanRenderer::get_target_color_format(const ResourceHandle resource_handle) const {
     if (resource_handle == FINAL_IMAGE_HANDLE) {
         return swap_chain->get_image_format();
     }
-    return resource_manager->get_texture(resource_handle).get_format();
+    return resource_manager->get<Texture>(resource_handle).get_format();
 }
 
 vk::Format VulkanRenderer::get_target_depth_format(const ResourceHandle resource_handle) const {
     if (resource_handle == FINAL_IMAGE_HANDLE) {
         return swap_chain->get_depth_format();
     }
-    return resource_manager->get_texture(resource_handle).get_format();
+    return resource_manager->get<Texture>(resource_handle).get_format();
 }
 
 vector<ResourceHandle> VulkanRenderer::get_node_target_handles(const RenderNodeHandle node_handle) const {
@@ -1506,7 +1486,7 @@ void VulkanRenderer::end_frame() {
     } catch (...) {
     }
 
-    prev_frame_time_query_results = time_query_pool->get_results();
+    prev_frame_time_query_results = frame_resources[current_frame_idx].time_query_pool->get_results();
 
     const bool did_resize = present_result == vk::Result::eErrorOutOfDateKHR
                             || present_result == vk::Result::eSuboptimalKHR

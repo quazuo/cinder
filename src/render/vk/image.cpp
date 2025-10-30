@@ -673,15 +673,10 @@ auto TextureBuilder::from_swizzle_fill(vk::Extent3D extent) -> TextureBuilder& {
     return *this;
 }
 
-auto TextureBuilder::create(const RendererContext &ctx) const -> unique_ptr<Texture> {
+auto TextureBuilder::create(const RendererContext &ctx) const -> Texture {
     check_params();
 
-    // stupid workaround because std::unique_ptr doesn't have access to the Texture ctor
-    unique_ptr<Texture> texture; {
-        Texture t;
-        texture = make_unique<Texture>(std::move(t));
-    }
-
+    Texture texture;
     LoadedTextureData loaded_tex_data;
 
     if (is_uninitialized) loaded_tex_data = {{}, *desired_extent, get_layer_count()};
@@ -716,13 +711,13 @@ auto TextureBuilder::create(const RendererContext &ctx) const -> unique_ptr<Text
     const auto aspect_flags = is_depth ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor;
 
     if (!!(tex_flags & TextureFlags::CUBEMAP)) {
-        texture->image = make_unique<CubeImage>(
+        texture.image = make_unique<CubeImage>(
             ctx,
             image_info,
             vk::MemoryPropertyFlagBits::eDeviceLocal
         );
     } else {
-        texture->image = make_unique<Image>(
+        texture.image = make_unique<Image>(
             ctx,
             image_info,
             vk::MemoryPropertyFlagBits::eDeviceLocal,
@@ -730,11 +725,11 @@ auto TextureBuilder::create(const RendererContext &ctx) const -> unique_ptr<Text
         );
     }
 
-    create_sampler(ctx, *texture);
+    create_sampler(ctx, texture);
 
     if (is_uninitialized && !!(tex_flags & TextureFlags::NO_MIPMAPS)) {
         utils::cmd::do_single_time_commands(ctx, [&](const auto &cmd_buffer) {
-            texture->image->transition_layout(
+            texture.image->transition_layout(
                 vk::ImageLayout::eUndefined,
                 layout,
                 cmd_buffer
@@ -742,18 +737,18 @@ auto TextureBuilder::create(const RendererContext &ctx) const -> unique_ptr<Text
         });
     } else {
         utils::cmd::do_single_time_commands(ctx, [&](const auto &cmd_buffer) {
-            texture->image->transition_layout(
+            texture.image->transition_layout(
                 vk::ImageLayout::eUndefined,
                 vk::ImageLayout::eTransferDstOptimal,
                 cmd_buffer
             );
 
             if (!is_uninitialized) {
-                texture->image->copy_from_buffer(**staging_buffer, cmd_buffer);
+                texture.image->copy_from_buffer(**staging_buffer, cmd_buffer);
             }
 
             if (!!(tex_flags & TextureFlags::NO_MIPMAPS)) {
-                texture->image->transition_layout(
+                texture.image->transition_layout(
                     vk::ImageLayout::eTransferDstOptimal,
                     layout,
                     cmd_buffer
@@ -762,14 +757,14 @@ auto TextureBuilder::create(const RendererContext &ctx) const -> unique_ptr<Text
         });
 
         if (!(tex_flags & TextureFlags::NO_MIPMAPS)) {
-            texture->generate_mipmaps(ctx, layout);
+            texture.generate_mipmaps(ctx, layout);
         }
     }
 
     if (name) {
         ctx.device->setDebugUtilsObjectNameEXT(vk::DebugUtilsObjectNameInfoEXT {
             .objectType = vk::ObjectType::eImage,
-            .objectHandle = reinterpret_cast<uint64_t>(static_cast<VkImage>(**texture->image)),
+            .objectHandle = reinterpret_cast<uint64_t>(static_cast<VkImage>(**texture.image)),
             .pObjectName = name,
         });
     }

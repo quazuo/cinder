@@ -15,8 +15,7 @@ using RenderNodeHandle = uint32_t;
 
 class RenderPassContext {
     reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
-    reference_wrapper<ResourceManager> resource_manager;
-    reference_wrapper<const map<ResourceHandle, GraphicsPipeline>> graphics_pipelines;
+    reference_wrapper<const ResourceManager> resource_manager;
     reference_wrapper<const vk::raii::DescriptorSet> bindless_set;
 
     optional<ResourceHandle> last_bound_pipeline;
@@ -25,11 +24,9 @@ class RenderPassContext {
     optional<uint32_t> current_material_id;
 
 public:
-    explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, ResourceManager &rm,
-                               const map<ResourceHandle, GraphicsPipeline> &graphics_pipelines,
+    explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, const ResourceManager &resource_manager,
                                const vk::raii::DescriptorSet &bindless_set)
-        : command_buffer(cmd_buf), resource_manager(rm),
-          graphics_pipelines(graphics_pipelines), bindless_set(bindless_set) {
+        : command_buffer(cmd_buf), resource_manager(resource_manager), bindless_set(bindless_set) {
     }
 
     auto get_raw_cmd_buffer() const -> const vk::raii::CommandBuffer& { return command_buffer.get(); }
@@ -49,19 +46,16 @@ private:
 
 class ComputePassContext {
     reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
-    reference_wrapper<ResourceManager> resource_manager;
-    reference_wrapper<const map<ResourceHandle, ComputePipeline>> compute_pipelines;
+    reference_wrapper<const ResourceManager> resource_manager;
     reference_wrapper<const vk::raii::DescriptorSet> bindless_set;
 
     optional<ResourceHandle> last_bound_pipeline;
     std::vector<ResourceHandle> bound_resource_ids;
 
 public:
-    explicit ComputePassContext(const vk::raii::CommandBuffer &cmd_buf, ResourceManager &rm,
-                               const map<ResourceHandle, ComputePipeline> &compute_pipelines,
-                               const vk::raii::DescriptorSet &bindless_set)
-        : command_buffer(cmd_buf), resource_manager(rm),
-          compute_pipelines(compute_pipelines), bindless_set(bindless_set) {
+    explicit ComputePassContext(const vk::raii::CommandBuffer &cmd_buf, const ResourceManager &resource_manager,
+                                const vk::raii::DescriptorSet &bindless_set)
+        : command_buffer(cmd_buf), resource_manager(resource_manager), bindless_set(bindless_set) {
     }
 
     auto get_raw_cmd_buffer() const -> const vk::raii::CommandBuffer& { return command_buffer.get(); }

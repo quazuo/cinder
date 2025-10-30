@@ -15,13 +15,59 @@ template<typename T>
 concept is_valid_resource_type =
     std::same_as<T, Texture>
     || std::same_as<T, Buffer>
-    || std::same_as<T, Model>;
+    || std::same_as<T, Model>
+    || std::same_as<T, GraphicsPipeline>
+    || std::same_as<T, ComputePipeline>;
 
-template <typename Builder, typename Resource>
-concept is_valid_builder_type = requires (Builder builder) {
-    { builder.create(RendererContext()) } -> std::convertible_to<unique_ptr<Resource>>;
-} && is_valid_resource_type<Resource>;
-}
+template <typename T>
+concept is_valid_builder_type = requires (T builder) {
+    { builder.create(RendererContext()) } -> is_valid_resource_type;
+};
+
+template <typename T>
+concept is_pipeline_type =
+    std::same_as<T, GraphicsPipeline>
+    || std::same_as<T, ComputePipeline>;
+
+enum class ResourceKind {
+    TEXTURE,
+    BUFFER,
+    MODEL,
+    GRAPHICS_PIPELINE,
+    COMPUTE_PIPELINE,
+};
+
+template <typename T>
+struct ResourceTypeToKind;
+
+template <>
+struct ResourceTypeToKind<Texture> {
+    static constexpr auto value = ResourceKind::TEXTURE;
+};
+
+template <>
+struct ResourceTypeToKind<Buffer> {
+    static constexpr auto value = ResourceKind::BUFFER;
+};
+
+template <>
+struct ResourceTypeToKind<Model> {
+    static constexpr auto value = ResourceKind::MODEL;
+};
+
+template <>
+struct ResourceTypeToKind<GraphicsPipeline> {
+    static constexpr auto value = ResourceKind::GRAPHICS_PIPELINE;
+};
+
+template <>
+struct ResourceTypeToKind<ComputePipeline> {
+    static constexpr auto value = ResourceKind::COMPUTE_PIPELINE;
+};
+
+template <typename T>
+inline constexpr ResourceKind resource_type_to_kind_v = ResourceTypeToKind<T>::value;
+} // zrx
 
 export namespace zrx {
 constexpr BindlessHandle EMPTY_TEXTURE_BINDLESS_HANDLE = 0xffffffff;
@@ -37,16 +83,22 @@ public:
 private:
     reference_wrapper<const RendererContext> renderer_ctx;
 
+    map<ResourceHandle, ResourceKind> handle_to_kind_mapping;
+
     // todo - replace by vectors
-    map<ResourceHandle, unique_ptr<Buffer> > buffers;
-    map<ResourceHandle, unique_ptr<Texture> > textures;
-    map<ResourceHandle, unique_ptr<Model> > models;
+    map<ResourceHandle, Buffer> buffers;
+    map<ResourceHandle, Texture> textures;
+    map<ResourceHandle, Model> models;
+    map<ResourceHandle, GraphicsPipeline> graphics_pipelines;
+    map<ResourceHandle, ComputePipeline> compute_pipelines;
 
     using ModelMaterialHandle = uint32_t;
     map<ResourceHandle, vector<ModelMaterialHandle>> models_to_materials;
     map<ModelMaterialHandle, MaterialTextureHandles> materials;
 
     map<ResourceHandle, TextureBuilder> texture_builders;
+    map<ResourceHandle, GraphicsPipelineBuilder> graphics_pipeline_builders;
+    map<ResourceHandle, ComputePipelineBuilder> compute_pipeline_builders;
 
     template <typename HandleType>
     using HandlePrioQueue = std::priority_queue<HandleType, std::vector<HandleType>, std::greater<>>;
@@ -63,9 +115,11 @@ public:
 
     template <typename T>
         requires is_valid_resource_type<T>
-    void add(const ResourceHandle handle, unique_ptr<T>&& resource, const std::string& name = "NO_NAME") {
+    void add(const ResourceHandle handle, T&& resource, const std::string& name = "NO_NAME") {
+        handle_to_kind_mapping.emplace(handle, resource_type_to_kind_v<T>);
+
         if constexpr (std::is_same_v<T, Model>) {
-            add_model_materials(handle, *resource);
+            add_model_materials(handle, resource);
         }
 
         get_resource_map<T>().emplace(handle, std::move(resource));
@@ -76,94 +130,106 @@ public:
         resource_names.emplace(handle, name);
     }
 
-    template <typename T, typename U>
-        requires is_valid_builder_type<T, U>
+    template <typename T>
+        requires is_valid_builder_type<T>
     void add_from_builder(const ResourceHandle handle, T&& builder, const std::string& name = "NO_NAME") {
-        texture_builders.emplace(handle, std::move(builder));
+        using BuiltResourceType = std::invoke_result_t<decltype(&T::create), T, const RendererContext&>;
+        handle_to_kind_mapping.emplace(handle, resource_type_to_kind_v<BuiltResourceType>);
+
         add(handle, builder.create(renderer_ctx.get()), name);
+        get_builder_map<T>().emplace(handle, std::move(builder));
     }
 
-    void add_model_materials(const ResourceHandle handle, const Model& model) {
-        vector<ModelMaterialHandle> material_handles;
+    void add_model_materials(ResourceHandle handle, const Model& model);
 
-        for (size_t i = 0; i < model.get_materials().size(); i++) {
-            const Material& material = model.get_materials()[i];
-            const ModelMaterialHandle new_mat_handle = get_new_handle(free_model_mat_handles);
+    void recreate(ResourceHandle handle);
 
-            material_handles.emplace_back(new_mat_handle);
+    void reload_all_pipelines();
 
-            const auto base_color_handle = material.base_color ? get_new_handle(free_bindless_handles) : EMPTY_TEXTURE_BINDLESS_HANDLE;
-            const auto normal_handle     = material.normal     ? get_new_handle(free_bindless_handles) : EMPTY_TEXTURE_BINDLESS_HANDLE;
-            const auto orm_handle        = material.orm        ? get_new_handle(free_bindless_handles) : EMPTY_TEXTURE_BINDLESS_HANDLE;
-
-            materials.emplace(new_mat_handle, MaterialTextureHandles {
-                .base_color = base_color_handle,
-                .normal = normal_handle,
-                .orm = orm_handle,
-            });
-        }
-
-        models_to_materials.emplace(handle, material_handles);
-    }
-
-    void recreate(const ResourceHandle handle) {
-        if (texture_builders.contains(handle)) {
-            textures[handle] = texture_builders[handle].create(renderer_ctx.get());
-
-        } else {
-            throw std::runtime_error("unsupported resource type in ResourceManager::recreate");
-        }
-    }
-
-    auto get_name(const ResourceHandle handle) const -> const std::string& {
-        if (handle == FINAL_IMAGE_HANDLE) return FINAL_IMAGE_NAME;
-        return resource_names.at(handle);
-    }
+    auto get_name(ResourceHandle handle) const -> const std::string&;
 
     auto get_bindless_handle(const ResourceHandle handle) const -> BindlessHandle { return bindless_handle_mapping.at(handle); }
 
-    auto get_buffer(const ResourceHandle handle) const      -> const Buffer&  { return *buffers.at(handle); }
-    auto get_texture(const ResourceHandle handle) const     -> const Texture& { return *textures.at(handle); }
-    auto get_model(const ResourceHandle handle) const       -> const Model&   { return *models.at(handle); }
-    auto get_tex_builder(const ResourceHandle handle) const -> const TextureBuilder& { return texture_builders.at(handle); }
+    template <typename T>
+        requires is_valid_resource_type<T>
+    auto get(const ResourceHandle handle) const -> const T& { return get_resource_map<T>().at(handle); }
 
-    auto get_buffer(const ResourceHandle handle)        -> Buffer&  { return *buffers.at(handle); }
-    auto get_texture(const ResourceHandle handle)       -> Texture& { return *textures.at(handle); }
-    auto get_model(const ResourceHandle handle)         -> Model&   { return *models.at(handle); }
-    auto get_tex_builder(const ResourceHandle handle)   -> TextureBuilder& { return texture_builders.at(handle); }
+    template <typename T>
+        requires is_valid_resource_type<T>
+    auto get(const ResourceHandle handle) -> T& { return get_resource_map<T>().at(handle); }
+
+    template <typename T>
+        requires is_valid_builder_type<T>
+    auto get(const ResourceHandle handle) const -> const T& { return get_builder_map<T>().at(handle); }
+
+    template <typename T>
+        requires is_valid_builder_type<T>
+    auto get(const ResourceHandle handle) -> T& { return get_builder_map<T>().at(handle); }
 
     auto get_model_material_handles(const ResourceHandle handle) const { return models_to_materials.at(handle); }
     auto get_material_tex_handles(const ModelMaterialHandle handle) const { return materials.at(handle); }
 
-    auto get_model_mat_tex_handles(const ResourceHandle handle) const {
-        vector<MaterialTextureHandles> result;
+    auto get_model_mat_tex_handles(ResourceHandle handle) const -> vector<MaterialTextureHandles>;
 
-        for (auto& material_handle : models_to_materials.at(handle)) {
-            result.emplace_back(materials.at(material_handle));
-        }
+    template <typename T>
+        requires is_valid_resource_type<T>
+    auto contains(const ResourceHandle handle) const -> bool { return get_resource_map<T>().contains(handle); }
 
-        return result;
-    }
-
-    auto contains_buffer(const ResourceHandle handle) const         -> bool { return buffers.contains(handle); }
-    auto contains_texture(const ResourceHandle handle) const        -> bool { return textures.contains(handle); }
-    auto contains_model(const ResourceHandle handle) const          -> bool { return models.contains(handle); }
-    auto contains_tex_builder(const ResourceHandle handle) const    -> bool { return texture_builders.contains(handle); }
+    template <typename T>
+        requires is_valid_builder_type<T>
+    auto contains(const ResourceHandle handle) const -> bool { return get_builder_map<T>().contains(handle); }
 
 private:
     template <typename T>
         requires is_valid_resource_type<T>
-    auto get_resource_map() -> map<ResourceHandle, unique_ptr<T> >& {
+    auto get_resource_map() const -> const map<ResourceHandle, T>& {
         if constexpr (std::is_same_v<T, Buffer>) {
             return buffers;
         } else if constexpr (std::is_same_v<T, Texture>) {
             return textures;
         } else if constexpr (std::is_same_v<T, Model>) {
             return models;
+        } else if constexpr (std::is_same_v<T, GraphicsPipeline>) {
+            return graphics_pipelines;
+        } else if constexpr (std::is_same_v<T, ComputePipeline>) {
+            return compute_pipelines;
         } else {
             static_assert(false, "invalid type in ResourceManager::get_resource_map");
             return {};
         }
+    }
+
+    // non-const version of the above fn
+    template <typename T>
+        requires is_valid_resource_type<T>
+    auto get_resource_map() -> map<ResourceHandle, T>& {
+        return const_cast<map<ResourceHandle, T> &>(
+            static_cast<const ResourceManager *>(this)->get_resource_map<T>()
+        );
+    }
+
+    template <typename T>
+        requires is_valid_builder_type<T>
+    auto get_builder_map() const -> const map<ResourceHandle, T>& {
+        if constexpr (std::is_same_v<T, TextureBuilder>) {
+            return texture_builders;
+        } else if constexpr (std::is_same_v<T, GraphicsPipelineBuilder>) {
+            return graphics_pipeline_builders;
+        } else if constexpr (std::is_same_v<T, ComputePipelineBuilder>) {
+            return compute_pipeline_builders;
+        } else {
+            static_assert(false, "invalid type in ResourceManager::get_builder_map");
+            return {};
+        }
+    }
+
+    // non-const version of the above fn
+    template <typename T>
+        requires is_valid_builder_type<T>
+    auto get_builder_map() -> map<ResourceHandle, T>& {
+        return const_cast<map<ResourceHandle, T> &>(
+            static_cast<const ResourceManager *>(this)->get_builder_map<T>()
+        );
     }
 
     template <typename HandleType>
