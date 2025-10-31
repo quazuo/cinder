@@ -117,8 +117,6 @@ private:
 public:
     explicit ResourceManager(const RendererContext& ctx, uint32_t max_bindless_handles, uint32_t frames_in_flight);
 
-    void clear_removal_queue();
-
     template <typename T>
         requires is_resource_type<T>
     void add(const ResourceHandle handle, T&& resource, const std::string& name = "NO_NAME") {
@@ -158,6 +156,8 @@ public:
     void recreate(ResourceHandle handle);
 
     void reload_all_pipelines();
+
+    void clear_removal_queue();
 
     auto get_name(ResourceHandle handle) const -> const std::string&;
 
