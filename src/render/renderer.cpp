@@ -38,7 +38,10 @@ VulkanRenderer::VulkanRenderer() {
 
     ctx.allocator = make_unique<VmaAllocatorWrapper>(**ctx.physical_device, **ctx.device, **instance);
 
-    resource_manager = make_unique<ResourceManager>(ctx, BINDLESS_ARRAY_SIZE);
+    resource_manager = make_unique<ResourceManager>(ctx, BINDLESS_ARRAY_SIZE, MAX_FRAMES_IN_FLIGHT);
+    repeated_frame_begin_actions.emplace_back([&](const FrameBeginActionContext& fba_ctx) {
+        resource_manager->clear_removal_queue();
+    });
 
     swap_chain = make_unique<SwapChain>(
         ctx,
@@ -73,7 +76,7 @@ void VulkanRenderer::framebuffer_resize_callback(GLFWwindow *window, const int w
 
 // ==================== instance creation ====================
 
-auto VulkanRenderer::create_instance() -> vkb::Instance  {
+auto VulkanRenderer::create_instance() -> vkb::Instance {
     const auto debug_callback = [](
             const VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
             const VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -495,14 +498,12 @@ void VulkanRenderer::init_imgui() {
         .DescriptorPool = static_cast<VkDescriptorPool>(**imgui_descriptor_pool),
         .MinImageCount = image_count,
         .ImageCount = image_count,
-        .PipelineInfoMain = {
-            .MSAASamples = static_cast<VkSampleCountFlagBits>(get_msaa_sample_count()),
-            .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
-                .colorAttachmentCount = static_cast<uint32_t>(color_attachment_formats.size()),
-                .pColorAttachmentFormats = color_attachment_formats.data(),
-            }
-        },
+        .MSAASamples = static_cast<VkSampleCountFlagBits>(get_msaa_sample_count()),
         .UseDynamicRendering = true,
+        .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
+            .colorAttachmentCount = static_cast<uint32_t>(color_attachment_formats.size()),
+            .pColorAttachmentFormats = color_attachment_formats.data(),
+        },
     };
 
     gui_renderer = make_unique<GuiRenderer>(window, imgui_init_info);
@@ -915,7 +916,7 @@ void VulkanRenderer::run_render_graph() {
             }
         }
 
-        frame_resources[current_frame_idx].time_query_pool =
+        frame_resources[ctx.current_frame_idx].time_query_pool =
             make_unique<QueryPool>(ctx, vk::QueryType::eTimestamp, 2 * node_count);
         current_query_idx = 0;
 
@@ -925,7 +926,7 @@ void VulkanRenderer::run_render_graph() {
 }
 
 void VulkanRenderer::record_graph_commands() {
-    const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
+    const auto &command_buffer = *frame_resources[ctx.current_frame_idx].main_cmd_buffer;
 
     command_buffer.begin({});
 
@@ -961,8 +962,8 @@ void VulkanRenderer::record_graph_commands() {
 }
 
 void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_handle) {
-    const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
-    const auto &time_query_pool = frame_resources[current_frame_idx].time_query_pool;
+    const auto &command_buffer = *frame_resources[ctx.current_frame_idx].main_cmd_buffer;
+    const auto &time_query_pool = frame_resources[ctx.current_frame_idx].time_query_pool;
     const auto &node = render_graph->nodes().at(node_handle).get_graphics();
 
     Logger::debug("recording gfx node: {}", node.name);
@@ -970,7 +971,7 @@ void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_h
     // if size > 1, then this means that this pass (node) draws to the swapchain image
     // and thus benefits from double or triple buffering
     const auto &[render_infos] = node_resources.at(node_handle);
-    const size_t subresource_index = render_infos.size() == 1 ? 0 : current_frame_idx;
+    const size_t subresource_index = render_infos.size() == 1 ? 0 : ctx.current_frame_idx;
     const auto &node_render_info = render_infos[subresource_index];
 
     // command_buffer.debugMarkerBeginEXT(vk::DebugMarkerMarkerInfoEXT { .pMarkerName = node.name.c_str(), });
@@ -991,7 +992,7 @@ void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_h
 }
 
 void VulkanRenderer::record_node_rendering_commands(const RenderNodeHandle node_handle) const {
-    const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
+    const auto &command_buffer = *frame_resources[ctx.current_frame_idx].main_cmd_buffer;
     const auto &node_info = render_graph->nodes().at(node_handle).get_graphics();
 
     utils::cmd::set_dynamic_states(command_buffer, get_node_target_extent(node_handle));
@@ -1005,7 +1006,7 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeHandle node_
 }
 
 void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeHandle node_handle) {
-    const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
+    const auto &command_buffer = *frame_resources[ctx.current_frame_idx].main_cmd_buffer;
     const auto &node = render_graph->nodes().at(node_handle).get_graphics();
 
     for (const auto color_target: node.color_targets) {
@@ -1029,7 +1030,7 @@ void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeHandle n
 }
 
 void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle> &partition) {
-    const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
+    const auto &command_buffer = *frame_resources[ctx.current_frame_idx].main_cmd_buffer;
 
     cached_barriers.emplace_back();
     auto& barriers = cached_barriers.back();
@@ -1237,8 +1238,8 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
 }
 
 void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_handle) {
-    const auto &command_buffer = *frame_resources[current_frame_idx].main_cmd_buffer;
-    const auto &time_query_pool = *frame_resources[current_frame_idx].time_query_pool;
+    const auto &command_buffer = *frame_resources[ctx.current_frame_idx].main_cmd_buffer;
+    const auto &time_query_pool = *frame_resources[ctx.current_frame_idx].time_query_pool;
     const auto &node = render_graph->nodes().at(node_handle).get_compute();
 
     Logger::debug("recording compute node: {}", node.name);
@@ -1359,7 +1360,6 @@ vector<ResourceHandle> VulkanRenderer::get_node_target_handles(const RenderNodeH
 
 void VulkanRenderer::tick(const float delta_time) {
     (void) delta_time;
-    // unused rn
 }
 
 void VulkanRenderer::do_frame_begin_actions() {
@@ -1376,7 +1376,7 @@ void VulkanRenderer::do_frame_begin_actions() {
 }
 
 bool VulkanRenderer::start_frame() {
-    const auto &sync = frame_resources[current_frame_idx].sync;
+    const auto &sync = frame_resources[ctx.current_frame_idx].sync;
 
     const vector wait_semaphores = {
         **sync.render_finished_timeline.semaphore,
@@ -1416,7 +1416,7 @@ bool VulkanRenderer::start_frame() {
 }
 
 void VulkanRenderer::end_frame() {
-    auto &sync = frame_resources[current_frame_idx].sync;
+    auto& sync = frame_resources[ctx.current_frame_idx].sync;
 
     const vector wait_semaphores = {
         **sync.image_available_semaphore
@@ -1448,7 +1448,7 @@ void VulkanRenderer::end_frame() {
             .pWaitSemaphores = wait_semaphores.data(),
             .pWaitDstStageMask = wait_stages,
             .commandBufferCount = 1,
-            .pCommandBuffers = &**frame_resources[current_frame_idx].main_cmd_buffer,
+            .pCommandBuffers = &**frame_resources[ctx.current_frame_idx].main_cmd_buffer,
             .signalSemaphoreCount = signal_semaphores.size(),
             .pSignalSemaphores = signal_semaphores.data(),
         },
@@ -1486,7 +1486,7 @@ void VulkanRenderer::end_frame() {
     } catch (...) {
     }
 
-    prev_frame_time_query_results = frame_resources[current_frame_idx].time_query_pool->get_results();
+    prev_frame_time_query_results = frame_resources[ctx.current_frame_idx].time_query_pool->get_results();
 
     const bool did_resize = present_result == vk::Result::eErrorOutOfDateKHR
                             || present_result == vk::Result::eSuboptimalKHR
@@ -1498,6 +1498,6 @@ void VulkanRenderer::end_frame() {
         Logger::error("failed to present swap chain image!");
     }
 
-    current_frame_idx = (current_frame_idx + 1) % MAX_FRAMES_IN_FLIGHT;
+    ctx.current_frame_idx = (ctx.current_frame_idx + 1) % MAX_FRAMES_IN_FLIGHT;
 }
 } // zrx

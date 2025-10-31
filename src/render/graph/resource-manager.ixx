@@ -11,23 +11,25 @@ import Cinder.Render.Mesh;
 import Cinder.Globals;
 
 namespace zrx {
+#define NON_PIPELINE_RESOURCE_TYPES Texture, Buffer, Model
+#define PIPELINE_RESOURCE_TYPES GraphicsPipeline, ComputePipeline
+#define RESOURCE_TYPES NON_PIPELINE_RESOURCE_TYPES, PIPELINE_RESOURCE_TYPES
+
+using ResourceVariant = std::variant<RESOURCE_TYPES>;
+
+template <typename T, typename... Ts>
+concept is_one_of = (std::same_as<T, Ts> || ...);
+
 template<typename T>
-concept is_valid_resource_type =
-    std::same_as<T, Texture>
-    || std::same_as<T, Buffer>
-    || std::same_as<T, Model>
-    || std::same_as<T, GraphicsPipeline>
-    || std::same_as<T, ComputePipeline>;
+concept is_resource_type = is_one_of<T, RESOURCE_TYPES>;
 
 template <typename T>
-concept is_valid_builder_type = requires (T builder) {
-    { builder.create(RendererContext()) } -> is_valid_resource_type;
+concept is_builder_type = requires (T builder) {
+    { builder.create(RendererContext()) } -> is_resource_type;
 };
 
 template <typename T>
-concept is_pipeline_type =
-    std::same_as<T, GraphicsPipeline>
-    || std::same_as<T, ComputePipeline>;
+concept is_pipeline_type = is_one_of<T, PIPELINE_RESOURCE_TYPES>;
 
 enum class ResourceKind {
     TEXTURE,
@@ -110,11 +112,15 @@ private:
 
     map<ResourceHandle, std::string> resource_names;
 
+    vector<vector<ResourceVariant>> queued_for_removal_resources; // one queue for each frame in flight
+
 public:
-    explicit ResourceManager(const RendererContext& ctx, uint32_t max_bindless_handles);
+    explicit ResourceManager(const RendererContext& ctx, uint32_t max_bindless_handles, uint32_t frames_in_flight);
+
+    void clear_removal_queue();
 
     template <typename T>
-        requires is_valid_resource_type<T>
+        requires is_resource_type<T>
     void add(const ResourceHandle handle, T&& resource, const std::string& name = "NO_NAME") {
         handle_to_kind_mapping.emplace(handle, resource_type_to_kind_v<T>);
 
@@ -122,7 +128,14 @@ public:
             add_model_materials(handle, resource);
         }
 
-        get_resource_map<T>().emplace(handle, std::move(resource));
+        auto& resource_map = get_resource_map<T>();
+
+        if (resource_map.contains(handle)) {
+            queued_for_removal_resources[renderer_ctx.get().current_frame_idx]
+                .emplace_back(std::move(resource_map.extract(handle).mapped()));
+        }
+
+        resource_map.emplace(handle, std::move(resource));
 
         const auto bindless_handle = get_new_handle(free_bindless_handles);
         bindless_handle_mapping.emplace(handle, bindless_handle);
@@ -131,7 +144,7 @@ public:
     }
 
     template <typename T>
-        requires is_valid_builder_type<T>
+        requires is_builder_type<T>
     void add_from_builder(const ResourceHandle handle, T&& builder, const std::string& name = "NO_NAME") {
         using BuiltResourceType = std::invoke_result_t<decltype(&T::create), T, const RendererContext&>;
         handle_to_kind_mapping.emplace(handle, resource_type_to_kind_v<BuiltResourceType>);
@@ -151,19 +164,19 @@ public:
     auto get_bindless_handle(const ResourceHandle handle) const -> BindlessHandle { return bindless_handle_mapping.at(handle); }
 
     template <typename T>
-        requires is_valid_resource_type<T>
+        requires is_resource_type<T>
     auto get(const ResourceHandle handle) const -> const T& { return get_resource_map<T>().at(handle); }
 
     template <typename T>
-        requires is_valid_resource_type<T>
+        requires is_resource_type<T>
     auto get(const ResourceHandle handle) -> T& { return get_resource_map<T>().at(handle); }
 
     template <typename T>
-        requires is_valid_builder_type<T>
+        requires is_builder_type<T>
     auto get(const ResourceHandle handle) const -> const T& { return get_builder_map<T>().at(handle); }
 
     template <typename T>
-        requires is_valid_builder_type<T>
+        requires is_builder_type<T>
     auto get(const ResourceHandle handle) -> T& { return get_builder_map<T>().at(handle); }
 
     auto get_model_material_handles(const ResourceHandle handle) const { return models_to_materials.at(handle); }
@@ -172,16 +185,16 @@ public:
     auto get_model_mat_tex_handles(ResourceHandle handle) const -> vector<MaterialTextureHandles>;
 
     template <typename T>
-        requires is_valid_resource_type<T>
+        requires is_resource_type<T>
     auto contains(const ResourceHandle handle) const -> bool { return get_resource_map<T>().contains(handle); }
 
     template <typename T>
-        requires is_valid_builder_type<T>
+        requires is_builder_type<T>
     auto contains(const ResourceHandle handle) const -> bool { return get_builder_map<T>().contains(handle); }
 
 private:
     template <typename T>
-        requires is_valid_resource_type<T>
+        requires is_resource_type<T>
     auto get_resource_map() const -> const map<ResourceHandle, T>& {
         if constexpr (std::is_same_v<T, Buffer>) {
             return buffers;
@@ -201,7 +214,7 @@ private:
 
     // non-const version of the above fn
     template <typename T>
-        requires is_valid_resource_type<T>
+        requires is_resource_type<T>
     auto get_resource_map() -> map<ResourceHandle, T>& {
         return const_cast<map<ResourceHandle, T> &>(
             static_cast<const ResourceManager *>(this)->get_resource_map<T>()
@@ -209,7 +222,7 @@ private:
     }
 
     template <typename T>
-        requires is_valid_builder_type<T>
+        requires is_builder_type<T>
     auto get_builder_map() const -> const map<ResourceHandle, T>& {
         if constexpr (std::is_same_v<T, TextureBuilder>) {
             return texture_builders;
@@ -225,7 +238,7 @@ private:
 
     // non-const version of the above fn
     template <typename T>
-        requires is_valid_builder_type<T>
+        requires is_builder_type<T>
     auto get_builder_map() -> map<ResourceHandle, T>& {
         return const_cast<map<ResourceHandle, T> &>(
             static_cast<const ResourceManager *>(this)->get_builder_map<T>()

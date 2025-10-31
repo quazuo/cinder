@@ -42,5 +42,6 @@ struct RendererContext {
     unique_ptr<vk::raii::CommandPool> command_pool{};
     unique_ptr<vk::raii::Queue> graphics_queue{};
     unique_ptr<VmaAllocatorWrapper> allocator{};
+    uint32_t current_frame_idx = 0;
 };
 } // zrx

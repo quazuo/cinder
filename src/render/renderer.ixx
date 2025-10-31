@@ -121,8 +121,6 @@ class VulkanRenderer {
     vector<FrameBeginCallback> repeated_frame_begin_actions;
     std::queue<FrameBeginCallback> queued_frame_begin_actions;
 
-    uint32_t current_frame_idx = 0;
-
     bool framebuffer_resized = false;
 
     vk::SampleCountFlagBits msaa_sample_count = vk::SampleCountFlagBits::e1;
