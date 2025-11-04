@@ -42,12 +42,10 @@ void main() {
     fragTexCoord = inTexCoord;
 
     mat3 normal_matrix = transpose(inverse(mat3(model)));
-
     vec3 T = normalize(normal_matrix * inTangent);
     vec3 B = normalize(normal_matrix * inBitangent);
     vec3 N = normalize(normal_matrix * inNormal);
-
     TBN = mat3(T, B, N);
 
-    lightSpacePosition = ubos[ubo_id].light.proj_x_view * model * vec4(worldPosition, 1.0);
+    lightSpacePosition = ubos[ubo_id].light.proj_x_view * model * vec4(inPosition, 1.0);
 }

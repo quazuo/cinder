@@ -73,7 +73,7 @@ class Engine {
     glm::vec3 model_translate{};
     glm::quat model_rotation{1, 0, 0, 0};
 
-    glm::quat light_direction = glm::normalize(glm::vec3(1, 1.5, -2));
+    glm::quat light_direction = glm::normalize(glm::vec3(0, 1, 0));
     glm::vec3 light_color     = glm::normalize(glm::vec3(23.47, 21.31, 20.79));
     float light_intensity     = 20.0f;
 
@@ -300,7 +300,7 @@ private:
             .fragment_path = shader_path_prefix + "ss-quad-depth-frag.spv",
             .binding_descriptions = ScreenSpaceQuadVertex::get_binding_descriptions(),
             .attr_descriptions = ScreenSpaceQuadVertex::get_attribute_descriptions(),
-            .color_formats = { final_no_gamma_format },
+            .color_formats = { FINAL_FORMAT },
         });
 
         const auto cubecap_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
@@ -429,25 +429,19 @@ private:
             .should_run_predicate = [&] { return use_ssao; }
         });
 
-        const auto main_node = render_graph.add_node(RenderNodeGraphics {
+        render_graph.add_node(RenderNodeGraphics {
             .name = "main",
             .bound_resources = {general_ubo, ssao_texture, skybox_texture, shadowmap_texture},
             .color_targets = {base_pass_texture},
             .depth_target = FINAL_IMAGE_HANDLE,
             .body = [=](RenderPassContext &ctx) {
-                if (show_debug_quad) {
-                    ctx.bind_pipeline(ss_quad_depth_pipeline);
-                    ctx.bind_resources({ general_ubo, shadowmap_texture });
-                    ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
-                } else {
-                    ctx.bind_pipeline(main_pipeline);
-                    ctx.bind_resources({general_ubo, ssao_texture, shadowmap_texture, material_ubo, CURRENT_MATERIAL_HANDLE});
-                    ctx.draw_model(scene_model);
+                ctx.bind_pipeline(main_pipeline);
+                ctx.bind_resources({general_ubo, ssao_texture, shadowmap_texture, material_ubo, CURRENT_MATERIAL_HANDLE});
+                ctx.draw_model(scene_model);
 
-                    ctx.bind_pipeline(skybox_pipeline);
-                    ctx.bind_resources({general_ubo, skybox_texture});
-                    ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
-                }
+                ctx.bind_pipeline(skybox_pipeline);
+                ctx.bind_resources({general_ubo, skybox_texture});
+                ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
             },
         });
 
@@ -493,8 +487,13 @@ private:
             .bound_resources = {base_pass_texture},
             .color_targets = {FINAL_IMAGE_HANDLE},
             .body = [=](RenderPassContext &ctx) {
-                ctx.bind_pipeline(final_pipeline);
-                ctx.bind_resources({general_ubo, base_pass_texture});
+                if (show_debug_quad) {
+                    ctx.bind_pipeline(ss_quad_depth_pipeline);
+                    ctx.bind_resources({general_ubo, shadowmap_texture});
+                } else {
+                    ctx.bind_pipeline(final_pipeline);
+                    ctx.bind_resources({general_ubo, base_pass_texture});
+                }
                 ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
             },
             .should_run_predicate = [&] { return !do_blur; }
@@ -530,7 +529,7 @@ private:
 
         static const glm::mat4 cubemap_face_projection = glm::gtc::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
 
-        const auto light_direction_vec = camera->get_pos(); // glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(1)) * 100.0f;
+        const auto light_direction_vec = glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(1)) * 30.0f;
         const auto light_view = glm::gtc::lookAt(light_direction_vec, glm::vec3(0), glm::vec3(0, 1, 0));
         const auto light_proj = glm::gtc::ortho(
             shadow_map_config.left, shadow_map_config.right,
@@ -570,10 +569,10 @@ private:
 
         static const array cubemap_face_views{
             glm::gtc::lookAt(glm::vec3(0), glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0)),
-            glm::gtc::lookAt(glm::vec3(0), glm::vec3(1, 0, 0), glm::vec3(0, 1, 0)),
-            glm::gtc::lookAt(glm::vec3(0), glm::vec3(0, 1, 0), glm::vec3(0, 0, -1)),
+            glm::gtc::lookAt(glm::vec3(0), glm::vec3(1, 0, 0),  glm::vec3(0, 1, 0)),
+            glm::gtc::lookAt(glm::vec3(0), glm::vec3(0, 1, 0),  glm::vec3(0, 0, -1)),
             glm::gtc::lookAt(glm::vec3(0), glm::vec3(0, -1, 0), glm::vec3(0, 0, 1)),
-            glm::gtc::lookAt(glm::vec3(0), glm::vec3(0, 0, 1), glm::vec3(0, 1, 0)),
+            glm::gtc::lookAt(glm::vec3(0), glm::vec3(0, 0, 1),  glm::vec3(0, 1, 0)),
             glm::gtc::lookAt(glm::vec3(0), glm::vec3(0, 0, -1), glm::vec3(0, 1, 0))
         };
 
@@ -673,7 +672,7 @@ private:
 
             ImGui::DragFloat("Model scale", &model_scale, 0.01, 0, numeric_limits<float>::max());
 
-            ImGui::gizmo3D("Model rotation", model_rotation, 160);
+            //ImGui::gizmo3D("Model rotation", model_rotation, 160);
 
             if (ImGui::Button("Reset scale")) { model_scale = 1; }
             ImGui::SameLine();
@@ -698,12 +697,12 @@ private:
         }
 
         if (ImGui::CollapsingHeader("Shadowmap ", section_flags)) {
-            ImGui::SliderFloat("left",   &shadow_map_config.left,   -1000.0f, 1000.0f, "%.2f");
-            ImGui::SliderFloat("right",  &shadow_map_config.right,  -1000.0f, 1000.0f, "%.2f");
-            ImGui::SliderFloat("bottom", &shadow_map_config.bottom, -1000.0f, 1000.0f, "%.2f");
-            ImGui::SliderFloat("top",    &shadow_map_config.top,    -1000.0f, 1000.0f, "%.2f");
-            ImGui::SliderFloat("z_near", &shadow_map_config.z_near,     0.0f, 1000.0f, "%.2f");
-            ImGui::SliderFloat("z_far",  &shadow_map_config.z_far,      0.0f, 1000.0f, "%.2f");
+            ImGui::SliderFloat("left",   &shadow_map_config.left,   -100.0f, 100.0f, "%.2f");
+            ImGui::SliderFloat("right",  &shadow_map_config.right,  -100.0f, 100.0f, "%.2f");
+            ImGui::SliderFloat("bottom", &shadow_map_config.bottom, -100.0f, 100.0f, "%.2f");
+            ImGui::SliderFloat("top",    &shadow_map_config.top,    -100.0f, 100.0f, "%.2f");
+            ImGui::SliderFloat("z_near", &shadow_map_config.z_near,    0.0f, 100.0f, "%.2f");
+            ImGui::SliderFloat("z_far",  &shadow_map_config.z_far,     0.0f, 100.0f, "%.2f");
         }
 
         camera->render_gui_section();

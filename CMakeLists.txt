@@ -103,7 +103,16 @@ add_subdirectory(deps/SPIRV-Reflect)
 
 # ========================= glm =========================
 
+set(GLM_ENABLE_CXX_20 ON)
+set(GLM_FORCE_DEPTH_ZERO_TO_ONE ON)
+set(GLM_ENABLE_EXPERIMENTAL ON)
 add_subdirectory(deps/glm)
+
+target_compile_definitions(glm INTERFACE
+        GLM_ENABLE_CXX_20
+        GLM_FORCE_DEPTH_ZERO_TO_ONE
+        GLM_ENABLE_EXPERIMENTAL
+)
 
 # ========================= General =========================
 

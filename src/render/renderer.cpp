@@ -498,12 +498,14 @@ void VulkanRenderer::init_imgui() {
         .DescriptorPool = static_cast<VkDescriptorPool>(**imgui_descriptor_pool),
         .MinImageCount = image_count,
         .ImageCount = image_count,
-        .MSAASamples = static_cast<VkSampleCountFlagBits>(get_msaa_sample_count()),
-        .UseDynamicRendering = true,
-        .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
-            .colorAttachmentCount = static_cast<uint32_t>(color_attachment_formats.size()),
-            .pColorAttachmentFormats = color_attachment_formats.data(),
+        .PipelineInfoMain = {
+            .MSAASamples = static_cast<VkSampleCountFlagBits>(get_msaa_sample_count()),
+            .PipelineRenderingCreateInfo = vk::PipelineRenderingCreateInfo {
+                .colorAttachmentCount = static_cast<uint32_t>(color_attachment_formats.size()),
+                .pColorAttachmentFormats = color_attachment_formats.data(),
+            },
         },
+        .UseDynamicRendering = true,
     };
 
     gui_renderer = make_unique<GuiRenderer>(window, imgui_init_info);

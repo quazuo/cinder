@@ -40,6 +40,15 @@ vec4 sample_texture_with_fallback(uint tex_id, vec2 tex_coord) {
     return texture(bindless_samplers[tex_id], tex_coord);
 }
 
+vec3 get_normal() {
+    const uint mat_ubo_id    = constants.material_ubo_id;
+    const uint normal_id     = materials[mat_ubo_id].mats[constants.material_id].normal;
+    vec3 normal = sample_texture_with_fallback(normal_id, fragTexCoord).rgb;
+    normal = normalize(normal * 2.0 - 1.0);
+    normal = normalize(TBN * normal);
+    return normal;
+}
+
 float get_blurred_ssao() {
     uint ubo_id = constants.general_ubo_id;
     vec2 texCoord = gl_FragCoord.xy / vec2(ubos[ubo_id].window.width, ubos[ubo_id].window.height);
@@ -59,21 +68,26 @@ float get_blurred_ssao() {
 
 float calc_shadow() {
     vec3 proj_coords = lightSpacePosition.xyz / lightSpacePosition.w;
-    // proj_coords = proj_coords * 0.5 + 0.5;
+    proj_coords.xy = proj_coords.xy * 0.5 + 0.5;
+    proj_coords.y = 1.0f - proj_coords.y;
+
+    vec3 normal = get_normal();
+    vec3 light_direction = ubos[constants.general_ubo_id].light.direction;
+    float bias = max(0.0002 * (1.0 - dot(normal, light_direction)), 0.002);
 
     float closest_depth = sample_texture_with_fallback(constants.shadowmap_id, proj_coords.xy).r;
     float current_depth = proj_coords.z;
-    float shadow = current_depth > closest_depth ? 1.0 : 0.0;
+    float shadow = current_depth - bias > closest_depth ? 1.0 : 0.0;
 
     return shadow;
 }
 
 void main() {
-    const uint ubo_id           = constants.general_ubo_id;
-    const uint mat_ubo_id       = constants.material_ubo_id;
-    const uint base_color_id    = materials[mat_ubo_id].mats[constants.material_id].base_color;
-    const uint normal_id        = materials[mat_ubo_id].mats[constants.material_id].normal;
-    const uint orm_id           = materials[mat_ubo_id].mats[constants.material_id].orm;
+    const uint ubo_id        = constants.general_ubo_id;
+    const uint mat_ubo_id    = constants.material_ubo_id;
+    const uint base_color_id = materials[mat_ubo_id].mats[constants.material_id].base_color;
+    const uint normal_id     = materials[mat_ubo_id].mats[constants.material_id].normal;
+    const uint orm_id        = materials[mat_ubo_id].mats[constants.material_id].orm;
 
     vec4 base_color = sample_texture_with_fallback(base_color_id, fragTexCoord);
 
@@ -106,7 +120,13 @@ void main() {
     // apply gamma correction
     color = pow(color, vec3(1 / 2.2));
 
-    color = vec3(calc_shadow());
+    float shadow_factor = 0.3f;
+    if (calc_shadow() == 1.0f) {
+        color *= shadow_factor;
+    }
+
+//    color = vec3((lightSpacePosition.xyz / lightSpacePosition.w).xy, 0.0);
+//    color = vec3(calc_shadow());
 
     outColor = vec4(color, 1.0);
 }

@@ -26,6 +26,6 @@ void main() {
 
     const mat4 model = ubos[ubo_id].matrices.model * inInstanceTransform;
     const mat4 mvp = ubos[ubo_id].light.proj_x_view * model;
-    // const mat4 mvp = ubos[ubo_id].matrices.proj * ubos[ubo_id].matrices.view * model;
+    // mvp = ubos[ubo_id].matrices.proj * ubos[ubo_id].matrices.view * model;
     gl_Position = mvp * vec4(inPosition, 1.0);
 }

@@ -29,5 +29,5 @@ float linearize_depth(float d) {
 void main() {
     float depth = texture(bindless_samplers[constants.sampled_tex_id], tex_coords).r;
     float linearized = linearize_depth(depth);
-    out_color = vec4(depth == 1.0 ? 1.0 : 0.0);
+    out_color = vec4(depth); // vec4(depth == 1.0 ? 1.0 : 0.0);
 }
