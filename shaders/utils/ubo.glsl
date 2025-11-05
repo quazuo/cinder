@@ -38,4 +38,6 @@ struct MiscData {
     GLSL_ALIGN4  float z_far;
     GLSL_ALIGN4  uint use_ssao;
     GLSL_ALIGN16 vec3 camera_pos;
+    GLSL_ALIGN4  float bias_weight_1;
+    GLSL_ALIGN4  float bias_weight_2;
 };

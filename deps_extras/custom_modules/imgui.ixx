@@ -96,4 +96,6 @@ export namespace ImGui {
     using ImGui::RadioButton;
     using ImGui::SliderInt;
     using ImGui::ColorConvertHSVtoRGB;
+    using ImGui::PushItemWidth;
+    using ImGui::PopItemWidth;
 }

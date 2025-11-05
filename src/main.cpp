@@ -78,12 +78,14 @@ class Engine {
     float light_intensity     = 20.0f;
 
     struct ShadowMapConfig {
-        float left = -10.0f;
-        float right = 10.0f;
+        float left   = -10.0f;
+        float right  = 10.0f;
         float bottom = -10.0f;
-        float top = 10.0f;
+        float top    = 10.0f;
         float z_near = 0.01f;
-        float z_far = 100.0f;
+        float z_far  = 100.0f;
+        float bias_weight_1 = 0.0f;
+        float bias_weight_2 = 0.0008f;
     } shadow_map_config;
 
     float debug_number = 0;
@@ -564,6 +566,8 @@ private:
                 .z_far = z_far,
                 .use_ssao = use_ssao ? 1u : 0,
                 .camera_pos = camera->get_pos(),
+                .bias_weight_1 = shadow_map_config.bias_weight_1,
+                .bias_weight_2 = shadow_map_config.bias_weight_2,
             }
         };
 
@@ -697,12 +701,25 @@ private:
         }
 
         if (ImGui::CollapsingHeader("Shadowmap ", section_flags)) {
+            ImGui::PushItemWidth(300.0f);
+
             ImGui::SliderFloat("left",   &shadow_map_config.left,   -100.0f, 100.0f, "%.2f");
+            ImGui::SameLine();
             ImGui::SliderFloat("right",  &shadow_map_config.right,  -100.0f, 100.0f, "%.2f");
+
             ImGui::SliderFloat("bottom", &shadow_map_config.bottom, -100.0f, 100.0f, "%.2f");
+            ImGui::SameLine();
             ImGui::SliderFloat("top",    &shadow_map_config.top,    -100.0f, 100.0f, "%.2f");
+
             ImGui::SliderFloat("z_near", &shadow_map_config.z_near,    0.0f, 100.0f, "%.2f");
+            ImGui::SameLine();
             ImGui::SliderFloat("z_far",  &shadow_map_config.z_far,     0.0f, 100.0f, "%.2f");
+
+            ImGui::SliderFloat("bias_weight_1", &shadow_map_config.bias_weight_1, 0.0f, 0.01f, "%.5f");
+            ImGui::SameLine();
+            ImGui::SliderFloat("bias_weight_2", &shadow_map_config.bias_weight_2, 0.0f, 0.01f, "%.5f");
+
+            ImGui::PopItemWidth();
         }
 
         camera->render_gui_section();

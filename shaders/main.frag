@@ -66,16 +66,21 @@ float get_blurred_ssao() {
     return result / (4.0 * 4.0);
 }
 
-float calc_shadow() {
+float calc_shadow(vec2 texel_offset) {
+    vec2 shadowmap_texel_size = 1.0 / textureSize(bindless_samplers[constants.shadowmap_id], 0);
+    vec2 tex_coord_offset = texel_offset * shadowmap_texel_size;
+
     vec3 proj_coords = lightSpacePosition.xyz / lightSpacePosition.w;
     proj_coords.xy = proj_coords.xy * 0.5 + 0.5;
     proj_coords.y = 1.0f - proj_coords.y;
 
     vec3 normal = get_normal();
     vec3 light_direction = ubos[constants.general_ubo_id].light.direction;
-    float bias = max(0.0002 * (1.0 - dot(normal, light_direction)), 0.002);
+    float bias_weight_1 = ubos[constants.general_ubo_id].misc.bias_1;
+    float bias_weight_2 = ubos[constants.general_ubo_id].misc.bias_2;
+    float bias = max(bias_weight_1 * (1.0 - dot(normal, light_direction)), bias_weight_2);
 
-    float closest_depth = sample_texture_with_fallback(constants.shadowmap_id, proj_coords.xy).r;
+    float closest_depth = sample_texture_with_fallback(constants.shadowmap_id, proj_coords.xy + tex_coord_offset).r;
     float current_depth = proj_coords.z;
     float shadow = current_depth - bias > closest_depth ? 1.0 : 0.0;
 
@@ -120,13 +125,21 @@ void main() {
     // apply gamma correction
     color = pow(color, vec3(1 / 2.2));
 
-    float shadow_factor = 0.3f;
-    if (calc_shadow() == 1.0f) {
-        color *= shadow_factor;
+    // apply shadows
+    const float shadow_factor = 0.3f;
+    const int pcf_radius = 1;
+    float shadow_amount = 0.0f;
+
+    for (int off_x = -pcf_radius; off_x <= pcf_radius; off_x++) {
+        for (int off_y = -pcf_radius; off_y <= pcf_radius; off_y++) {
+            if (calc_shadow(vec2(off_x, off_y)) == 1.0f) {
+                shadow_amount += 1.0f;
+            }
+        }
     }
 
-//    color = vec3((lightSpacePosition.xyz / lightSpacePosition.w).xy, 0.0);
-//    color = vec3(calc_shadow());
+    shadow_amount /= (2 * pcf_radius + 1) * (2 * pcf_radius + 1);
+    color = mix(color, color * shadow_factor, shadow_amount);
 
     outColor = vec4(color, 1.0);
 }
