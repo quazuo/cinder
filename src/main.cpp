@@ -133,19 +133,6 @@ private:
 
         renderer.run_render_graph();
         should_capture_skybox = false;
-
-        if (file_browser.HasSelected()) {
-            const std::filesystem::path path = file_browser.GetSelected().string();
-
-            if (*current_type_being_chosen == FileType::ENVMAP_HDR) {
-                // renderer.load_environment_map(path);
-            } else {
-                chosen_paths[*current_type_being_chosen] = path;
-            }
-
-            file_browser.ClearSelected();
-            current_type_being_chosen = {};
-        }
     }
 
     void build_render_graph() {
@@ -199,24 +186,6 @@ private:
         });
 
         // ================== external textures ==================
-
-        const auto base_color_texture = render_graph.add_resource(ExternalTextureResourceDesc{
-            .name = "base-color-texture",
-            .paths = {"../assets/example models/kettle/kettle-albedo.png"},
-            .format = vk::Format::eR8G8B8A8Srgb,
-        });
-
-        const auto normal_texture = render_graph.add_resource(ExternalTextureResourceDesc{
-            .name = "normal-texture",
-            .paths = {"../assets/example models/kettle/kettle-normal.png"},
-            .format = vk::Format::eR8G8B8A8Unorm,
-        });
-
-        const auto orm_texture = render_graph.add_resource(ExternalTextureResourceDesc{
-            .name = "orm-texture",
-            .paths = {"../assets/example models/kettle/kettle-orm.png"},
-           .format = vk::Format::eR8G8B8A8Unorm,
-        });
 
         const auto envmap_texture = render_graph.add_resource(ExternalTextureResourceDesc{
             .name = "envmap-texture",
@@ -295,19 +264,19 @@ private:
 
         // ================== shaders ==================
 
-        const std::string shader_path_prefix = "../shaders/obj/";
+        renderer.set_shader_base_path("../shaders/obj/");
 
         const auto ss_quad_depth_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = shader_path_prefix + "ss-quad-depth-vert.spv",
-            .fragment_path = shader_path_prefix + "ss-quad-depth-frag.spv",
+            .vertex_path = "ss-quad-depth-vert.spv",
+            .fragment_path = "ss-quad-depth-frag.spv",
             .binding_descriptions = ScreenSpaceQuadVertex::get_binding_descriptions(),
             .attr_descriptions = ScreenSpaceQuadVertex::get_attribute_descriptions(),
             .color_formats = { FINAL_FORMAT },
         });
 
         const auto cubecap_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = shader_path_prefix + "sphere-cube-vert.spv",
-            .fragment_path = shader_path_prefix + "sphere-cube-frag.spv",
+            .vertex_path = "sphere-cube-vert.spv",
+            .fragment_path = "sphere-cube-frag.spv",
             .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
             .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
             .color_formats = {skybox_tex_format},
@@ -317,16 +286,16 @@ private:
         });
 
         const auto shadowmap_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = shader_path_prefix + "shadowmap-vert.spv",
-            .fragment_path = shader_path_prefix + "shadowmap-frag.spv",
+            .vertex_path = "shadowmap-vert.spv",
+            .fragment_path = "shadowmap-frag.spv",
             .binding_descriptions = ModelVertex::get_binding_descriptions(),
             .attr_descriptions = ModelVertex::get_attribute_descriptions(),
             .depth_format = shadowmap_tex_format
         });
 
         const auto prepass_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = shader_path_prefix + "prepass-vert.spv",
-            .fragment_path = shader_path_prefix + "prepass-frag.spv",
+            .vertex_path = "prepass-vert.spv",
+            .fragment_path = "prepass-frag.spv",
             .binding_descriptions = ModelVertex::get_binding_descriptions(),
             .attr_descriptions = ModelVertex::get_attribute_descriptions(),
             .color_formats = {g_buffer_color_format, g_buffer_color_format},
@@ -334,16 +303,16 @@ private:
         });
 
         const auto ssao_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = shader_path_prefix + "ssao-vert.spv",
-            .fragment_path = shader_path_prefix + "ssao-frag.spv",
+            .vertex_path = "ssao-vert.spv",
+            .fragment_path = "ssao-frag.spv",
             .binding_descriptions = ScreenSpaceQuadVertex::get_binding_descriptions(),
             .attr_descriptions = ScreenSpaceQuadVertex::get_attribute_descriptions(),
             .color_formats = {ssao_tex_format}
         });
 
         const auto skybox_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = shader_path_prefix + "skybox-vert.spv",
-            .fragment_path = shader_path_prefix + "skybox-frag.spv",
+            .vertex_path = "skybox-vert.spv",
+            .fragment_path = "skybox-frag.spv",
             .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
             .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
             .color_formats = {final_no_gamma_format},
@@ -354,8 +323,8 @@ private:
         });
 
         const auto main_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = shader_path_prefix + "main-vert.spv",
-            .fragment_path = shader_path_prefix + "main-frag.spv",
+            .vertex_path = "main-vert.spv",
+            .fragment_path = "main-frag.spv",
             .binding_descriptions = ModelVertex::get_binding_descriptions(),
             .attr_descriptions = ModelVertex::get_attribute_descriptions(),
             .color_formats = {final_no_gamma_format},
@@ -363,16 +332,16 @@ private:
         });
 
         const auto blur_x_pipeline = render_graph.add_pipeline(ComputePipelineDesc{
-            .path = shader_path_prefix + "blur-x-comp.spv",
+            .path = "blur-x-comp.spv",
         });
 
         const auto blur_y_pipeline = render_graph.add_pipeline(ComputePipelineDesc{
-            .path = shader_path_prefix + "blur-y-comp.spv",
+            .path = "blur-y-comp.spv",
         });
 
         const auto final_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
-            .vertex_path = shader_path_prefix + "ss-quad-vert.spv",
-            .fragment_path = shader_path_prefix + "ss-quad-frag.spv",
+            .vertex_path = "ss-quad-vert.spv",
+            .fragment_path = "ss-quad-frag.spv",
             .binding_descriptions = ScreenSpaceQuadVertex::get_binding_descriptions(),
             .attr_descriptions = ScreenSpaceQuadVertex::get_attribute_descriptions(),
             .color_formats = {FINAL_FORMAT},

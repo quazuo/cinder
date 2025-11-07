@@ -111,6 +111,8 @@ class VulkanRenderer {
     static constexpr size_t MAX_FRAMES_IN_FLIGHT = 3;
     array<FrameResources, MAX_FRAMES_IN_FLIGHT> frame_resources;
 
+    std::filesystem::path shader_base_path;
+
     // ================ gui stuff ================
 
     unique_ptr<vk::raii::DescriptorPool> imgui_descriptor_pool;
@@ -159,6 +161,8 @@ public:
     void register_render_graph(const RenderGraph &graph);
 
     void reload_all_pipelines();
+
+    void set_shader_base_path(const std::filesystem::path &path) { shader_base_path = path; }
 
 private:
     static void framebuffer_resize_callback(GLFWwindow *window, int width, int height);

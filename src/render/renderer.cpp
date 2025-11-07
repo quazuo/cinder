@@ -759,8 +759,8 @@ auto VulkanRenderer::create_graph_gfx_pipeline_builder(const ResourceHandle pipe
     descriptor_set_layouts.push_back(*bindless_descriptor_set->get_layout());
 
     auto builder = GraphicsPipelineBuilder()
-            .with_vertex_shader(pipeline_info.vertex_path)
-            .with_fragment_shader(pipeline_info.fragment_path)
+            .with_vertex_shader(shader_base_path / pipeline_info.vertex_path)
+            .with_fragment_shader(shader_base_path / pipeline_info.fragment_path)
             .with_vertices(
                 pipeline_info.binding_descriptions,
                 pipeline_info.attr_descriptions
@@ -804,15 +804,14 @@ auto VulkanRenderer::create_graph_gfx_pipeline_builder(const ResourceHandle pipe
     return builder;
 }
 
-ComputePipelineBuilder
-VulkanRenderer::create_graph_compute_pipeline_builder(const ResourceHandle pipeline_handle) const {
+auto VulkanRenderer::create_graph_compute_pipeline_builder(const ResourceHandle pipeline_handle) const -> ComputePipelineBuilder {
     const auto &pipeline_info = render_graph->compute_pipelines().at(pipeline_handle);
 
     vector<vk::DescriptorSetLayout> descriptor_set_layouts;
     descriptor_set_layouts.push_back(*bindless_descriptor_set->get_layout());
 
     auto builder = ComputePipelineBuilder()
-            .with_shader(pipeline_info.path)
+            .with_shader(shader_base_path / pipeline_info.path)
             .with_descriptor_layouts(descriptor_set_layouts);
 
     return builder;
@@ -842,7 +841,7 @@ void VulkanRenderer::queue_set_update_with_handle(DescriptorSet &descriptor_set,
     }
 }
 
-vector<RenderInfo> VulkanRenderer::create_node_render_infos(const RenderNodeHandle node_handle) const {
+auto VulkanRenderer::create_node_render_infos(const RenderNodeHandle node_handle) const -> vector<RenderInfo> {
     const auto &node_info = render_graph->nodes().at(node_handle).get_graphics();
 
     vector<RenderInfo> render_infos;
@@ -1275,7 +1274,7 @@ void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_ha
     // command_buffer.debugMarkerEndEXT();
 }
 
-set<ResourceHandle> VulkanRenderer::gather_attachment_resources() const {
+auto VulkanRenderer::gather_attachment_resources() const -> set<ResourceHandle> {
     set<ResourceHandle> result;
 
     for (const auto& [node_handle, node_info] : render_graph->nodes()) {
@@ -1288,7 +1287,7 @@ set<ResourceHandle> VulkanRenderer::gather_attachment_resources() const {
     return result;
 }
 
-set<ResourceHandle> VulkanRenderer::gather_compute_accessed_resources() const {
+auto VulkanRenderer::gather_compute_accessed_resources() const -> set<ResourceHandle> {
     set<ResourceHandle> result;
 
     for (const auto& [node_handle, node_info] : render_graph->nodes()) {
@@ -1301,13 +1300,13 @@ set<ResourceHandle> VulkanRenderer::gather_compute_accessed_resources() const {
     return result;
 }
 
-bool VulkanRenderer::has_swapchain_target(const RenderNodeHandle node_handle) const {
+auto VulkanRenderer::has_swapchain_target(const RenderNodeHandle node_handle) const -> bool  {
     return render_graph->nodes().at(node_handle).get_graphics()
             .get_all_targets_set()
             .contains(FINAL_IMAGE_HANDLE);
 }
 
-bool VulkanRenderer::is_first_node_targetting_final_image(const RenderNodeHandle node_handle) const {
+auto VulkanRenderer::is_first_node_targetting_final_image(const RenderNodeHandle node_handle) const -> bool {
     if (!has_swapchain_target(node_handle)) return false;
 
     const auto flattened = std::ranges::join_view(partitioned_nodes);
@@ -1319,11 +1318,11 @@ bool VulkanRenderer::is_first_node_targetting_final_image(const RenderNodeHandle
     return first_it == flattened.end() || *first_it == node_handle;
 }
 
-bool VulkanRenderer::should_run_node_pass(const RenderNodeHandle node_handle) const {
+auto VulkanRenderer::should_run_node_pass(const RenderNodeHandle node_handle) const -> bool {
     return render_graph->nodes().at(node_handle).should_run();
 }
 
-vk::Extent2D VulkanRenderer::get_node_target_extent(const RenderNodeHandle node_handle) const {
+auto VulkanRenderer::get_node_target_extent(const RenderNodeHandle node_handle) const -> vk::Extent2D {
     const auto &gfx_node_info = render_graph->nodes().at(node_handle).get_graphics();
 
     if (has_swapchain_target(node_handle)) {
@@ -1337,21 +1336,21 @@ vk::Extent2D VulkanRenderer::get_node_target_extent(const RenderNodeHandle node_
     return resource_manager->get<Texture>(gfx_node_info.color_targets[0]).get_image().get_extent_2d();
 }
 
-vk::Format VulkanRenderer::get_target_color_format(const ResourceHandle resource_handle) const {
+auto VulkanRenderer::get_target_color_format(const ResourceHandle resource_handle) const -> vk::Format {
     if (resource_handle == FINAL_IMAGE_HANDLE) {
         return swap_chain->get_image_format();
     }
     return resource_manager->get<Texture>(resource_handle).get_format();
 }
 
-vk::Format VulkanRenderer::get_target_depth_format(const ResourceHandle resource_handle) const {
+auto VulkanRenderer::get_target_depth_format(const ResourceHandle resource_handle) const -> vk::Format {
     if (resource_handle == FINAL_IMAGE_HANDLE) {
         return swap_chain->get_depth_format();
     }
     return resource_manager->get<Texture>(resource_handle).get_format();
 }
 
-vector<ResourceHandle> VulkanRenderer::get_node_target_handles(const RenderNodeHandle node_handle) const {
+auto VulkanRenderer::get_node_target_handles(const RenderNodeHandle node_handle) const -> vector<ResourceHandle> {
     const auto& node = render_graph->nodes().at(node_handle).get_graphics();
     vector<ResourceHandle> handles = node.color_targets;
     if (node.depth_target) handles.emplace_back(*node.depth_target);
