@@ -16,6 +16,47 @@ import Cinder.Render.Graph;
 import Cinder.Render.Mesh;
 
 namespace zrx {
+// ==================== RenderInfo ====================
+
+RenderInfo::RenderInfo(vector<RenderTarget> colors) : color_targets(std::move(colors)) {
+    make_attachment_infos();
+}
+
+RenderInfo::RenderInfo(vector<RenderTarget> colors, RenderTarget depth)
+    : color_targets(std::move(colors)), depth_target(std::move(depth)) {
+    make_attachment_infos();
+}
+
+auto RenderInfo::get(
+    const vk::Extent2D extent, const uint32_t views, const vk::RenderingFlags flags
+) const -> vk::RenderingInfo {
+    return {
+        .flags = flags,
+        .renderArea = {
+            .offset = {0, 0},
+            .extent = extent
+        },
+        .layerCount = views == 1 ? 1u : 0u,
+        .viewMask = views == 1 ? 0 : (1u << views) - 1,
+        .colorAttachmentCount = static_cast<uint32_t>(color_attachments.size()),
+        .pColorAttachments = color_attachments.data(),
+        .pDepthAttachment = depth_attachment ? &depth_attachment.value() : nullptr
+    };
+}
+
+void RenderInfo::make_attachment_infos() {
+    for (const auto &target: color_targets) {
+        color_attachments.emplace_back(target.get_attachment_info());
+        cached_color_attachment_formats.push_back(target.get_format());
+    }
+
+    if (depth_target) {
+        depth_attachment = depth_target->get_attachment_info();
+    }
+}
+
+// ==================== VulkanRenderer ====================
+
 VulkanRenderer::VulkanRenderer() {
     constexpr int INIT_WINDOW_WIDTH = 1600;
     constexpr int INIT_WINDOW_HEIGHT = 1200;
@@ -111,7 +152,7 @@ auto VulkanRenderer::create_instance() -> vkb::Instance {
     return instance_result.value();
 }
 
-auto VulkanRenderer::get_required_extensions() -> vector<const char *>  {
+auto VulkanRenderer::get_required_extensions() -> vector<const char *> {
     uint32_t glfw_extension_count = 0;
     const char **glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
 
@@ -358,48 +399,9 @@ void VulkanRenderer::create_bindless_resources() {
     );
 }
 
-// ==================== render infos ====================
-
-RenderInfo::RenderInfo(vector<RenderTarget> colors) : color_targets(std::move(colors)) {
-    make_attachment_infos();
-}
-
-RenderInfo::RenderInfo(vector<RenderTarget> colors, RenderTarget depth)
-    : color_targets(std::move(colors)), depth_target(std::move(depth)) {
-    make_attachment_infos();
-}
-
-auto RenderInfo::get(
-    const vk::Extent2D extent, const uint32_t views, const vk::RenderingFlags flags
-) const -> vk::RenderingInfo {
-    return {
-        .flags = flags,
-        .renderArea = {
-            .offset = {0, 0},
-            .extent = extent
-        },
-        .layerCount = views == 1 ? 1u : 0u,
-        .viewMask = views == 1 ? 0 : (1u << views) - 1,
-        .colorAttachmentCount = static_cast<uint32_t>(color_attachments.size()),
-        .pColorAttachments = color_attachments.data(),
-        .pDepthAttachment = depth_attachment ? &depth_attachment.value() : nullptr
-    };
-}
-
-void RenderInfo::make_attachment_infos() {
-    for (const auto &target: color_targets) {
-        color_attachments.emplace_back(target.get_attachment_info());
-        cached_color_attachment_formats.push_back(target.get_format());
-    }
-
-    if (depth_target) {
-        depth_attachment = depth_target->get_attachment_info();
-    }
-}
-
 // ==================== multisampling ====================
 
-auto VulkanRenderer::get_max_usable_sample_count() const -> vk::SampleCountFlagBits  {
+auto VulkanRenderer::get_max_usable_sample_count() const -> vk::SampleCountFlagBits {
     const vk::PhysicalDeviceProperties physical_device_properties = ctx.physical_device->getProperties();
 
     const vk::SampleCountFlags counts = physical_device_properties.limits.framebufferColorSampleCounts
@@ -762,8 +764,8 @@ auto VulkanRenderer::create_graph_gfx_pipeline_builder(const ResourceHandle pipe
             .with_vertex_shader(shader_base_path / pipeline_info.vertex_path)
             .with_fragment_shader(shader_base_path / pipeline_info.fragment_path)
             .with_vertices(
-                pipeline_info.binding_descriptions,
-                pipeline_info.attr_descriptions
+                pipeline_info.vertex_bindings,
+                pipeline_info.vertex_attributes
             )
             .with_rasterizer({
                 .polygonMode = vk::PolygonMode::eFill,
@@ -1300,7 +1302,7 @@ auto VulkanRenderer::gather_compute_accessed_resources() const -> set<ResourceHa
     return result;
 }
 
-auto VulkanRenderer::has_swapchain_target(const RenderNodeHandle node_handle) const -> bool  {
+auto VulkanRenderer::has_swapchain_target(const RenderNodeHandle node_handle) const -> bool {
     return render_graph->nodes().at(node_handle).get_graphics()
             .get_all_targets_set()
             .contains(FINAL_IMAGE_HANDLE);

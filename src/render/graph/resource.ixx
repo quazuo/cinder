@@ -81,8 +81,8 @@ struct GraphicsPipelineDesc {
 
     std::filesystem::path vertex_path;
     std::filesystem::path fragment_path;
-    vector<vk::VertexInputBindingDescription> binding_descriptions;
-    vector<vk::VertexInputAttributeDescription> attr_descriptions;
+    vector<vk::VertexInputBindingDescription> vertex_bindings;
+    vector<vk::VertexInputAttributeDescription> vertex_attributes;
     vector<AttachmentFormat> color_formats;
     optional<AttachmentFormat> depth_format;
 

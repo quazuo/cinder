@@ -269,16 +269,16 @@ private:
         const auto ss_quad_depth_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
             .vertex_path = "ss-quad-depth-vert.spv",
             .fragment_path = "ss-quad-depth-frag.spv",
-            .binding_descriptions = ScreenSpaceQuadVertex::get_binding_descriptions(),
-            .attr_descriptions = ScreenSpaceQuadVertex::get_attribute_descriptions(),
+            .vertex_bindings = ScreenSpaceQuadVertex::get_binding_descriptions(),
+            .vertex_attributes = ScreenSpaceQuadVertex::get_attribute_descriptions(),
             .color_formats = { FINAL_FORMAT },
         });
 
         const auto cubecap_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
             .vertex_path = "sphere-cube-vert.spv",
             .fragment_path = "sphere-cube-frag.spv",
-            .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
-            .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
+            .vertex_bindings = SkyboxVertex::get_binding_descriptions(),
+            .vertex_attributes = SkyboxVertex::get_attribute_descriptions(),
             .color_formats = {skybox_tex_format},
             .custom_properties = {
                 .multiview_count = 6
@@ -288,16 +288,16 @@ private:
         const auto shadowmap_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
             .vertex_path = "shadowmap-vert.spv",
             .fragment_path = "shadowmap-frag.spv",
-            .binding_descriptions = ModelVertex::get_binding_descriptions(),
-            .attr_descriptions = ModelVertex::get_attribute_descriptions(),
+            .vertex_bindings = ModelVertex::get_binding_descriptions(),
+            .vertex_attributes = ModelVertex::get_attribute_descriptions(),
             .depth_format = shadowmap_tex_format
         });
 
         const auto prepass_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
             .vertex_path = "prepass-vert.spv",
             .fragment_path = "prepass-frag.spv",
-            .binding_descriptions = ModelVertex::get_binding_descriptions(),
-            .attr_descriptions = ModelVertex::get_attribute_descriptions(),
+            .vertex_bindings = ModelVertex::get_binding_descriptions(),
+            .vertex_attributes = ModelVertex::get_attribute_descriptions(),
             .color_formats = {g_buffer_color_format, g_buffer_color_format},
             .depth_format = g_buffer_depth_format
         });
@@ -305,16 +305,16 @@ private:
         const auto ssao_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
             .vertex_path = "ssao-vert.spv",
             .fragment_path = "ssao-frag.spv",
-            .binding_descriptions = ScreenSpaceQuadVertex::get_binding_descriptions(),
-            .attr_descriptions = ScreenSpaceQuadVertex::get_attribute_descriptions(),
+            .vertex_bindings = ScreenSpaceQuadVertex::get_binding_descriptions(),
+            .vertex_attributes = ScreenSpaceQuadVertex::get_attribute_descriptions(),
             .color_formats = {ssao_tex_format}
         });
 
         const auto skybox_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
             .vertex_path = "skybox-vert.spv",
             .fragment_path = "skybox-frag.spv",
-            .binding_descriptions = SkyboxVertex::get_binding_descriptions(),
-            .attr_descriptions = SkyboxVertex::get_attribute_descriptions(),
+            .vertex_bindings = SkyboxVertex::get_binding_descriptions(),
+            .vertex_attributes = SkyboxVertex::get_attribute_descriptions(),
             .color_formats = {final_no_gamma_format},
             .depth_format = FINAL_FORMAT,
             .custom_properties = {
@@ -325,8 +325,8 @@ private:
         const auto main_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
             .vertex_path = "main-vert.spv",
             .fragment_path = "main-frag.spv",
-            .binding_descriptions = ModelVertex::get_binding_descriptions(),
-            .attr_descriptions = ModelVertex::get_attribute_descriptions(),
+            .vertex_bindings = ModelVertex::get_binding_descriptions(),
+            .vertex_attributes = ModelVertex::get_attribute_descriptions(),
             .color_formats = {final_no_gamma_format},
             .depth_format = FINAL_FORMAT
         });
@@ -342,8 +342,8 @@ private:
         const auto final_pipeline = render_graph.add_pipeline(GraphicsPipelineDesc{
             .vertex_path = "ss-quad-vert.spv",
             .fragment_path = "ss-quad-frag.spv",
-            .binding_descriptions = ScreenSpaceQuadVertex::get_binding_descriptions(),
-            .attr_descriptions = ScreenSpaceQuadVertex::get_attribute_descriptions(),
+            .vertex_bindings = ScreenSpaceQuadVertex::get_binding_descriptions(),
+            .vertex_attributes = ScreenSpaceQuadVertex::get_attribute_descriptions(),
             .color_formats = {FINAL_FORMAT},
         });
 
