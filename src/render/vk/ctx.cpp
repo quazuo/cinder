@@ -5,7 +5,6 @@ module Cinder.Render.Vulkan;
 import std;
 import vulkan_hpp;
 import cvulkan;
-
 import vma;
 
 import Cinder.Globals;

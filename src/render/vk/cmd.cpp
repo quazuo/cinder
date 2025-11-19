@@ -20,7 +20,6 @@ void PipelineBarrierPack::record_cmd(const vk::raii::CommandBuffer &command_buff
 }
 
 namespace utils::cmd {
-    [[nodiscard]]
     vk::raii::CommandBuffer begin_single_time_commands(const RendererContext &ctx) {
         auto command_buffer = create_command_buffer(ctx, vk::CommandBufferLevel::ePrimary);
 

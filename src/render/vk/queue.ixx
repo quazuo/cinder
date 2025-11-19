@@ -3,8 +3,10 @@ module;
 export module Cinder.Render.Vulkan:Queue;
 
 import std;
+import vulkan_hpp;
 
 import Cinder.Globals;
+import :Context;
 
 export namespace zrx {
 struct QueueFamilyIndices {
@@ -14,6 +16,12 @@ struct QueueFamilyIndices {
     auto is_complete() const -> bool {
         return graphics_compute_family.has_value() && present_family.has_value();
     }
+};
+
+class Queue {
+    vk::raii::Queue queue;
+
+    Queue(const RendererContext& ctx);
 };
 } // zrx
 

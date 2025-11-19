@@ -9,6 +9,7 @@ import :Resource;
 import Cinder.Render.Vulkan;
 import Cinder.Render.Mesh;
 import Cinder.Globals;
+import Cinder.Utils;
 
 namespace zrx {
 #define NON_PIPELINE_RESOURCE_TYPES Texture, Buffer, Model
@@ -16,9 +17,6 @@ namespace zrx {
 #define RESOURCE_TYPES NON_PIPELINE_RESOURCE_TYPES, PIPELINE_RESOURCE_TYPES
 
 using ResourceVariant = std::variant<RESOURCE_TYPES>;
-
-template <typename T, typename... Ts>
-concept is_one_of = (std::same_as<T, Ts> || ...);
 
 template<typename T>
 concept is_resource_type = is_one_of<T, RESOURCE_TYPES>;

@@ -41,8 +41,8 @@ vec4 sample_texture_with_fallback(uint tex_id, vec2 tex_coord) {
 }
 
 vec3 get_normal() {
-    const uint mat_ubo_id    = constants.material_ubo_id;
-    const uint normal_id     = materials[mat_ubo_id].mats[constants.material_id].normal;
+    const uint mat_ubo_id = constants.material_ubo_id;
+    const uint normal_id  = materials[mat_ubo_id].mats[constants.material_id].normal;
     vec3 normal = sample_texture_with_fallback(normal_id, fragTexCoord).rgb;
     normal = normalize(normal * 2.0 - 1.0);
     normal = normalize(TBN * normal);

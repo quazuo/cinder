@@ -89,34 +89,31 @@ class VulkanRenderer {
 
     // ================ other stuff ================
 
-    using TimelineSemValueType = uint64_t;
-
     struct FrameResources {
         struct {
-            struct Timeline {
-                unique_ptr<vk::raii::Semaphore> semaphore;
-                TimelineSemValueType timeline = 0;
-            };
-
-            unique_ptr<vk::raii::Semaphore> image_available_semaphore;
-            unique_ptr<vk::raii::Semaphore> ready_to_present_semaphore;
-            Timeline render_finished_timeline;
+            unique_ptr<BinarySemaphore> image_available_sem;
+            unique_ptr<BinarySemaphore> ready_to_present_sem;
+            unique_ptr<TimelineSemaphore> render_finished_timeline_sem;
         } sync;
 
         unique_ptr<vk::raii::CommandBuffer> main_cmd_buffer;
-
         unique_ptr<QueryPool> time_query_pool;
     };
 
     static constexpr size_t MAX_FRAMES_IN_FLIGHT = 3;
     array<FrameResources, MAX_FRAMES_IN_FLIGHT> frame_resources;
 
-    std::filesystem::path shader_base_path;
-
-    // ================ gui stuff ================
+    // ================ gui ================
 
     unique_ptr<vk::raii::DescriptorPool> imgui_descriptor_pool;
     unique_ptr<GuiRenderer> gui_renderer;
+
+    // ================ profiling ================
+
+    vector<vector<RenderNodeHandle>> prev_frame_partitioned_nodes;
+    vector<uint64_t> prev_frame_time_query_results;
+    uint32_t current_query_idx = 0;
+    float timestamp_period = 0.0f;
 
     // ================ miscellaneous state variables ================
 
@@ -128,10 +125,7 @@ class VulkanRenderer {
     vk::SampleCountFlagBits msaa_sample_count = vk::SampleCountFlagBits::e1;
     bool use_msaa = false;
 
-    vector<vector<RenderNodeHandle>> prev_frame_partitioned_nodes;
-    vector<uint64_t> prev_frame_time_query_results;
-    uint32_t current_query_idx = 0;
-    float timestamp_period = 0.0f;
+    std::filesystem::path shader_base_path;
 
 public:
     explicit VulkanRenderer();

@@ -177,7 +177,7 @@ void VulkanRenderer::create_surface() {
     surface = make_unique<vk::raii::SurfaceKHR>(*instance, _surface);
 }
 
-auto VulkanRenderer::pick_physical_device(const vkb::Instance &vkb_instance) -> vkb::PhysicalDevice  {
+auto VulkanRenderer::pick_physical_device(const vkb::Instance &vkb_instance) -> vkb::PhysicalDevice {
     const vector device_extensions{
         vk::EXTDescriptorIndexingExtensionName,
         // vk::EXTDebugMarkerExtensionName,
@@ -247,7 +247,6 @@ auto VulkanRenderer::pick_physical_device(const vkb::Instance &vkb_instance) -> 
 
 void VulkanRenderer::create_logical_device(const vkb::PhysicalDevice &vkb_physical_device) {
     auto device_result = vkb::DeviceBuilder(vkb_physical_device).build();
-
     if (!device_result) {
         Logger::error("failed to select logical device: {}", device_result.error().message());
     }
@@ -267,7 +266,7 @@ void VulkanRenderer::create_logical_device(const vkb::PhysicalDevice &vkb_physic
     }
 
     ctx.graphics_queue = make_unique<vk::raii::Queue>(*ctx.device, graphics_queue_result.value());
-    present_queue = make_unique<vk::raii::Queue>(*ctx.device, present_queue_result.value());
+    present_queue      = make_unique<vk::raii::Queue>(*ctx.device, present_queue_result.value());
 
     queue_family_indices = {
         .graphics_compute_family = graphics_queue_index_result.value(),
@@ -407,8 +406,8 @@ auto VulkanRenderer::get_max_usable_sample_count() const -> vk::SampleCountFlagB
     const vk::SampleCountFlags counts = physical_device_properties.limits.framebufferColorSampleCounts
                                         & physical_device_properties.limits.framebufferDepthSampleCounts;
 
-    if (counts & vk::SampleCountFlagBits::e64) return vk::SampleCountFlagBits::e64;
-    if (counts & vk::SampleCountFlagBits::e32) return vk::SampleCountFlagBits::e32;
+    // if (counts & vk::SampleCountFlagBits::e64) return vk::SampleCountFlagBits::e64;
+    // if (counts & vk::SampleCountFlagBits::e32) return vk::SampleCountFlagBits::e32;
     if (counts & vk::SampleCountFlagBits::e16) return vk::SampleCountFlagBits::e16;
     if (counts & vk::SampleCountFlagBits::e8)  return vk::SampleCountFlagBits::e8;
     if (counts & vk::SampleCountFlagBits::e4)  return vk::SampleCountFlagBits::e4;
@@ -441,23 +440,11 @@ void VulkanRenderer::create_command_buffers() {
 // ==================== sync ====================
 
 void VulkanRenderer::create_sync_objects() {
-    const vk::StructureChain<vk::SemaphoreCreateInfo, vk::SemaphoreTypeCreateInfo> timeline_semaphore_info{
-        {},
-        {
-            .semaphoreType = vk::SemaphoreType::eTimeline,
-            .initialValue = 0,
-        }
-    };
-
-    constexpr vk::SemaphoreCreateInfo binary_semaphore_info;
-
     for (auto &res: frame_resources) {
         res.sync = {
-            .image_available_semaphore = make_unique<vk::raii::Semaphore>(*ctx.device, binary_semaphore_info),
-            .ready_to_present_semaphore = make_unique<vk::raii::Semaphore>(*ctx.device, binary_semaphore_info),
-            .render_finished_timeline = {
-                make_unique<vk::raii::Semaphore>(*ctx.device, timeline_semaphore_info.get<vk::SemaphoreCreateInfo>())
-            },
+            .image_available_sem = make_unique<BinarySemaphore>(ctx),
+            .ready_to_present_sem = make_unique<BinarySemaphore>(ctx),
+            .render_finished_timeline_sem = make_unique<TimelineSemaphore>(ctx),
         };
     }
 }
@@ -919,8 +906,11 @@ void VulkanRenderer::run_render_graph() {
             }
         }
 
-        frame_resources[ctx.current_frame_idx].time_query_pool =
-            make_unique<QueryPool>(ctx, vk::QueryType::eTimestamp, 2 * node_count);
+        frame_resources[ctx.current_frame_idx].time_query_pool = make_unique<QueryPool>(
+            ctx,
+            vk::QueryType::eTimestamp,
+            2 * node_count
+        );
         current_query_idx = 0;
 
         record_graph_commands();
@@ -966,7 +956,7 @@ void VulkanRenderer::record_graph_commands() {
 
 void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_handle) {
     const auto &command_buffer = *frame_resources[ctx.current_frame_idx].main_cmd_buffer;
-    const auto &time_query_pool = frame_resources[ctx.current_frame_idx].time_query_pool;
+    const auto &time_query_pool = *frame_resources[ctx.current_frame_idx].time_query_pool;
     const auto &node = render_graph->nodes().at(node_handle).get_graphics();
 
     Logger::debug("recording gfx node: {}", node.name);
@@ -978,7 +968,7 @@ void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_h
     const auto &node_render_info = render_infos[subresource_index];
 
     // command_buffer.debugMarkerBeginEXT(vk::DebugMarkerMarkerInfoEXT { .pMarkerName = node.name.c_str(), });
-    command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eTopOfPipe, **time_query_pool, current_query_idx++);
+    command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eTopOfPipe, *time_query_pool, current_query_idx++);
 
     command_buffer.beginRendering(node_render_info.get(
             get_node_target_extent(node_handle),
@@ -990,7 +980,7 @@ void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_h
     // regenerate mipmaps for each target that had them
     record_regenerate_mipmaps_commands(node_handle);
 
-    command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eBottomOfPipe, **time_query_pool, current_query_idx++);
+    command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eBottomOfPipe, *time_query_pool, current_query_idx++);
     // command_buffer.debugMarkerEndEXT();
 }
 
@@ -1258,7 +1248,7 @@ void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_ha
 
     // command_buffer.debugMarkerBeginEXT(vk::DebugMarkerMarkerInfoEXT { .pMarkerName = node.name.c_str(), });
 
-    command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eTopOfPipe, **time_query_pool, current_query_idx++);
+    command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eTopOfPipe, *time_query_pool, current_query_idx++);
 
     ComputePassContext ctx{
         command_buffer,
@@ -1267,7 +1257,7 @@ void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_ha
     };
     node.body(ctx);
 
-    command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eBottomOfPipe, **time_query_pool, current_query_idx++);
+    command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eBottomOfPipe, *time_query_pool, current_query_idx++);
 
     // todo
     // regenerate mipmaps for each target that had them
@@ -1381,27 +1371,11 @@ void VulkanRenderer::do_frame_begin_actions() {
 bool VulkanRenderer::start_frame() {
     const auto &sync = frame_resources[ctx.current_frame_idx].sync;
 
-    const vector wait_semaphores = {
-        **sync.render_finished_timeline.semaphore,
-    };
-
-    const vector wait_semaphore_values = {
-        sync.render_finished_timeline.timeline,
-    };
-
-    const vk::SemaphoreWaitInfo wait_info{
-        .semaphoreCount = static_cast<uint32_t>(wait_semaphores.size()),
-        .pSemaphores = wait_semaphores.data(),
-        .pValues = wait_semaphore_values.data(),
-    };
-
-    if (ctx.device->waitSemaphores(wait_info, numeric_limits<uint64_t>::max()) != vk::Result::eSuccess) {
-        Logger::error("waitSemaphores on renderFinishedTimeline failed");
-    }
+    utils::sync::wait(ctx, *sync.render_finished_timeline_sem);
 
     do_frame_begin_actions();
 
-    const auto &[result, image_index] = swap_chain->acquire_next_image(*sync.image_available_semaphore);
+    const auto &[result, image_index] = swap_chain->acquire_next_image(**sync.image_available_sem);
 
     if (result == vk::Result::eErrorOutOfDateKHR) {
         recreate_swap_chain();
@@ -1421,29 +1395,21 @@ bool VulkanRenderer::start_frame() {
 void VulkanRenderer::end_frame() {
     auto& sync = frame_resources[ctx.current_frame_idx].sync;
 
-    const vector wait_semaphores = {
-        **sync.image_available_semaphore
-    };
-
-    const vector<TimelineSemValueType> wait_semaphore_values = {
-        0
-    };
-
     static constexpr vk::PipelineStageFlags wait_stages[] = {
         vk::PipelineStageFlagBits::eEarlyFragmentTests,
         vk::PipelineStageFlagBits::eVertexInput,
     };
 
-    const array signal_semaphores = {
-        **sync.render_finished_timeline.semaphore,
-        **sync.ready_to_present_semaphore
-    };
+    ++(*sync.render_finished_timeline_sem);
 
-    sync.render_finished_timeline.timeline++;
-    const vector<TimelineSemValueType> signal_semaphore_values{
-        sync.render_finished_timeline.timeline,
-        0
-    };
+    const auto& [wait_semaphores, wait_semaphore_values] = utils::sync::make_semaphore_list_pair(
+        *sync.image_available_sem
+    );
+
+    const auto& [signal_semaphores, signal_semaphore_values] = utils::sync::make_semaphore_list_pair(
+        *sync.render_finished_timeline_sem,
+        *sync.ready_to_present_sem
+    );
 
     const vk::StructureChain<vk::SubmitInfo, vk::TimelineSemaphoreSubmitInfo> submit_info{
         {
@@ -1452,7 +1418,7 @@ void VulkanRenderer::end_frame() {
             .pWaitDstStageMask = wait_stages,
             .commandBufferCount = 1,
             .pCommandBuffers = &**frame_resources[ctx.current_frame_idx].main_cmd_buffer,
-            .signalSemaphoreCount = signal_semaphores.size(),
+            .signalSemaphoreCount = static_cast<uint32_t>(signal_semaphores.size()),
             .pSignalSemaphores = signal_semaphores.data(),
         },
         {
@@ -1463,15 +1429,9 @@ void VulkanRenderer::end_frame() {
         }
     };
 
-    try {
-        ctx.graphics_queue->submit(submit_info.get<vk::SubmitInfo>());
-    } catch (std::exception &e) {
-        std::cerr << e.what() << std::endl;
-        throw;
-    }
+    ctx.graphics_queue->submit(submit_info.get<vk::SubmitInfo>());
 
-    const array present_wait_semaphores = {**sync.ready_to_present_semaphore};
-
+    const array present_wait_semaphores = {***sync.ready_to_present_sem};
     const array image_indices = {swap_chain->get_current_image_index()};
 
     const vk::PresentInfoKHR present_info{
@@ -1489,8 +1449,6 @@ void VulkanRenderer::end_frame() {
     } catch (...) {
     }
 
-    prev_frame_time_query_results = frame_resources[ctx.current_frame_idx].time_query_pool->get_results();
-
     const bool did_resize = present_result == vk::Result::eErrorOutOfDateKHR
                             || present_result == vk::Result::eSuboptimalKHR
                             || framebuffer_resized;
@@ -1500,6 +1458,8 @@ void VulkanRenderer::end_frame() {
     } else if (present_result != vk::Result::eSuccess) {
         Logger::error("failed to present swap chain image!");
     }
+
+    prev_frame_time_query_results = frame_resources[ctx.current_frame_idx].time_query_pool->get_results();
 
     ctx.current_frame_idx = (ctx.current_frame_idx + 1) % MAX_FRAMES_IN_FLIGHT;
 }
