@@ -51,7 +51,7 @@ class VulkanRenderer {
 
     RendererContext ctx;
 
-    unique_ptr<vk::raii::Queue> present_queue;
+    unique_ptr<PresentQueue> present_queue;
     QueueFamilyIndices queue_family_indices;
 
     unique_ptr<SwapChain> swap_chain;
@@ -172,6 +172,8 @@ private:
     auto pick_physical_device(const vkb::Instance &vkb_instance) -> vkb::PhysicalDevice;
 
     void create_logical_device(const vkb::PhysicalDevice &vkb_physical_device);
+
+    void create_queues();
 
     // ==================== swap chain ====================
 

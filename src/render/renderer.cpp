@@ -76,6 +76,7 @@ VulkanRenderer::VulkanRenderer() {
     create_surface();
     const auto vkb_physical_device = pick_physical_device(vkb_instance);
     create_logical_device(vkb_physical_device);
+    create_queues();
 
     ctx.allocator = make_unique<VmaAllocatorWrapper>(**ctx.physical_device, **ctx.device, **instance);
 
@@ -252,25 +253,15 @@ void VulkanRenderer::create_logical_device(const vkb::PhysicalDevice &vkb_physic
     }
 
     ctx.device = make_unique<vk::raii::Device>(*ctx.physical_device, device_result.value().device);
+}
 
-    auto graphics_queue_result = device_result.value().get_queue(vkb::QueueType::graphics);
-    auto graphics_queue_index_result = device_result.value().get_queue_index(vkb::QueueType::graphics);
-    if (!graphics_queue_result || !graphics_queue_index_result) {
-        Logger::error("failed to get graphics queue: {}", device_result.error().message());
-    }
-
-    auto present_queue_result = device_result.value().get_queue(vkb::QueueType::present);
-    auto present_queue_index_result = device_result.value().get_queue_index(vkb::QueueType::present);
-    if (!present_queue_result || !present_queue_index_result) {
-        Logger::error("failed to get present queue: {}", device_result.error().message());
-    }
-
-    ctx.graphics_queue = make_unique<vk::raii::Queue>(*ctx.device, graphics_queue_result.value());
-    present_queue      = make_unique<vk::raii::Queue>(*ctx.device, present_queue_result.value());
+void VulkanRenderer::create_queues() {
+    present_queue = make_unique<PresentQueue>(ctx, *surface);
+    ctx.graphics_queue = make_unique<GraphicsQueue>(ctx);
 
     queue_family_indices = {
-        .graphics_compute_family = graphics_queue_index_result.value(),
-        .present_family = present_queue_index_result.value()
+        .graphics_compute_family = ctx.graphics_queue->get_family_index(),
+        .present_family = present_queue->get_family_index()
     };
 }
 
@@ -483,7 +474,7 @@ void VulkanRenderer::init_imgui() {
         .Instance = **instance,
         .PhysicalDevice = **ctx.physical_device,
         .Device = **ctx.device,
-        .Queue = **ctx.graphics_queue,
+        .Queue = ***ctx.graphics_queue,
         .DescriptorPool = static_cast<VkDescriptorPool>(**imgui_descriptor_pool),
         .MinImageCount = image_count,
         .ImageCount = image_count,
@@ -1395,59 +1386,16 @@ bool VulkanRenderer::start_frame() {
 void VulkanRenderer::end_frame() {
     auto& sync = frame_resources[ctx.current_frame_idx].sync;
 
-    static constexpr vk::PipelineStageFlags wait_stages[] = {
-        vk::PipelineStageFlagBits::eEarlyFragmentTests,
-        vk::PipelineStageFlagBits::eVertexInput,
-    };
-
     ++(*sync.render_finished_timeline_sem);
 
-    const auto& [wait_semaphores, wait_semaphore_values] = utils::sync::make_semaphore_list_pair(
-        *sync.image_available_sem
-    );
+    QueueSubmission submission = QueueSubmissionBuilder()
+        .with_wait_semaphores(*sync.image_available_sem)
+        .with_signal_semaphores(*sync.render_finished_timeline_sem, *sync.ready_to_present_sem)
+        .with_command_buffers(std::span { &*frame_resources[ctx.current_frame_idx].main_cmd_buffer, 1 })
+        .create();
+    ctx.graphics_queue->submit(std::move(submission));
 
-    const auto& [signal_semaphores, signal_semaphore_values] = utils::sync::make_semaphore_list_pair(
-        *sync.render_finished_timeline_sem,
-        *sync.ready_to_present_sem
-    );
-
-    const vk::StructureChain<vk::SubmitInfo, vk::TimelineSemaphoreSubmitInfo> submit_info{
-        {
-            .waitSemaphoreCount = static_cast<uint32_t>(wait_semaphores.size()),
-            .pWaitSemaphores = wait_semaphores.data(),
-            .pWaitDstStageMask = wait_stages,
-            .commandBufferCount = 1,
-            .pCommandBuffers = &**frame_resources[ctx.current_frame_idx].main_cmd_buffer,
-            .signalSemaphoreCount = static_cast<uint32_t>(signal_semaphores.size()),
-            .pSignalSemaphores = signal_semaphores.data(),
-        },
-        {
-            .waitSemaphoreValueCount = static_cast<uint32_t>(wait_semaphore_values.size()),
-            .pWaitSemaphoreValues = wait_semaphore_values.data(),
-            .signalSemaphoreValueCount = static_cast<uint32_t>(signal_semaphore_values.size()),
-            .pSignalSemaphoreValues = signal_semaphore_values.data(),
-        }
-    };
-
-    ctx.graphics_queue->submit(submit_info.get<vk::SubmitInfo>());
-
-    const array present_wait_semaphores = {***sync.ready_to_present_sem};
-    const array image_indices = {swap_chain->get_current_image_index()};
-
-    const vk::PresentInfoKHR present_info{
-        .waitSemaphoreCount = present_wait_semaphores.size(),
-        .pWaitSemaphores = present_wait_semaphores.data(),
-        .swapchainCount = 1U,
-        .pSwapchains = &***swap_chain,
-        .pImageIndices = image_indices.data(),
-    };
-
-    auto present_result = vk::Result::eSuccess;
-
-    try {
-        present_result = present_queue->presentKHR(present_info);
-    } catch (...) {
-    }
+    const vk::Result present_result = present_queue->present(*swap_chain, *sync.ready_to_present_sem);
 
     const bool did_resize = present_result == vk::Result::eErrorOutOfDateKHR
                             || present_result == vk::Result::eSuboptimalKHR

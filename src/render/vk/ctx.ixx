@@ -9,6 +9,8 @@ import std;
 import Cinder.Globals;
 
 export namespace zrx {
+class GraphicsQueue;
+
 /**
  * Simple RAII-preserving wrapper class for the VMA allocator.
  */
@@ -37,11 +39,11 @@ public:
  * to get access to these.
  */
 struct RendererContext {
-    unique_ptr<vk::raii::PhysicalDevice> physical_device{};
-    unique_ptr<vk::raii::Device> device{};
-    unique_ptr<vk::raii::CommandPool> command_pool{};
-    unique_ptr<vk::raii::Queue> graphics_queue{};
-    unique_ptr<VmaAllocatorWrapper> allocator{};
+    unique_ptr<vk::raii::PhysicalDevice> physical_device;
+    unique_ptr<vk::raii::Device> device;
+    unique_ptr<vk::raii::CommandPool> command_pool;
+    unique_ptr<GraphicsQueue> graphics_queue;
+    unique_ptr<VmaAllocatorWrapper> allocator;
     uint32_t current_frame_idx = 0;
 };
 } // zrx

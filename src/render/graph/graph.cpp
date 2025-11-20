@@ -11,7 +11,7 @@ import Cinder.Globals;
 
 namespace detail {
 template<typename T>
-[[nodiscard]] bool empty_intersection(const set<T> &a, std::ranges::forward_range auto b) {
+bool empty_intersection(const set<T> &a, std::ranges::forward_range auto b) {
     return std::ranges::all_of(b, [&](const T &elem) {
         return !a.contains(elem);
     });

@@ -576,7 +576,7 @@ void Texture::generate_mipmaps(const RendererContext &ctx, const vk::ImageLayout
         trans_barrier
     );
 
-    utils::cmd::end_single_time_commands(command_buffer, *ctx.graphics_queue);
+    utils::cmd::end_single_time_commands(command_buffer, **ctx.graphics_queue);
 }
 
 // ==================== TextureBuilder ====================

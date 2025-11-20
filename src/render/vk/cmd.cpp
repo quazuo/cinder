@@ -46,7 +46,7 @@ namespace utils::cmd {
                                  const std::function<void(const vk::raii::CommandBuffer &)> &func) {
         const vk::raii::CommandBuffer cmd_buffer = begin_single_time_commands(ctx);
         func(cmd_buffer);
-        end_single_time_commands(cmd_buffer, *ctx.graphics_queue);
+        end_single_time_commands(cmd_buffer, **ctx.graphics_queue);
     }
 
     void set_dynamic_states(const vk::raii::CommandBuffer &command_buffer, const vk::Extent2D draw_extent) {

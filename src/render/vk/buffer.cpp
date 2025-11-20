@@ -95,17 +95,15 @@ void Buffer::unmap() {
 void Buffer::copy_from_buffer(const RendererContext &ctx, const Buffer &other_buffer,
                               const vk::DeviceSize size, const vk::DeviceSize src_offset,
                               const vk::DeviceSize dst_offset) const {
-    const vk::raii::CommandBuffer command_buffer = utils::cmd::begin_single_time_commands(ctx);
+    utils::cmd::do_single_time_commands(ctx, [&](const vk::raii::CommandBuffer& command_buffer) {
+        const vk::BufferCopy copy_region{
+            .srcOffset = src_offset,
+            .dstOffset = dst_offset,
+            .size = size,
+        };
 
-    const vk::BufferCopy copy_region{
-        .srcOffset = src_offset,
-        .dstOffset = dst_offset,
-        .size = size,
-    };
-
-    command_buffer.copyBuffer(*other_buffer, buffer, copy_region);
-
-    utils::cmd::end_single_time_commands(command_buffer, *ctx.graphics_queue);
+        command_buffer.copyBuffer(*other_buffer, buffer, copy_region);
+    });
 }
 
 namespace utils::buf {
