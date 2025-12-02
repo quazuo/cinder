@@ -25,15 +25,12 @@ public:
     static constexpr UniqueHandle get_new_special() { return { next_free_special_handle_id-- }; }
 
     // almost never use this!!!
-    // this is only here temporarily because we want to preserve assimp's IDs
+    // this is only here temporarily because we want to preserve assimp's IDs and keep the type safety
+    // (yeah i know this is a code smell i will fix it in the future)
     static constexpr UniqueHandle get_unsafe(const IDType id_) { return { id_ }; }
 
     explicit operator uint32_t() const { return id; }
 
-    constexpr bool operator<(const UniqueHandle& other) const { return id < other.id; }
-
-    constexpr bool operator>(const UniqueHandle& other) const { return id > other.id; }
-
-    constexpr bool operator==(const UniqueHandle& other) const { return id == other.id; }
+    constexpr auto operator<=>(const UniqueHandle&) const = default;
 };
 } // ~zrx
