@@ -81,7 +81,7 @@ vector<vector<RenderNodeHandle>> RenderGraph::get_partitioned() const {
 }
 
 RenderNodeHandle RenderGraph::add_node(const RenderNodeGraphics &node) {
-    const auto new_handle = get_new_node_handle();
+    const auto new_handle = RenderNodeHandle::get_new();
     nodes_.emplace(new_handle, node);
 
     auto new_targets_set = node.get_all_targets_set();
@@ -112,7 +112,7 @@ RenderNodeHandle RenderGraph::add_node(const RenderNodeGraphics &node) {
 }
 
 RenderNodeHandle RenderGraph::add_node(const RenderNodeCompute &node) {
-    const auto new_handle = get_new_node_handle();
+    const auto new_handle = RenderNodeHandle::get_new();
     nodes_.emplace(new_handle, node);
 
     set<ResourceHandle> new_writes_set;
@@ -277,13 +277,5 @@ void RenderGraph::check_dependency_cycles() const {
             cycles_helper(handle, discovered, finished);
         }
     }
-}
-
-RenderNodeHandle RenderGraph::get_new_node_handle() {
-    return RenderNodeHandle::get_new();
-}
-
-ResourceHandle RenderGraph::get_new_resource_handle() {
-    return ResourceHandle::get_new();
 }
 } // zrx

@@ -95,13 +95,9 @@ private:
 
     void check_dependency_cycles() const;
 
-    static auto get_new_node_handle() -> RenderNodeHandle;
-
-    static auto get_new_resource_handle() -> ResourceHandle;
-
     template<typename ResourceType>
     auto add_resource_generic(ResourceType &&resource, map<ResourceHandle, ResourceType> &resource_map) -> ResourceHandle {
-        const auto handle = get_new_resource_handle();
+        const auto handle = ResourceHandle::get_new();
         resource_map.emplace(handle, resource);
         if constexpr (ResourceLike<ResourceType>) {
             resource_names.emplace(handle, resource.name);
