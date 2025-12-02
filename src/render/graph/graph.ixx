@@ -24,14 +24,14 @@ class RenderGraph {
     map<RenderNodeHandle, set<RenderNodeHandle> > dependency_graph;
 
     // todo - replace by vectors
-    map<ResourceHandle, VertexBufferResourceDesc>       vertex_buffers_;
-    map<ResourceHandle, UniformBufferResourceDesc>      uniform_buffers_;
-    map<ResourceHandle, ExternalTextureResourceDesc>    external_tex_resources_;
-    map<ResourceHandle, TargetTextureResourceDesc>      target_tex_resources_;
-    map<ResourceHandle, TransientTextureResourceDesc>   transient_tex_resources_;
-    map<ResourceHandle, ModelResourceDesc>              model_resources_;
-    map<ResourceHandle, GraphicsPipelineDesc>           graphics_pipelines_;
-    map<ResourceHandle, ComputePipelineDesc>            compute_pipelines_;
+    map<ResourceHandle, VertexBufferResourceDesc>     vertex_buffers_;
+    map<ResourceHandle, UniformBufferResourceDesc>    uniform_buffers_;
+    map<ResourceHandle, ExternalTextureResourceDesc>  external_tex_resources_;
+    map<ResourceHandle, TargetTextureResourceDesc>    target_tex_resources_;
+    map<ResourceHandle, TransientTextureResourceDesc> transient_tex_resources_;
+    map<ResourceHandle, ModelResourceDesc>            model_resources_;
+    map<ResourceHandle, GraphicsPipelineDesc>         graphics_pipelines_;
+    map<ResourceHandle, ComputePipelineDesc>          compute_pipelines_;
 
     set<RenderNodeHandle>       nodes_writing_to_final;
     set<ResourceHandle>         produced_resources;
@@ -61,12 +61,12 @@ public:
     /// Adds multiple nodes at once, connected sequentially via explicit dependencies.
     auto add_nodes_sequential(vector<RenderNode> nodes) -> vector<RenderNodeHandle>;
 
-    auto add_resource(VertexBufferResourceDesc &&resource)      -> ResourceHandle;
-    auto add_resource(UniformBufferResourceDesc &&resource)     -> ResourceHandle;
-    auto add_resource(ExternalTextureResourceDesc &&resource)   -> ResourceHandle;
-    auto add_resource(TargetTextureResourceDesc &&resource)     -> ResourceHandle;
-    auto add_resource(TransientTextureResourceDesc &&resource)  -> ResourceHandle;
-    auto add_resource(ModelResourceDesc &&resource)             -> ResourceHandle;
+    auto add_resource(VertexBufferResourceDesc &&resource)     -> ResourceHandle;
+    auto add_resource(UniformBufferResourceDesc &&resource)    -> ResourceHandle;
+    auto add_resource(ExternalTextureResourceDesc &&resource)  -> ResourceHandle;
+    auto add_resource(TargetTextureResourceDesc &&resource)    -> ResourceHandle;
+    auto add_resource(TransientTextureResourceDesc &&resource) -> ResourceHandle;
+    auto add_resource(ModelResourceDesc &&resource)            -> ResourceHandle;
 
     template<typename T>
         requires ResourceLike<T>
@@ -95,7 +95,7 @@ private:
 
     void check_dependency_cycles() const;
 
-    static auto get_new_node_handle() -> ResourceHandle;
+    static auto get_new_node_handle() -> RenderNodeHandle;
 
     static auto get_new_resource_handle() -> ResourceHandle;
 

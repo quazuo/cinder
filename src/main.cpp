@@ -566,9 +566,9 @@ private:
             const auto& texture_handles = resource_manager.get_material_tex_handles(material_handle);
 
             materials_ubo.mats[material_handle] = glsl::Material {
-                .base_color = texture_handles.base_color,
-                .normal = texture_handles.normal,
-                .orm = texture_handles.orm,
+                .base_color = static_cast<uint32_t>(texture_handles.base_color),
+                .normal     = static_cast<uint32_t>(texture_handles.normal),
+                .orm        = static_cast<uint32_t>(texture_handles.orm),
             };
         }
 

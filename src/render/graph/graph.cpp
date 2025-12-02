@@ -279,13 +279,11 @@ void RenderGraph::check_dependency_cycles() const {
     }
 }
 
-ResourceHandle RenderGraph::get_new_node_handle() {
-    static RenderNodeHandle next_free_node_handle = 0;
-    return next_free_node_handle++;
+RenderNodeHandle RenderGraph::get_new_node_handle() {
+    return RenderNodeHandle::get_new();
 }
 
 ResourceHandle RenderGraph::get_new_resource_handle() {
-    static ResourceHandle next_free_resource_handle = 0;
-    return next_free_resource_handle++;
+    return ResourceHandle::get_new();
 }
 } // zrx

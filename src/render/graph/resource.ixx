@@ -8,10 +8,14 @@ import vulkan_hpp;
 import Cinder.Render.Vulkan;
 import Cinder.Render.Mesh;
 import Cinder.Globals;
+import Cinder.Utils;
 
 export namespace zrx {
-constexpr ResourceHandle FINAL_IMAGE_HANDLE      = -1;
-constexpr ResourceHandle CURRENT_MATERIAL_HANDLE = -2;
+struct ResourceHandleTag {};
+using ResourceHandle = UniqueHandle<ResourceHandleTag>;
+
+const ResourceHandle FINAL_IMAGE_HANDLE      = ResourceHandle::get_new_special();
+const ResourceHandle CURRENT_MATERIAL_HANDLE = ResourceHandle::get_new_special();
 
 const string FINAL_IMAGE_NAME = "final-image";
 constexpr std::monostate EMPTY_DESCRIPTOR_SET_BINDING = {};

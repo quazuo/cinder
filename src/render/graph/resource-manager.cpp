@@ -13,6 +13,9 @@ import Cinder.Globals;
 import Cinder.Utils;
 
 namespace zrx {
+BindlessHandle::IDType BindlessHandle::next_free_handle_id = 0;
+BindlessHandle::IDType BindlessHandle::next_free_special_handle_id = -1;
+
 namespace glsl {
 #include "src/render/glsl_to_cpp.inl"
 #include "shaders/utils/material.glsl"
@@ -22,7 +25,7 @@ ResourceManager::ResourceManager(
     const RendererContext& ctx, const uint32_t max_bindless_handles, const uint32_t frames_in_flight
 ) : renderer_ctx(ctx), queued_for_removal_resources(frames_in_flight) {
     for (uint32_t i = 0; i < max_bindless_handles; i++) {
-        free_bindless_handles.push(i);
+        free_bindless_handles.push(BindlessHandle::get_new());
     }
 
     for (uint32_t i = 0; i < MATERIAL_MAX_COUNT; i++) {

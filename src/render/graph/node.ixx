@@ -7,11 +7,13 @@ import std;
 import Cinder.Render.Vulkan;
 import Cinder.Render.Mesh;
 import Cinder.Globals;
+import Cinder.Utils;
 import :Resource;
 import :ResourceManager;
 
 export namespace zrx {
-using RenderNodeHandle = uint32_t;
+struct RenderNodeHandleTag {};
+using RenderNodeHandle = zrx::UniqueHandle<RenderNodeHandleTag>;
 
 class RenderPassContext {
     reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
@@ -19,9 +21,10 @@ class RenderPassContext {
     reference_wrapper<const vk::raii::DescriptorSet> bindless_set;
 
     optional<ResourceHandle> last_bound_pipeline;
-    std::vector<ResourceHandle> bound_resource_ids;
+    std::vector<ResourceHandle> bound_resource_handles;
+    std::vector<BindlessHandle> bound_resource_ids;
 
-    optional<uint32_t> current_material_id;
+    optional<BindlessHandle> current_material_id;
 
 public:
     explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, const ResourceManager &resource_manager,
@@ -50,7 +53,8 @@ class ComputePassContext {
     reference_wrapper<const vk::raii::DescriptorSet> bindless_set;
 
     optional<ResourceHandle> last_bound_pipeline;
-    std::vector<ResourceHandle> bound_resource_ids;
+    std::vector<ResourceHandle> bound_resource_handles;
+    std::vector<BindlessHandle> bound_resource_ids;
 
 public:
     explicit ComputePassContext(const vk::raii::CommandBuffer &cmd_buf, const ResourceManager &resource_manager,

@@ -316,10 +316,10 @@ void VulkanRenderer::recreate_swap_chain() {
         const auto& texture = resource_manager->get<Texture>(handle);
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
 
-        bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
+        bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(texture, static_cast<uint32_t>(bindless_handle));
 
         if (is_compute_accessed) {
-            bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
+            bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, static_cast<uint32_t>(bindless_handle));
         }
     }
 }
@@ -578,13 +578,22 @@ void VulkanRenderer::create_render_graph_resources() {
             const ResourceManager::MaterialTextureHandles& tex_handles = mat_tex_handles[i];
 
             if (material.base_color) {
-                bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(*material.base_color, tex_handles.base_color);
+                bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(
+                    *material.base_color,
+                    static_cast<uint32_t>(tex_handles.base_color)
+                );
             }
             if (material.normal) {
-                bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(*material.normal, tex_handles.normal);
+                bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(
+                    *material.normal,
+                    static_cast<uint32_t>(tex_handles.normal)
+                );
             }
             if (material.orm) {
-                bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(*material.orm, tex_handles.orm);
+                bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(
+                    *material.orm,
+                    static_cast<uint32_t>(tex_handles.orm)
+                );
             }
         }
     }
@@ -602,7 +611,7 @@ void VulkanRenderer::create_render_graph_resources() {
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& buffer = resource_manager->get<Buffer>(handle);
-        bindless_descriptor_set->queue_update<BINDLESS_UBO_BINDING>(buffer, bindless_handle);
+        bindless_descriptor_set->queue_update<BINDLESS_UBO_BINDING>(buffer, static_cast<uint32_t>(bindless_handle));
     }
 
     for (const auto &[handle, description]: render_graph->external_tex_resources()) {
@@ -640,10 +649,10 @@ void VulkanRenderer::create_render_graph_resources() {
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get<Texture>(handle);
 
-        bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
+        bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(texture, static_cast<uint32_t>(bindless_handle));
 
         if (is_compute_accessed) {
-            bindless_descriptor_set->queue_update<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
+            bindless_descriptor_set->queue_update<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, static_cast<uint32_t>(bindless_handle));
         }
     }
 
@@ -687,10 +696,10 @@ void VulkanRenderer::create_render_graph_resources() {
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get<Texture>(handle);
 
-        bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(texture, bindless_handle);
+        bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(texture, static_cast<uint32_t>(bindless_handle));
 
         if (is_compute_accessed) {
-            bindless_descriptor_set->queue_update<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, bindless_handle);
+            bindless_descriptor_set->queue_update<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, static_cast<uint32_t>(bindless_handle));
         }
     }
 

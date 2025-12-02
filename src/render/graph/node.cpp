@@ -7,6 +7,8 @@ import Cinder.Render;
 import Cinder.Render.Vulkan;
 
 namespace zrx {
+RenderNodeHandle::IDType RenderNodeHandle::next_free_handle_id = 0;
+
 void RenderPassContext::bind_pipeline(const ResourceHandle pipeline_handle) {
     if (!resource_manager.get().contains<GraphicsPipeline>(pipeline_handle)) {
         Logger::error("Invalid pipeline handle in RenderPassContext::bind_pipeline!");
@@ -23,17 +25,19 @@ void RenderPassContext::bind_pipeline(const ResourceHandle pipeline_handle) {
 }
 
 void RenderPassContext::bind_resources(const std::vector<ResourceHandle> &handles) {
-    bound_resource_ids = handles;
+    bound_resource_handles = handles;
+    bound_resource_ids = {};
 
-    for (auto& res_id: bound_resource_ids) {
-        if (res_id == CURRENT_MATERIAL_HANDLE) {
+    for (auto& handle: handles) {
+        if (handle == CURRENT_MATERIAL_HANDLE) {
             // do nothing, will set this to a valid handle when pushing constants
+            bound_resource_ids.push_back(CURR_MAT_BINDLESS_HANDLE);
 
-        } else if (res_id == FINAL_IMAGE_HANDLE) {
+        } else if (handle == FINAL_IMAGE_HANDLE) {
             Logger::error("Cannot bind final image inside a render pass context");
 
         } else {
-            res_id = resource_manager.get().get_bindless_handle(res_id);
+            bound_resource_ids.push_back(resource_manager.get().get_bindless_handle(handle));
         }
     }
 }
@@ -51,7 +55,7 @@ void RenderPassContext::draw_model(const ResourceHandle model_handle) {
     model.bind_buffers(command_buffer);
 
     for (const auto &mesh: model.get_meshes()) {
-        current_material_id = mesh.material_id;
+        current_material_id = BindlessHandle::get_unsafe(mesh.material_id);
         push_constants();
         current_material_id.reset();
 
@@ -84,21 +88,24 @@ void RenderPassContext::push_constants() {
         Logger::error("no pipeline bound during draw!");
     }
 
-    auto resource_ids = bound_resource_ids;
+    vector<BindlessHandle> resource_ids = bound_resource_ids;
 
-    for (auto& res_id: resource_ids) {
-        if (res_id == CURRENT_MATERIAL_HANDLE) {
+    for (size_t i = 0; i < bound_resource_ids.size(); ++i) {
+        const ResourceHandle& resource_handle = bound_resource_handles[i];
+        BindlessHandle& resource_id = resource_ids[i];
+
+        if (resource_handle == CURRENT_MATERIAL_HANDLE) {
             if (!current_material_id) {
                 Logger::error("No available current material in RenderPassContext::bind_resources. "
                               "Did you forget to load model materials?");
             }
 
-            res_id = *current_material_id;
+            resource_id = *current_material_id;
         }
     }
 
     if (!resource_ids.empty()) {
-        command_buffer.get().pushConstants<ResourceHandle>(
+        command_buffer.get().pushConstants<BindlessHandle>(
             *resource_manager.get().get<GraphicsPipeline>(*last_bound_pipeline).get_layout(),
             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
             0,
@@ -123,10 +130,11 @@ void ComputePassContext::bind_pipeline(ResourceHandle pipeline_handle) {
 }
 
 void ComputePassContext::bind_resources(const std::vector<ResourceHandle> &handles) {
-    bound_resource_ids = handles;
+    bound_resource_handles = handles;
+    bound_resource_ids = {};
 
-    for (auto& res_id: bound_resource_ids) {
-        res_id = resource_manager.get().get_bindless_handle(res_id);
+    for (auto& handle: handles) {
+        bound_resource_ids.push_back(resource_manager.get().get_bindless_handle(handle));
     }
 }
 
@@ -141,7 +149,7 @@ void ComputePassContext::push_constants() const {
     }
 
     if (!bound_resource_ids.empty()) {
-        command_buffer.get().pushConstants<ResourceHandle>(
+        command_buffer.get().pushConstants<BindlessHandle>(
             *resource_manager.get().get<ComputePipeline>(*last_bound_pipeline).get_layout(),
             vk::ShaderStageFlagBits::eCompute,
             0,
