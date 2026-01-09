@@ -76,8 +76,8 @@ float calc_shadow(vec2 texel_offset) {
 
     vec3 normal = get_normal();
     vec3 light_direction = ubos[constants.general_ubo_id].light.direction;
-    float bias_weight_1 = ubos[constants.general_ubo_id].misc.bias_1;
-    float bias_weight_2 = ubos[constants.general_ubo_id].misc.bias_2;
+    float bias_weight_1  = ubos[constants.general_ubo_id].misc.bias_weight_1;
+    float bias_weight_2  = ubos[constants.general_ubo_id].misc.bias_weight_2;
     float bias = max(bias_weight_1 * (1.0 - dot(normal, light_direction)), bias_weight_2);
 
     float closest_depth = sample_texture_with_fallback(constants.shadowmap_id, proj_coords.xy + tex_coord_offset).r;

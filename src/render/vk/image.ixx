@@ -191,7 +191,7 @@ public:
 
     vk::Format get_format() const { return image->get_format(); }
 
-    void generate_mipmaps(const RendererContext &ctx, vk::ImageLayout final_layout) const;
+    void generate_mipmaps(const RendererContext &ctx, vk::ImageLayout final_layout, const vk::raii::CommandBuffer& command_buffer) const;
 };
 
 enum class SwizzleComponent {
@@ -254,6 +254,7 @@ class TextureBuilder {
     TextureFlags tex_flags{};
     bool is_separate_channels = false;
     bool is_uninitialized = false;
+    bool is_window_sized = false;
 
     optional<SwizzleDesc> swizzle;
 
@@ -285,7 +286,9 @@ public:
     auto with_flags(TextureFlags flags)                         -> TextureBuilder&;
     auto as_separate_channels()                                 -> TextureBuilder&;
     auto with_sampler_address_mode(vk::SamplerAddressMode mode) -> TextureBuilder&;
-    auto as_uninitialized(vk::Extent3D extent)                  -> TextureBuilder&;
+    auto as_uninitialized()                                     -> TextureBuilder&;
+    auto with_extent(vk::Extent3D extent)                       -> TextureBuilder&;
+    auto with_window_size()                                     -> TextureBuilder&;
     auto with_swizzle(const SwizzleDesc &sw)                    -> TextureBuilder&;
     auto with_name(const char *n)                               -> TextureBuilder&;
 
@@ -316,7 +319,7 @@ private:
 
     auto load_from_memory() const -> LoadedTextureData;
 
-    auto load_from_swizzle_fill() const -> LoadedTextureData;
+    auto load_from_swizzle_fill(vk::Extent3D extent) const -> LoadedTextureData;
 
     auto make_staging_buffer(const RendererContext &ctx, const LoadedTextureData &data) const -> unique_ptr<Buffer>;
 

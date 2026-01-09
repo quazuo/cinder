@@ -9,6 +9,10 @@ layout (location = 2) in vec3 normal;
 layout (location = 0) out vec3 outNormal;
 layout (location = 1) out vec3 outPos;
 
+layout (push_constant) uniform PushResourceIDs {
+    uint ubo_id;
+} constants;
+
 void main() {
     outNormal = normalize(normal);
 

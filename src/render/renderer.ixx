@@ -42,8 +42,6 @@ private:
 };
 
 class VulkanRenderer {
-    GLFWwindow *window = nullptr;
-
     vk::raii::Context vk_ctx;
     unique_ptr<vk::raii::Instance> instance;
     unique_ptr<vk::raii::DebugUtilsMessengerEXT> debug_messenger;
@@ -85,7 +83,6 @@ class VulkanRenderer {
     set<ResourceHandle> unbarriered_gfx_written_resources;
     set<ResourceHandle> unbarriered_compute_written_resources;
     map<ResourceHandle, vk::ImageLayout> last_image_layouts;
-    vector<PipelineBarrierPack> cached_barriers;
 
     // ================ other stuff ================
 
@@ -140,7 +137,7 @@ public:
 
     VulkanRenderer &operator=(VulkanRenderer &&other) = delete;
 
-    auto get_window() const -> GLFWwindow* { return window; }
+    auto get_window() const -> GLFWwindow* { return ctx.window; }
 
     auto get_gui_renderer() const -> GuiRenderer& { return *gui_renderer; }
 

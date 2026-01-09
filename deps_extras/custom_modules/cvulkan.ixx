@@ -11,6 +11,7 @@ export {
     using ::VkBool32;
     using ::VkSurfaceKHR;
     using ::VkDescriptorPool;
+    using ::VkCommandBuffer;
     using ::VkSampleCountFlagBits;
     using ::VkFormat;
     using ::VkImageCreateInfo;

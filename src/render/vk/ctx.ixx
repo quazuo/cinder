@@ -5,6 +5,7 @@ export module Cinder.Render.Vulkan:Context;
 import vma;
 import vulkan_hpp;
 import std;
+import glfw;
 
 import Cinder.Globals;
 
@@ -44,6 +45,7 @@ struct RendererContext {
     unique_ptr<vk::raii::CommandPool> command_pool;
     unique_ptr<GraphicsQueue> graphics_queue;
     unique_ptr<VmaAllocatorWrapper> allocator;
+    GLFWwindow *window;
     uint32_t current_frame_idx = 0;
 };
 } // zrx

@@ -90,8 +90,7 @@ public:
 private:
     void add_new_dependencies(RenderNodeHandle new_handle);
 
-    void cycles_helper(RenderNodeHandle handle, set<RenderNodeHandle> &discovered,
-                       set<RenderNodeHandle> &finished) const;
+    void cycles_helper(RenderNodeHandle handle, set<RenderNodeHandle> &discovered, set<RenderNodeHandle> &finished) const;
 
     void check_dependency_cycles() const;
 

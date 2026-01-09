@@ -19,11 +19,11 @@ SwapChainSupportDetails::SwapChainSupportDetails(const vk::raii::PhysicalDevice 
 }
 
 SwapChain::SwapChain(const RendererContext &ctx, const vk::raii::SurfaceKHR &surface,
-                     const QueueFamilyIndices &queue_families, GLFWwindow *window,
+                     const QueueFamilyIndices &queue_families,
                      vk::SampleCountFlagBits sample_count) : msaa_sample_count(sample_count) {
     const auto [capabilities, formats, present_modes] = SwapChainSupportDetails{*ctx.physical_device, surface};
 
-    extent = choose_extent(capabilities, window);
+    extent = choose_extent(capabilities, ctx.window);
 
     const vk::SurfaceFormatKHR surface_format = choose_surface_format(formats);
     image_format = surface_format.format;

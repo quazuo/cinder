@@ -27,9 +27,7 @@ RenderInfo::RenderInfo(vector<RenderTarget> colors, RenderTarget depth)
     make_attachment_infos();
 }
 
-auto RenderInfo::get(
-    const vk::Extent2D extent, const uint32_t views, const vk::RenderingFlags flags
-) const -> vk::RenderingInfo {
+auto RenderInfo::get(const vk::Extent2D extent, const uint32_t views, const vk::RenderingFlags flags) const -> vk::RenderingInfo {
     return {
         .flags = flags,
         .renderArea = {
@@ -62,14 +60,14 @@ VulkanRenderer::VulkanRenderer() {
     constexpr int INIT_WINDOW_HEIGHT = 1200;
 
     glfwWindowHint(glfw::CLIENT_API, glfw::NO_API);
-    window = glfwCreateWindow(INIT_WINDOW_WIDTH, INIT_WINDOW_HEIGHT, "Cinder", nullptr, nullptr);
+    ctx.window = glfwCreateWindow(INIT_WINDOW_WIDTH, INIT_WINDOW_HEIGHT, "Cinder", nullptr, nullptr);
 
-    init_glfw_user_pointer(window);
-    auto *user_data = static_cast<GlfwStaticUserData *>(glfwGetWindowUserPointer(window));
+    init_glfw_user_pointer(ctx.window);
+    auto *user_data = static_cast<GlfwStaticUserData *>(glfwGetWindowUserPointer(ctx.window));
     if (!user_data) Logger::error("unexpected null window user pointer");
     user_data->renderer = this;
 
-    glfwSetFramebufferSizeCallback(window, framebuffer_resize_callback);
+    glfwSetFramebufferSizeCallback(ctx.window, framebuffer_resize_callback);
 
     const auto vkb_instance = create_instance();
     debug_messenger = make_unique<vk::raii::DebugUtilsMessengerEXT>(*instance, vkb_instance.debug_messenger);
@@ -89,7 +87,6 @@ VulkanRenderer::VulkanRenderer() {
         ctx,
         *surface,
         queue_family_indices,
-        window,
         get_msaa_sample_count()
     );
 
@@ -106,7 +103,7 @@ VulkanRenderer::VulkanRenderer() {
 }
 
 VulkanRenderer::~VulkanRenderer() {
-    glfwDestroyWindow(window);
+    glfwDestroyWindow(ctx.window);
 }
 
 void VulkanRenderer::framebuffer_resize_callback(GLFWwindow *window, const int width, const int height) {
@@ -134,6 +131,8 @@ auto VulkanRenderer::create_instance() -> vkb::Instance {
         return vk::False;
     };
 
+    const vector<uint32_t> layer_setting_values = { 100 };
+
     auto instance_result = vkb::InstanceBuilder()
             .set_app_name("Cinder")
             .request_validation_layers()
@@ -142,6 +141,13 @@ auto VulkanRenderer::create_instance() -> vkb::Instance {
             .require_api_version(1, 3)
             .set_minimum_instance_version(1, 3)
             .enable_extensions(get_required_extensions())
+            .add_layer_setting(vk::LayerSettingEXT {
+                .pLayerName = "VK_LAYER_KHRONOS_validation",
+                .pSettingName = "duplicate_message_limit",
+                .type = vk::LayerSettingTypeEXT::eUint32,
+                .valueCount = static_cast<uint32_t>(layer_setting_values.size()),
+                .pValues = layer_setting_values.data(),
+            })
             .build();
 
     if (!instance_result) {
@@ -171,7 +177,7 @@ auto VulkanRenderer::get_required_extensions() -> vector<const char *> {
 void VulkanRenderer::create_surface() {
     VkSurfaceKHR _surface;
 
-    if (glfwCreateWindowSurface(**instance, window, nullptr, &_surface) != VK_SUCCESS) {
+    if (glfwCreateWindowSurface(**instance, ctx.window, nullptr, &_surface) != VK_SUCCESS) {
         Logger::error("failed to create window surface!");
     }
 
@@ -269,31 +275,24 @@ void VulkanRenderer::create_queues() {
 
 void VulkanRenderer::recreate_swap_chain() {
     int width = 0, height = 0;
-    glfwGetFramebufferSize(window, &width, &height);
+    glfwGetFramebufferSize(ctx.window, &width, &height);
 
     while (width == 0 || height == 0) {
-        glfwGetFramebufferSize(window, &width, &height);
+        glfwGetFramebufferSize(ctx.window, &width, &height);
         glfwWaitEvents();
     }
 
     wait_idle();
 
-    Logger::debug("recreating swap chain");
+    Logger::info("recreating swap chain in frame #{}", ctx.current_frame_idx);
 
     swap_chain.reset();
     swap_chain = make_unique<SwapChain>(
         ctx,
         *surface,
         queue_family_indices,
-        window,
         get_msaa_sample_count()
     );
-
-    for (auto& [handle, resources]: node_resources) {
-        if (render_graph->nodes().at(handle).is_graphics()) {
-            resources.render_infos = create_node_render_infos(handle);
-        }
-    }
 
     const auto compute_accessed_resources = gather_compute_accessed_resources();
     for (auto& [handle, description]: render_graph->target_tex_resources()) {
@@ -302,15 +301,14 @@ void VulkanRenderer::recreate_swap_chain() {
 
         if (!resource_manager->contains<TextureBuilder>(handle)) {
             Logger::error("missing texture builder for window-sized texture ({}) during window resize",
-                resource_manager->get_name(handle));
+                          resource_manager->get_name(handle));
         }
 
-        auto& tex_builder = resource_manager->get<TextureBuilder>(handle);
-        const auto swap_chain_extent = swap_chain->get_extent();
-        tex_builder.as_uninitialized({swap_chain_extent.width, swap_chain_extent.height, 1u});
-        tex_builder.with_layout(last_image_layouts.at(handle));
-
+        auto& texture_builder = resource_manager->get<TextureBuilder>(handle);
+        texture_builder.with_layout(last_image_layouts.at(handle));
         resource_manager->recreate(handle);
+
+        // update bindless handles
 
         const bool is_compute_accessed = compute_accessed_resources.contains(handle);
         const auto& texture = resource_manager->get<Texture>(handle);
@@ -320,6 +318,12 @@ void VulkanRenderer::recreate_swap_chain() {
 
         if (is_compute_accessed) {
             bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, static_cast<uint32_t>(bindless_handle));
+        }
+    }
+
+    for (auto& [handle, resources]: node_resources) {
+        if (render_graph->nodes().at(handle).is_graphics()) {
+            resources.render_infos = create_node_render_infos(handle);
         }
     }
 }
@@ -424,7 +428,15 @@ void VulkanRenderer::create_command_buffers() {
     auto graphics_command_buffers = utils::cmd::create_command_buffers(ctx, vk::CommandBufferLevel::ePrimary, n_buffers);
 
     for (size_t i = 0; i < graphics_command_buffers.size(); i++) {
-        frame_resources[i].main_cmd_buffer =  make_unique<vk::raii::CommandBuffer>(std::move(graphics_command_buffers[i]));
+        frame_resources[i].main_cmd_buffer = make_unique<vk::raii::CommandBuffer>(std::move(graphics_command_buffers[i]));
+
+        const std::string name = "graphics_command_buffer#" + std::to_string(i);
+
+        ctx.device->setDebugUtilsObjectNameEXT(vk::DebugUtilsObjectNameInfoEXT {
+            .objectType = vk::ObjectType::eCommandBuffer,
+            .objectHandle = reinterpret_cast<uint64_t>(static_cast<VkCommandBuffer>(**frame_resources[i].main_cmd_buffer)),
+            .pObjectName = name.c_str(),
+        });
     }
 }
 
@@ -488,7 +500,7 @@ void VulkanRenderer::init_imgui() {
         .UseDynamicRendering = true,
     };
 
-    gui_renderer = make_unique<GuiRenderer>(window, imgui_init_info);
+    gui_renderer = make_unique<GuiRenderer>(ctx.window, imgui_init_info);
 }
 
 void VulkanRenderer::render_gui_section() {
@@ -523,9 +535,10 @@ void VulkanRenderer::render_gui_section() {
 
             ImVec4 color{};
             ImGui::ColorConvertHSVtoRGB(
-                std::hash<std::string>()(name) % 255 / 255.0f, 1.0f, 1.0f,
+                static_cast<float>(i % 24) / 24.0f, 1.0f, 0.7f,
                 color.x, color.y, color.z
             );
+            color.w = 1.0f;
 
             const std::chrono::nanoseconds start_ns {
                 static_cast<long long>(timestamp_period * static_cast<float>(start_timestamp - frame_start_timestamp)) };
@@ -657,11 +670,6 @@ void VulkanRenderer::create_render_graph_resources() {
     }
 
     for (const auto &[handle, description]: render_graph->target_tex_resources()) {
-        auto extent = description.extent;
-        if (extent.width == 0 && extent.height == 0) {
-            extent = swap_chain->get_extent();
-        }
-
         vk::ImageLayout layout;
 
         auto usage_flags = vk::ImageUsageFlagBits::eTransferSrc
@@ -687,10 +695,16 @@ void VulkanRenderer::create_render_graph_resources() {
         auto builder = TextureBuilder()
                 .with_flags(description.flags)
                 .with_name(description.name.c_str())
-                .as_uninitialized({extent.width, extent.height, 1u})
+                .as_uninitialized()
                 .with_format(description.format)
                 .with_layout(layout)
                 .with_usage(usage_flags);
+
+        if (description.extent.width == 0 && description.extent.height == 0) {
+            builder.with_window_size();
+        } else {
+            builder.with_extent({description.extent.width, description.extent.height, 1u});
+        }
 
         resource_manager->add_from_builder<TextureBuilder>(handle, std::move(builder), description.name);
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
@@ -712,10 +726,16 @@ void VulkanRenderer::create_render_graph_resources() {
         auto builder = TextureBuilder()
                 .with_flags(description.flags)
                 .with_name(description.name.c_str())
-                .as_uninitialized({extent.width, extent.height, 1u})
+                .as_uninitialized()
                 .with_format(description.format)
                 .with_usage(vk::ImageUsageFlagBits::eTransientAttachment
                             | utils::img::get_format_attachment_type(description.format));
+
+        if (description.extent.width == 0 && description.extent.height == 0) {
+            builder.with_window_size();
+        } else {
+            builder.with_extent({description.extent.width, description.extent.height, 1u});
+        }
 
         resource_manager->add(handle, builder.create(ctx), description.name);
     }
@@ -977,7 +997,6 @@ void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_h
     record_node_rendering_commands(node_handle);
     command_buffer.endRendering();
 
-    // regenerate mipmaps for each target that had them
     record_regenerate_mipmaps_commands(node_handle);
 
     command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eBottomOfPipe, *time_query_pool, current_query_idx++);
@@ -1010,23 +1029,21 @@ void VulkanRenderer::record_regenerate_mipmaps_commands(const RenderNodeHandle n
 
         Logger::debug("recording mipmap regeneration commands for texture: {}", resource_manager->get_name(color_target));
 
+        const vk::ImageLayout last_layout = last_image_layouts.at(color_target);
+
         target_texture.get_image().transition_layout(
-            vk::ImageLayout::eShaderReadOnlyOptimal,
+            last_layout,
             vk::ImageLayout::eTransferDstOptimal,
             command_buffer
         );
-
-        target_texture.generate_mipmaps(ctx, vk::ImageLayout::eShaderReadOnlyOptimal);
-
-        last_image_layouts[color_target] = vk::ImageLayout::eShaderReadOnlyOptimal;
+        target_texture.generate_mipmaps(ctx, last_layout, command_buffer);
     }
 }
 
 void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle> &partition) {
     const auto &command_buffer = *frame_resources[ctx.current_frame_idx].main_cmd_buffer;
 
-    cached_barriers.emplace_back();
-    auto& barriers = cached_barriers.back();
+    PipelineBarrierPack barriers;
 
     vector<ResourceHandle> sampled_resources;
     vector<ResourceHandle> target_resources;
@@ -1094,7 +1111,9 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
             .image = *texture.get_image(),
             .subresourceRange = {
                 .aspectMask = is_depth_texture ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor,
-                .levelCount = 1,
+                .baseMipLevel = 0,
+                .levelCount = texture.get_mip_levels(),
+                .baseArrayLayer = 0,
                 .layerCount = 1,
             }
         });
@@ -1148,7 +1167,9 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
             .image = *texture.get_image(),
             .subresourceRange = {
                 .aspectMask = is_depth_texture ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor,
-                .levelCount = 1,
+                .baseMipLevel = 0,
+                .levelCount = texture.get_mip_levels(),
+                .baseArrayLayer = 0,
                 .layerCount = 1,
             }
         });
@@ -1186,7 +1207,9 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
             .image = *texture.get_image(),
             .subresourceRange = {
                 .aspectMask = is_depth_texture ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor,
-                .levelCount = 1,
+                .baseMipLevel = 0,
+                .levelCount = texture.get_mip_levels(),
+                .baseArrayLayer = 0,
                 .layerCount = 1,
             }
         });
@@ -1219,7 +1242,9 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
             .image = *texture.get_image(),
             .subresourceRange = {
                 .aspectMask = is_depth_texture ? vk::ImageAspectFlagBits::eDepth : vk::ImageAspectFlagBits::eColor,
-                .levelCount = 1,
+                .baseMipLevel = 0,
+                .levelCount = texture.get_mip_levels(),
+                .baseArrayLayer = 0,
                 .layerCount = 1,
             }
         });
@@ -1387,7 +1412,6 @@ bool VulkanRenderer::start_frame() {
 
     unbarriered_gfx_written_resources.clear();
     unbarriered_compute_written_resources.clear();
-    cached_barriers.clear();
 
     return true;
 }

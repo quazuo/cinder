@@ -51,7 +51,7 @@ class SwapChain {
 
 public:
     explicit SwapChain(const RendererContext &ctx, const vk::raii::SurfaceKHR &surface,
-                       const QueueFamilyIndices &queue_families, GLFWwindow *window,
+                       const QueueFamilyIndices &queue_families,
                        vk::SampleCountFlagBits sample_count = vk::SampleCountFlagBits::e1);
 
     SwapChain(const SwapChain &other) = delete;

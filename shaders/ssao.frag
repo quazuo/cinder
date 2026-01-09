@@ -121,10 +121,10 @@ void main() {
 
         float sample_depth = texture(bindless_samplers[constants.g_pos_tex_id], sample_clip_pos.xy).z;
 
-        float rangeCheck = smoothstep(0.0, 1.0, radius / abs(frag_pos.z - sample_depth));
+        float range_check = smoothstep(0.0, 1.0, radius / abs(frag_pos.z - sample_depth));
 
         const float bias = 0.025;
-        occlusion += (sample_depth >= sample_view_pos.z + bias) ? rangeCheck : 0.0;
+        occlusion += (sample_depth >= sample_view_pos.z + bias) ? range_check : 0.0;
     }
 
     occlusion /= KERNEL_SIZE;

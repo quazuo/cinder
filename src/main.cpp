@@ -60,13 +60,6 @@ class Engine {
     float curr_delta_time = 0.0f;
     float last_time = 0.0f;
 
-    ImGui::FileBrowser file_browser;
-    optional<FileType> current_type_being_chosen;
-    std::unordered_map<FileType, std::filesystem::path> chosen_paths{};
-    uint32_t load_scheme_idx = 0;
-
-    string curr_error_message;
-
     // misc state variables
 
     float model_scale = 1.0f;
@@ -618,23 +611,7 @@ private:
             if (ImGui::Button("Reload shaders")) {
                 renderer.reload_all_pipelines();
             }
-
-            // ImGui::Separator();
-            //
-            // render_load_model_popup();
-            //
-            // if (!curr_error_message.empty()) {
-            //     ImGui::OpenPopup("Model load error");
-            // }
-            //
-            // render_model_load_error_popup();
         }
-
-        // if (ImGui::CollapsingHeader("Environment ", section_flags)) {
-        //     render_tex_load_button("Choose environment map...", FileType::ENVMAP_HDR, {".hdr"});
-        //
-        //     file_browser.Display();
-        // }
 
         if (ImGui::CollapsingHeader("Model ", section_flags)) {
             if (ImGui::Button("Load model...")) {
@@ -694,138 +671,6 @@ private:
         camera->render_gui_section();
         renderer.render_gui_section();
         Logger::render_gui_section();
-    }
-
-    void render_tex_load_button(const string &label, const FileType file_type, const vector<string> &type_filters) {
-        if (ImGui::Button(label.c_str(), ImVec2(180, 0))) {
-            current_type_being_chosen = file_type;
-            file_browser.SetTypeFilters(type_filters);
-            file_browser.Open();
-        }
-
-        if (chosen_paths.contains(file_type)) {
-            ImGui::SameLine();
-            ImGui::Text(chosen_paths.at(file_type).filename().string().c_str());
-        }
-    }
-
-    void render_load_model_popup() {
-        constexpr auto combo_flags = ImGuiComboFlags_WidthFitPreview;
-
-        if (ImGui::BeginPopupModal("Load model", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("Load scheme:");
-
-            if (ImGui::BeginCombo("##scheme", file_load_schemes[load_scheme_idx].name.c_str(),
-                                  combo_flags)) {
-                for (uint32_t i = 0; i < file_load_schemes.size(); i++) {
-                    const bool is_selected = load_scheme_idx == i;
-
-                    if (ImGui::Selectable(file_load_schemes[i].name.c_str(), is_selected)) {
-                        load_scheme_idx = i;
-                    }
-
-                    if (is_selected) {
-                        ImGui::SetItemDefaultFocus();
-                    }
-                }
-                ImGui::EndCombo();
-            }
-
-            ImGui::Separator();
-
-            for (const auto &type: file_load_schemes[load_scheme_idx].requirements) {
-                render_tex_load_button(
-                    get_file_type_load_label(type),
-                    type,
-                    get_file_type_extensions(type)
-                );
-            }
-
-            ImGui::Separator();
-
-            const bool can_submit = std::ranges::all_of(
-                file_load_schemes[load_scheme_idx].requirements,
-                [&](const auto &t) {
-                    return is_file_type_optional(t) || chosen_paths.contains(t);
-                }
-            );
-
-            if (!can_submit) {
-                ImGui::BeginDisabled();
-            }
-
-            if (ImGui::Button("OK", ImVec2(120, 0))) {
-                load_model();
-                chosen_paths.clear();
-                ImGui::CloseCurrentPopup();
-            }
-
-            if (!can_submit) {
-                ImGui::EndDisabled();
-            }
-
-            ImGui::SameLine();
-
-            if (ImGui::Button("Cancel", ImVec2(120, 0))) {
-                chosen_paths.clear();
-                ImGui::CloseCurrentPopup();
-            }
-
-            file_browser.Display();
-
-            ImGui::EndPopup();
-        }
-    }
-
-    void load_model() {
-        const auto &reqs = file_load_schemes[load_scheme_idx].requirements;
-
-        try {
-            // if (reqs.contains(FileType::BASE_COLOR_PNG)) {
-            //     renderer.load_model(chosen_paths.at(FileType::MODEL));
-            //     renderer.load_base_color_texture(chosen_paths.at(FileType::BASE_COLOR_PNG));
-            // } else {
-            //     renderer.load_model_with_materials(chosen_paths.at(FileType::MODEL));
-            // }
-            //
-            // if (reqs.contains(FileType::NORMAL_PNG)) {
-            //     renderer.load_normal_map(chosen_paths.at(FileType::NORMAL_PNG));
-            // }
-            //
-            // if (reqs.contains(FileType::ORM_PNG)) {
-            //     renderer.load_orm_map(chosen_paths.at(FileType::ORM_PNG));
-            // } else if (reqs.contains(FileType::RMA_PNG)) {
-            //     renderer.load_rma_map(chosen_paths.at(FileType::RMA_PNG));
-            // } else if (reqs.contains(FileType::ROUGHNESS_PNG)) {
-            //     const auto roughness_path = chosen_paths.at(FileType::ROUGHNESS_PNG);
-            //     const auto ao_path        = chosen_paths.contains(FileType::AO_PNG)
-            //                                     ? chosen_paths.at(FileType::AO_PNG)
-            //                                     : "";
-            //     const auto metallic_path = chosen_paths.contains(FileType::METALLIC_PNG)
-            //                                    ? chosen_paths.at(FileType::METALLIC_PNG)
-            //                                    : "";
-            //
-            //     renderer.load_orm_map(ao_path, roughness_path, metallic_path);
-            // }
-        } catch (std::exception &e) {
-            curr_error_message = e.what();
-        }
-    }
-
-    void render_model_load_error_popup() {
-        if (ImGui::BeginPopupModal("Model load error", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-            ImGui::Text("An error occurred while loading the model:");
-            ImGui::Text(curr_error_message.c_str());
-
-            ImGui::Separator();
-
-            if (ImGui::Button("OK", ImVec2(120, 0))) {
-                ImGui::CloseCurrentPopup();
-                curr_error_message = "";
-            }
-
-            ImGui::EndPopup();
-        }
     }
 };
 }

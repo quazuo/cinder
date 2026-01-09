@@ -114,6 +114,24 @@ static const map<pair<vk::ImageLayout, vk::ImageLayout>, ImageBarrierInfo> trans
         }
     },
     {
+        {vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eTransferDstOptimal},
+        {
+            .src_access_mask = vk::AccessFlagBits::eShaderWrite,
+            .dst_access_mask = vk::AccessFlagBits::eTransferWrite,
+            .src_stage = vk::PipelineStageFlagBits::eFragmentShader,
+            .dst_stage = vk::PipelineStageFlagBits::eTransfer,
+        }
+    },
+    {
+        {vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::eShaderReadOnlyOptimal},
+        {
+            .src_access_mask = vk::AccessFlagBits::eShaderWrite,
+            .dst_access_mask = vk::AccessFlagBits::eShaderRead,
+            .src_stage = vk::PipelineStageFlagBits::eFragmentShader,
+            .dst_stage = vk::PipelineStageFlagBits::eFragmentShader,
+        }
+    },
+    {
         {vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eGeneral},
         {
             .src_access_mask = vk::AccessFlagBits::eTransferWrite,
@@ -462,27 +480,28 @@ void CubeImage::transition_layout(const vk::ImageLayout old_layout, const vk::Im
 
 // ==================== Texture ====================
 
-void Texture::generate_mipmaps(const RendererContext &ctx, const vk::ImageLayout final_layout) const {
+void Texture::generate_mipmaps(const RendererContext &ctx, const vk::ImageLayout final_layout,
+                               const vk::raii::CommandBuffer& command_buffer) const {
     const vk::FormatProperties format_properties = ctx.physical_device->getFormatProperties(get_format());
 
     if (!(format_properties.optimalTilingFeatures & vk::FormatFeatureFlagBits::eSampledImageFilterLinear)) {
         Logger::error("texture image format does not support linear blitting!");
     }
 
-    const vk::raii::CommandBuffer command_buffer = utils::cmd::begin_single_time_commands(ctx);
-
-    const bool is_cube_map     = dynamic_cast<CubeImage *>(&*image) != nullptr;
+    const bool is_cube_map = dynamic_cast<CubeImage *>(&*image) != nullptr;
     const uint32_t layer_count = is_cube_map ? 6 : 1;
 
-    const vk::ImageMemoryBarrier barrier{
-        .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
-        .dstAccessMask = vk::AccessFlagBits::eTransferRead,
+    const vk::ImageMemoryBarrier2 barrier{
+        .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
+        .srcAccessMask = vk::AccessFlagBits2::eTransferWrite,
+        .dstStageMask = vk::PipelineStageFlagBits2::eTransfer,
+        .dstAccessMask = vk::AccessFlagBits2::eTransferRead,
         .oldLayout = vk::ImageLayout::eTransferDstOptimal,
         .newLayout = vk::ImageLayout::eTransferSrcOptimal,
         .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
         .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
         .image = **image,
-        .subresourceRange = {
+        .subresourceRange = vk::ImageSubresourceRange {
             .aspectMask = vk::ImageAspectFlagBits::eColor,
             .levelCount = 1,
             .baseArrayLayer = 0,
@@ -494,16 +513,13 @@ void Texture::generate_mipmaps(const RendererContext &ctx, const vk::ImageLayout
     int32_t mip_height = image->get_extent().height;
 
     for (uint32_t i = 1; i < image->get_mip_levels(); i++) {
-        vk::ImageMemoryBarrier curr_barrier        = barrier;
+        vk::ImageMemoryBarrier2 curr_barrier = barrier;
         curr_barrier.subresourceRange.baseMipLevel = i - 1;
 
-        command_buffer.pipelineBarrier(
-            vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eTransfer,
-            {},
-            nullptr,
-            nullptr,
-            curr_barrier
-        );
+        command_buffer.pipelineBarrier2(vk::DependencyInfo {
+            .imageMemoryBarrierCount = 1u,
+            .pImageMemoryBarriers = &curr_barrier,
+        });
 
         const array<vk::Offset3D, 2> src_offsets = {
             {
@@ -543,40 +559,34 @@ void Texture::generate_mipmaps(const RendererContext &ctx, const vk::ImageLayout
             vk::Filter::eLinear
         );
 
-        vk::ImageMemoryBarrier trans_barrier = curr_barrier;
-        trans_barrier.oldLayout              = vk::ImageLayout::eTransferSrcOptimal;
-        trans_barrier.newLayout              = final_layout;
-        trans_barrier.srcAccessMask          = vk::AccessFlagBits::eTransferRead;
-        trans_barrier.dstAccessMask          = vk::AccessFlagBits::eShaderRead;
+        vk::ImageMemoryBarrier2 trans_barrier = curr_barrier;
+        trans_barrier.oldLayout     = vk::ImageLayout::eTransferSrcOptimal;
+        trans_barrier.newLayout     = final_layout;
+        trans_barrier.srcAccessMask = vk::AccessFlagBits2::eTransferRead;
+        trans_barrier.dstAccessMask = vk::AccessFlagBits2::eShaderRead;
+        trans_barrier.dstStageMask  = vk::PipelineStageFlagBits2::eFragmentShader;
 
-        command_buffer.pipelineBarrier(
-            vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader,
-            {},
-            nullptr,
-            nullptr,
-            trans_barrier
-        );
+        command_buffer.pipelineBarrier2(vk::DependencyInfo {
+            .imageMemoryBarrierCount = 1u,
+            .pImageMemoryBarriers = &trans_barrier,
+        });
 
         if (mip_width > 1) mip_width /= 2;
         if (mip_height > 1) mip_height /= 2;
     }
 
-    vk::ImageMemoryBarrier trans_barrier        = barrier;
+    vk::ImageMemoryBarrier2 trans_barrier = barrier;
     trans_barrier.subresourceRange.baseMipLevel = image->get_mip_levels() - 1;
     trans_barrier.oldLayout                     = vk::ImageLayout::eTransferDstOptimal;
     trans_barrier.newLayout                     = final_layout;
-    trans_barrier.srcAccessMask                 = vk::AccessFlagBits::eTransferWrite;
-    trans_barrier.dstAccessMask                 = vk::AccessFlagBits::eShaderRead;
+    trans_barrier.srcAccessMask                 = vk::AccessFlagBits2::eTransferWrite;
+    trans_barrier.dstAccessMask                 = vk::AccessFlagBits2::eShaderRead;
+    trans_barrier.dstStageMask                  = vk::PipelineStageFlagBits2::eFragmentShader;
 
-    command_buffer.pipelineBarrier(
-        vk::PipelineStageFlagBits::eTransfer, vk::PipelineStageFlagBits::eFragmentShader,
-        {},
-        nullptr,
-        nullptr,
-        trans_barrier
-    );
-
-    utils::cmd::end_single_time_commands(command_buffer, **ctx.graphics_queue);
+    command_buffer.pipelineBarrier2(vk::DependencyInfo {
+        .imageMemoryBarrierCount = 1u,
+        .pImageMemoryBarriers = &trans_barrier,
+    });
 }
 
 // ==================== TextureBuilder ====================
@@ -636,9 +646,20 @@ auto TextureBuilder::with_sampler_address_mode(const vk::SamplerAddressMode mode
     return *this;
 }
 
-auto TextureBuilder::as_uninitialized(const vk::Extent3D extent) -> TextureBuilder& {
+auto TextureBuilder::as_uninitialized() -> TextureBuilder & {
     is_uninitialized = true;
-    desired_extent   = extent;
+    return *this;
+}
+
+auto TextureBuilder::with_extent(vk::Extent3D extent) -> TextureBuilder & {
+    desired_extent = extent;
+    is_window_sized = false;
+    return *this;
+}
+
+auto TextureBuilder::with_window_size() -> TextureBuilder& {
+    desired_extent = {};
+    is_window_sized = true;
     return *this;
 }
 
@@ -678,13 +699,26 @@ auto TextureBuilder::create(const RendererContext &ctx) const -> Texture {
 
     Texture texture;
     LoadedTextureData loaded_tex_data;
+    vk::Extent3D extent;
 
-    if (is_uninitialized) loaded_tex_data = {{}, *desired_extent, get_layer_count()};
-    else if (!paths.empty()) loaded_tex_data = load_from_paths();
-    else if (memory_source) loaded_tex_data = load_from_memory();
-    else if (is_from_swizzle_fill) loaded_tex_data = load_from_swizzle_fill();
+    if (is_uninitialized || is_from_swizzle_fill) {
+        if (is_window_sized) {
+            int width, height;
+            glfwGetWindowSize(ctx.window, &width, &height);
+            extent.width = width;
+            extent.height = height;
+            extent.depth = 1;
+        } else {
+            extent = *desired_extent;
+        }
+    }
 
-    const auto extent         = loaded_tex_data.extent;
+    if (is_uninitialized)           loaded_tex_data = {{}, extent, get_layer_count()};
+    else if (!paths.empty())        loaded_tex_data = load_from_paths();
+    else if (memory_source)         loaded_tex_data = load_from_memory();
+    else if (is_from_swizzle_fill)  loaded_tex_data = load_from_swizzle_fill(extent);
+
+    extent = loaded_tex_data.extent;
     const auto staging_buffer = is_uninitialized ? nullptr : make_staging_buffer(ctx, loaded_tex_data);
 
     const uint32_t mip_levels = !!(tex_flags & TextureFlags::NO_MIPMAPS)
@@ -727,16 +761,14 @@ auto TextureBuilder::create(const RendererContext &ctx) const -> Texture {
 
     create_sampler(ctx, texture);
 
-    if (is_uninitialized && !!(tex_flags & TextureFlags::NO_MIPMAPS)) {
-        utils::cmd::do_single_time_commands(ctx, [&](const auto &cmd_buffer) {
+    utils::cmd::do_single_time_commands(ctx, [&](const auto &cmd_buffer) {
+        if (is_uninitialized && !!(tex_flags & TextureFlags::NO_MIPMAPS)) {
             texture.image->transition_layout(
                 vk::ImageLayout::eUndefined,
                 layout,
                 cmd_buffer
             );
-        });
-    } else {
-        utils::cmd::do_single_time_commands(ctx, [&](const auto &cmd_buffer) {
+        } else {
             texture.image->transition_layout(
                 vk::ImageLayout::eUndefined,
                 vk::ImageLayout::eTransferDstOptimal,
@@ -753,13 +785,11 @@ auto TextureBuilder::create(const RendererContext &ctx) const -> Texture {
                     layout,
                     cmd_buffer
                 );
+            } else {
+                texture.generate_mipmaps(ctx, layout, cmd_buffer);
             }
-        });
-
-        if (!(tex_flags & TextureFlags::NO_MIPMAPS)) {
-            texture.generate_mipmaps(ctx, layout);
         }
-    }
+    });
 
     if (name) {
         ctx.device->setDebugUtilsObjectNameEXT(vk::DebugUtilsObjectNameInfoEXT {
@@ -774,7 +804,7 @@ auto TextureBuilder::create(const RendererContext &ctx) const -> Texture {
 
 void TextureBuilder::check_params() const {
     auto params_error = [&](const char* msg) {
-        Logger::error("error when creating texture {}: {}", msg, name);
+        Logger::error("error when creating texture [{}]: {}", name, msg);
     };
 
     if (!format) {
@@ -794,8 +824,14 @@ void TextureBuilder::check_params() const {
         params_error("cannot specify more than one texture source");
     }
 
-    if (sources_count != 0 && is_uninitialized) {
-        params_error("cannot simultaneously set texture as uninitialized and specify sources");
+    if (is_uninitialized) {
+        if (sources_count != 0) {
+            params_error("cannot simultaneously set texture as uninitialized and specify sources");
+        }
+
+        if (!is_window_sized && !desired_extent) {
+            params_error("uninitialized textures must specify an extent or be window-sized");
+        }
     }
 
     if (!!(tex_flags & TextureFlags::CUBEMAP)) {
@@ -867,6 +903,10 @@ void TextureBuilder::check_params() const {
                 && (*swizzle)[comp] != SwizzleComponent::HALF_MAX) {
                 params_error("invalid swizzle component for swizzle-filled texture");
             }
+        }
+
+        if (!is_window_sized && !desired_extent) {
+            params_error("textures filled from swizzle must specify an extent or be window-sized");
         }
     }
 }
@@ -981,9 +1021,9 @@ auto TextureBuilder::load_from_memory() const -> LoadedTextureData {
     };
 }
 
-auto TextureBuilder::load_from_swizzle_fill() const -> LoadedTextureData {
-    const uint32_t tex_width          = desired_extent->width;
-    const uint32_t tex_height         = desired_extent->height;
+auto TextureBuilder::load_from_swizzle_fill(const vk::Extent3D extent) const -> LoadedTextureData {
+    const uint32_t tex_width          = extent.width;
+    const uint32_t tex_height         = extent.height;
     const uint32_t layer_count        = get_layer_count();
     const vk::DeviceSize format_size  = vk::blockSize(*format);
     const vk::DeviceSize layer_size   = tex_width * tex_height * format_size;
@@ -1005,11 +1045,7 @@ auto TextureBuilder::load_from_swizzle_fill() const -> LoadedTextureData {
 
     return {
         .sources = data_sources,
-        .extent = {
-            .width = static_cast<uint32_t>(tex_width),
-            .height = static_cast<uint32_t>(tex_height),
-            .depth = 1u
-        },
+        .extent = extent,
         .layer_count = layer_count
     };
 }
