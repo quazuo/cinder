@@ -83,7 +83,6 @@ struct RenderNodeGraphics {
     vector<ResourceHandle> color_targets;
     optional<ResourceHandle> depth_target;
     RenderNodeBodyFn body;
-    optional<ShouldRunPredicate> should_run_predicate;
     std::vector<RenderNodeHandle> explicit_dependencies;
 
     struct CustomProperties {
@@ -101,7 +100,6 @@ struct RenderNodeCompute {
     vector<ResourceHandle> bound_read_resources;
     vector<ResourceHandle> bound_write_resources;
     RenderNodeBodyFn body;
-    optional<ShouldRunPredicate> should_run_predicate;
     std::vector<RenderNodeHandle> explicit_dependencies;
 
     struct CustomProperties {
@@ -125,8 +123,6 @@ public:
     auto get_compute()       -> RenderNodeCompute&       { return std::get<RenderNodeCompute>(node_); }
 
     auto name() const -> const string&;
-
-    auto should_run() const -> bool;
 
     auto explicit_dependencies() const -> const std::vector<RenderNodeHandle>&;
 

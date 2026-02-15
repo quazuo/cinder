@@ -53,6 +53,14 @@ struct TargetTextureResourceDesc {
     TextureFlags flags{};
 };
 
+struct PersistentTextureResourceDesc {
+    string name{};
+    vk::Format format{};
+    vk::Extent2D extent = {0, 0}; // {0, 0} means we're using the swapchain image's extent
+    TextureOverrides overrides{};
+    TextureFlags flags{};
+};
+
 struct TransientTextureResourceDesc {
     string name{};
     vk::Format format{};
