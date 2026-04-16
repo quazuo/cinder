@@ -46,16 +46,11 @@ vector<RenderNodeHandle> RenderGraph::get_topo_sorted() const {
 vector<vector<RenderNodeHandle>> RenderGraph::get_partitioned() const {
     vector<vector<RenderNodeHandle>> partitions;
 
-    set<RenderNodeHandle> ignored;
     set<RenderNodeHandle> processed;
     set<RenderNodeHandle> remaining;
 
     for (const auto &[node_handle, node_info]: nodes_) {
-        if (node_info.should_run()) {
-            remaining.emplace(node_handle);
-        } else {
-            ignored.emplace(node_handle);
-        }
+        remaining.emplace(node_handle);
     }
 
     while (!remaining.empty()) {
@@ -63,7 +58,7 @@ vector<vector<RenderNodeHandle>> RenderGraph::get_partitioned() const {
 
         for (const auto &handle: remaining) {
             if (std::ranges::all_of(dependency_graph.at(handle), [&](const RenderNodeHandle &dep) {
-                return processed.contains(dep) || ignored.contains(dep);
+                return processed.contains(dep);
             })) {
                 next_partition.emplace_back(handle);
             }
@@ -96,14 +91,11 @@ RenderNodeHandle RenderGraph::add_node(const RenderNodeGraphics &node) {
     }
 
     for (const auto& res: new_targets_set) {
-        if (res != FINAL_IMAGE_HANDLE && !target_tex_resources_.contains(res)) {
-            Logger::error("invalid render node: resource <{}> with invalid type specified as target for node <{}>",
-                          resource_names.at(res), node.name);
+        if (!target_tex_resources_.contains(res)) {
+            Logger::error("invalid render node: resource with invalid type specified as target for node <{}>", node.name);
         }
 
-        if (res != FINAL_IMAGE_HANDLE) {
-            produced_resources.emplace(res);
-        }
+        produced_resources.emplace(res);
     }
 
     add_new_dependencies(new_handle);
@@ -213,42 +205,6 @@ vector<RenderNodeHandle> RenderGraph::add_nodes_sequential(vector<RenderNode> no
     }
 
     return new_handles;
-}
-
-ResourceHandle RenderGraph::add_resource(VertexBufferResourceDesc &&resource) {
-    return add_resource_generic(std::move(resource), vertex_buffers_);
-}
-
-ResourceHandle RenderGraph::add_resource(UniformBufferResourceDesc &&resource) {
-    return add_resource_generic(std::move(resource), uniform_buffers_);
-}
-
-ResourceHandle RenderGraph::add_resource(ExternalTextureResourceDesc &&resource) {
-    return add_resource_generic(std::move(resource), external_tex_resources_);
-}
-
-ResourceHandle RenderGraph::add_resource(TargetTextureResourceDesc &&resource) {
-    return add_resource_generic(std::move(resource), target_tex_resources_);
-}
-
-ResourceHandle RenderGraph::add_resource(TransientTextureResourceDesc &&resource) {
-    return add_resource_generic(std::move(resource), transient_tex_resources_);
-}
-
-ResourceHandle RenderGraph::add_resource(ModelResourceDesc &&resource) {
-    return add_resource_generic(std::move(resource), model_resources_);
-}
-
-ResourceHandle RenderGraph::add_pipeline(GraphicsPipelineDesc &&resource) {
-    return add_resource_generic(std::move(resource), graphics_pipelines_);
-}
-
-ResourceHandle RenderGraph::add_pipeline(ComputePipelineDesc &&resource) {
-    return add_resource_generic(std::move(resource), compute_pipelines_);
-}
-
-void RenderGraph::add_frame_begin_action(FrameBeginCallback &&callback) {
-    frame_begin_callbacks_.emplace_back(std::move(callback));
 }
 
 void RenderGraph::cycles_helper(const RenderNodeHandle handle, set<RenderNodeHandle> &discovered,

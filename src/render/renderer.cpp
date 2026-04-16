@@ -565,7 +565,6 @@ void VulkanRenderer::render_gui_section() {
 void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
     render_graph = make_unique<RenderGraph>(graph);
     create_render_graph_resources();
-    repeated_frame_begin_actions = render_graph->frame_begin_callbacks();
 }
 
 void VulkanRenderer::reload_all_pipelines() {
@@ -1378,6 +1377,10 @@ auto VulkanRenderer::get_node_target_handles(const RenderNodeHandle node_handle)
 
 void VulkanRenderer::tick(const float delta_time) {
     (void) delta_time;
+}
+
+void VulkanRenderer::add_frame_begin_action(FrameBeginCallback &&callback) {
+    repeated_frame_begin_actions.emplace_back(std::move(callback));
 }
 
 void VulkanRenderer::do_frame_begin_actions() {

@@ -74,7 +74,7 @@ struct BindlessHandleTag {};
 using BindlessHandle = UniqueHandle<BindlessHandleTag>;
 
 const BindlessHandle EMPTY_TEXTURE_BINDLESS_HANDLE = BindlessHandle::get_new_special();
-const BindlessHandle CURR_MAT_BINDLESS_HANDLE   = BindlessHandle::get_new_special();
+const BindlessHandle CURR_MAT_BINDLESS_HANDLE = BindlessHandle::get_new_special();
 
 class ResourceManager {
 public:

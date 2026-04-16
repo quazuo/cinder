@@ -141,6 +141,8 @@ public:
 
     auto get_gui_renderer() const -> GuiRenderer& { return *gui_renderer; }
 
+    auto get_resource_manager() const -> ResourceManager& { return *resource_manager; }
+
     auto get_msaa_sample_count() const -> vk::SampleCountFlagBits {
         return use_msaa ? msaa_sample_count : vk::SampleCountFlagBits::e1;
     }
@@ -251,6 +253,8 @@ private:
 
 public:
     void run_render_graph();
+
+    void add_frame_begin_action(FrameBeginCallback &&callback);
 
     void do_frame_begin_actions();
 
