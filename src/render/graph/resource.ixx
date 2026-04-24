@@ -17,13 +17,10 @@ using ResourceHandle = UniqueHandle<ResourceHandleTag>;
 const ResourceHandle FINAL_IMAGE_HANDLE      = ResourceHandle::get_new_special();
 const ResourceHandle CURRENT_MATERIAL_HANDLE = ResourceHandle::get_new_special();
 
+constexpr uint32_t MAX_RESOURCE_COUNT = 1 << 16;
+
 const string FINAL_IMAGE_NAME = "final-image";
 constexpr std::monostate EMPTY_DESCRIPTOR_SET_BINDING = {};
-
-template<typename T>
-concept ResourceLike = requires(T t) {
-    { t.name } -> std::same_as<string&>;
-};
 
 struct VertexBufferResourceDesc {
     string name{};
@@ -74,6 +71,24 @@ struct ModelResourceDesc {
     std::filesystem::path path{};
     bool has_materials = false;
 };
+
+concept is_buffer_resource_desc_type = is_one_of<T,
+    VertexBufferResourceDesc,
+    UniformBufferResourceDesc>;
+
+concept is_texture_resource_desc_type = is_one_of<T,
+    ExternalTextureResourceDesc,
+    TargetTextureResourceDesc,
+    PersistentTextureResourceDesc,
+    TransientTextureResourceDesc>;
+
+concept is_model_resource_desc_type = is_one_of<T,
+    ModelResourceDesc>;
+
+concept is_resource_desc_type = is_one_of<T,
+    is_buffer_resource_desc_type,
+    is_texture_resource_desc_type,
+    is_model_resource_desc_type>;
 
 // basically same purpose as std::monostate but with a specific name
 struct FinalImageFormatPlaceholder {};

@@ -45,7 +45,7 @@ struct GraphicsUBO {
 };
 
 struct MaterialsUBO {
-    GLSL_ALIGN16 glsl::Material mats[MATERIAL_MAX_COUNT];
+    GLSL_ALIGN16 glsl::Material mats[MAX_MATERIAL_COUNT];
 };
 
 class Engine {
@@ -98,6 +98,7 @@ public:
         bind_key_actions();
         bind_mouse_drag_actions();
 
+        register_render_graph_resources();
         build_render_graph();
     }
 
@@ -133,19 +134,19 @@ private:
 
         // ================== models and vertex buffers ==================
 
-        const auto scene_model = resource_manager.add_resource(ModelResourceDesc{
+        const auto scene_model = resource_manager.add_from_desc(ModelResourceDesc{
             .name = "scene-model",
             .path = "../assets/example models/Sponza/Sponza.gltf",
             .has_materials = true,
         });
 
-        const auto skybox_vert_buf = resource_manager.add_resource(VertexBufferResourceDesc{
+        const auto skybox_vert_buf = resource_manager.add_from_desc(VertexBufferResourceDesc{
             .name = "skybox-vb",
             .size = skybox_vertices.size() * sizeof(SkyboxVertex),
             .data = skybox_vertices.data()
         });
 
-        const auto ss_quad_vert_buf = resource_manager.add_resource(VertexBufferResourceDesc{
+        const auto ss_quad_vert_buf = resource_manager.add_from_desc(VertexBufferResourceDesc{
             .name = "ss-quad-vb",
             .size = screen_space_quad_vertices.size() * sizeof(ScreenSpaceQuadVertex),
             .data = screen_space_quad_vertices.data()
@@ -153,7 +154,7 @@ private:
 
         // ================== uniform buffers ==================
 
-        const auto general_ubo = resource_manager.add_resource(UniformBufferResourceDesc{
+        const auto general_ubo = resource_manager.add_from_desc(UniformBufferResourceDesc{
             .name = "general-ubo",
             .size = sizeof(GraphicsUBO)
         });
@@ -163,7 +164,7 @@ private:
             update_graphics_uniform_buffer(buffer);
         });
 
-        const auto material_ubo = resource_manager.add_resource(UniformBufferResourceDesc{
+        const auto material_ubo = resource_manager.add_from_desc(UniformBufferResourceDesc{
             .name = "material-ubo",
             .size = sizeof(MaterialsUBO)
         });
@@ -180,7 +181,7 @@ private:
 
         // ================== external textures ==================
 
-        const auto envmap_texture = resource_manager.add_resource(ExternalTextureResourceDesc{
+        const auto envmap_texture = resource_manager.add_from_desc(ExternalTextureResourceDesc{
             .name = "envmap-texture",
             .paths = {"../assets/envmaps/vienna.hdr"},
             .format = vk::Format::eR32G32B32A32Sfloat,
@@ -190,7 +191,7 @@ private:
         // ================== render target textures ==================
 
         constexpr auto skybox_tex_format = vk::Format::eR8G8B8A8Srgb;
-        const auto skybox_texture = resource_manager.add_resource(TargetTextureResourceDesc{
+        const auto skybox_texture = resource_manager.add_from_desc(TargetTextureResourceDesc{
             .name = "skybox-texture",
             .format = skybox_tex_format,
             .extent = {2048, 2048},
@@ -198,31 +199,31 @@ private:
         });
 
         constexpr auto g_buffer_color_format = vk::Format::eR16G16B16A16Sfloat;
-        const auto g_buffer_normal = resource_manager.add_resource(TargetTextureResourceDesc{
+        const auto g_buffer_normal = resource_manager.add_from_desc(TargetTextureResourceDesc{
             .name = "g-buffer-normal",
             .format = g_buffer_color_format,
         });
 
-        const auto g_buffer_pos = resource_manager.add_resource(TargetTextureResourceDesc{
+        const auto g_buffer_pos = resource_manager.add_from_desc(TargetTextureResourceDesc{
             .name = "g-buffer-pos",
             .format = g_buffer_color_format,
         });
 
         constexpr auto g_buffer_depth_format = vk::Format::eD32Sfloat;
-        const auto g_buffer_depth = resource_manager.add_resource(TargetTextureResourceDesc{
+        const auto g_buffer_depth = resource_manager.add_from_desc(TargetTextureResourceDesc{
             .name = "g-buffer-depth",
             .format = g_buffer_depth_format,
             .flags = TextureFlags::NO_MIPMAPS,
         });
 
         constexpr auto ssao_tex_format = vk::Format::eR8G8B8A8Unorm;
-        const auto ssao_texture = resource_manager.add_resource(TargetTextureResourceDesc{
+        const auto ssao_texture = resource_manager.add_from_desc(TargetTextureResourceDesc{
             .name = "ssao-texture",
             .format = ssao_tex_format,
         });
 
         constexpr auto shadowmap_tex_format = vk::Format::eD32Sfloat;
-        const auto shadowmap_texture = resource_manager.add_resource(TargetTextureResourceDesc{
+        const auto shadowmap_texture = resource_manager.add_from_desc(TargetTextureResourceDesc{
             .name = "shadowmap-texture",
             .format = shadowmap_tex_format,
             .extent = {2048, 2048},
@@ -234,22 +235,22 @@ private:
         });
 
         constexpr auto final_no_gamma_format = vk::Format::eR8G8B8A8Unorm;
-        const auto base_pass_texture = resource_manager.add_resource(TargetTextureResourceDesc{
+        const auto base_pass_texture = resource_manager.add_from_desc(TargetTextureResourceDesc{
             .name = "base-pass-texture",
             .format = final_no_gamma_format,
             .flags = TextureFlags::NO_MIPMAPS
         });
-        const auto post_blur_x_texture = resource_manager.add_resource(TargetTextureResourceDesc{
+        const auto post_blur_x_texture = resource_manager.add_from_desc(TargetTextureResourceDesc{
             .name = "post-blur-x-texture",
             .format = final_no_gamma_format,
             .flags = TextureFlags::NO_MIPMAPS
         });
-        const auto post_blur_y_texture = resource_manager.add_resource(TargetTextureResourceDesc{
+        const auto post_blur_y_texture = resource_manager.add_from_desc(TargetTextureResourceDesc{
             .name = "post-blur-y-texture",
             .format = final_no_gamma_format,
             .flags = TextureFlags::NO_MIPMAPS
         });
-        const auto post_gui_texture = resource_manager.add_resource(TargetTextureResourceDesc{
+        const auto post_gui_texture = resource_manager.add_from_desc(TargetTextureResourceDesc{
             .name = "post-gui-texture",
             .format = final_no_gamma_format,
             .flags = TextureFlags::NO_MIPMAPS

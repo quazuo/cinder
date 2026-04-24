@@ -1,4 +1,4 @@
-#define MATERIAL_MAX_COUNT 256
+#define MAX_MATERIAL_COUNT 256
 
 struct Material {
     uint base_color;

@@ -28,7 +28,11 @@ ResourceManager::ResourceManager(
         free_bindless_handles.push(BindlessHandle::get_new());
     }
 
-    for (uint32_t i = 0; i < MATERIAL_MAX_COUNT; i++) {
+    for (uint32_t i = 0; i < MAX_RESOURCE_COUNT; i++) {
+        free_resource_handles.push(i);
+    }
+
+    for (uint32_t i = 0; i < MAX_MATERIAL_COUNT; i++) {
         free_model_mat_handles.push(i);
     }
 }
@@ -38,7 +42,7 @@ void ResourceManager::clear_removal_queue() {
     queued_for_removal_resources[renderer_ctx.get().current_frame_idx].clear();
 }
 
-void ResourceManager::add_model_materials(const ResourceHandle handle, const Model& model) {
+void ResourceManager::add_model_materials(const Model& model) {
     vector<ModelMaterialHandle> material_handles;
 
     for (size_t i = 0; i < model.get_materials().size(); i++) {

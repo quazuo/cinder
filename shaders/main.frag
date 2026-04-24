@@ -29,7 +29,7 @@ layout(set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform GeneralUnifor
 } ubos[];
 
 layout(set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform MaterialUniforms {
-    Material mats[MATERIAL_MAX_COUNT];
+    Material mats[MAX_MATERIAL_COUNT];
 } materials[];
 
 vec4 sample_texture_with_fallback(uint tex_id, vec2 tex_coord) {
