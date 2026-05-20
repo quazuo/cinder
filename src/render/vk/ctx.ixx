@@ -2,7 +2,7 @@ module;
 
 export module Cinder.Render.Vulkan:Context;
 
-import vma;
+import vk_mem_alloc;
 import vulkan_hpp;
 import std;
 import glfw;
@@ -11,28 +11,6 @@ import Cinder.Globals;
 
 export namespace zrx {
 class GraphicsQueue;
-
-/**
- * Simple RAII-preserving wrapper class for the VMA allocator.
- */
-class VmaAllocatorWrapper {
-    VmaAllocator_T* allocator{};
-
-public:
-    VmaAllocatorWrapper(vk::PhysicalDevice physical_device, vk::Device device, vk::Instance instance);
-
-    ~VmaAllocatorWrapper();
-
-    VmaAllocatorWrapper(const VmaAllocatorWrapper &other) = delete;
-
-    VmaAllocatorWrapper(VmaAllocatorWrapper &&other) = delete;
-
-    VmaAllocatorWrapper &operator=(const VmaAllocatorWrapper &other) = delete;
-
-    VmaAllocatorWrapper &operator=(VmaAllocatorWrapper &&other) = delete;
-
-    auto operator*() const -> VmaAllocator_T* { return allocator; }
-};
 
 /**
  * Helper structure used to pass handles to essential Vulkan objects which are used while interacting with the API.
@@ -44,7 +22,7 @@ struct RendererContext {
     unique_ptr<vk::raii::Device> device;
     unique_ptr<vk::raii::CommandPool> command_pool;
     unique_ptr<GraphicsQueue> graphics_queue;
-    unique_ptr<VmaAllocatorWrapper> allocator;
+    unique_ptr<vma::raii::Allocator> allocator;
     GLFWwindow *window;
     uint32_t current_frame_idx = 0;
 };

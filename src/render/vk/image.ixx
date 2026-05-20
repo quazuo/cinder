@@ -6,7 +6,7 @@ module;
 
 export module Cinder.Render.Vulkan:Image;
 
-import vma;
+import vk_mem_alloc;
 import vulkan_hpp;
 import std;
 
@@ -57,9 +57,8 @@ class TextureBuilder;
  */
 class Image {
 protected:
-    VmaAllocator allocator;
-    VmaAllocation allocation;
-    vk::Image image;
+    unique_ptr<vk::raii::Image> image;
+    unique_ptr<vma::Allocation> allocation;
 
     vk::Extent3D extent;
     vk::Format format;
@@ -71,54 +70,39 @@ protected:
 public:
     explicit Image(const RendererContext &ctx, const vk::ImageCreateInfo &image_info,
                    vk::MemoryPropertyFlags properties, vk::ImageAspectFlags aspect);
-
-    virtual ~Image();
-
-    Image(const Image &other) = delete;
-
-    Image(Image &&other) = delete;
-
-    Image &operator=(const Image &other) = delete;
-
-    Image &operator=(Image &&other) = delete;
-
     /**
      * Returns a raw handle to the actual Vulkan image.
      * @return Handle to the image.
      */
-    const vk::Image &operator*() const { return image; }
+    const auto operator*() const -> vk::raii::Image & { return *image; }
 
     /**
      * Returns an image view containing all mip levels and all layers of this image.
      */
-    virtual shared_ptr<vk::raii::ImageView>
-    get_view(const RendererContext &ctx);
+    virtual auto get_view(const RendererContext &ctx) -> shared_ptr<vk::raii::ImageView>;
 
     /**
      * Returns an image view containing a single mip level and all layers of this image.
      */
-    virtual shared_ptr<vk::raii::ImageView>
-    get_mip_view(const RendererContext &ctx, uint32_t mip_level);
+    virtual auto get_mip_view(const RendererContext &ctx, uint32_t mip_level) -> shared_ptr<vk::raii::ImageView>;
 
     /**
      * Returns an image view containing all mip levels and a single specified layer of this image.
      */
-    shared_ptr<vk::raii::ImageView>
-    get_layer_view(const RendererContext &ctx, uint32_t layer);
+    auto get_layer_view(const RendererContext &ctx, uint32_t layer) -> shared_ptr<vk::raii::ImageView>;
 
     /**
      * Returns an image view containing a single mip level and a single specified layer of this image.
      */
-    shared_ptr<vk::raii::ImageView>
-    get_layer_mip_view(const RendererContext &ctx, uint32_t layer, uint32_t mip_level);
+    auto get_layer_mip_view(const RendererContext &ctx, uint32_t layer, uint32_t mip_level) -> shared_ptr<vk::raii::ImageView>;
 
-    vk::Extent3D get_extent() const { return extent; }
+    auto get_extent() const -> vk::Extent3D { return extent; }
 
-    vk::Extent2D get_extent_2d() const { return {extent.width, extent.height}; }
+    auto get_extent_2d() const -> vk::Extent2D { return {extent.width, extent.height}; }
 
-    vk::Format get_format() const { return format; }
+    auto get_format() const -> vk::Format { return format; }
 
-    uint32_t get_mip_levels() const { return mip_levels; }
+    auto get_mip_levels() const -> uint32_t { return mip_levels; }
 
     /**
      * Records commands that copy the contents of a given buffer to this image.
@@ -140,21 +124,12 @@ public:
     void transition_layout(vk::ImageLayout old_layout, vk::ImageLayout new_layout,
                            vk::ImageSubresourceRange range, const vk::raii::CommandBuffer &command_buffer) const;
 
-    /**
-     * Writes the contents of this image to a file on a given path.
-     *
-     * Disclaimer: this might not work very well as it wasn't tested very well
-     * (nor do I care about it working perfectly) and was created purely to debug a single thing in the past.
-     * However, I'm not removing this as I might use it (and make it work better) again in the future.
-     */
-    void save_to_file(const RendererContext &ctx, const std::filesystem::path &path) const;
-
 protected:
     /**
      * Checks if a given view is cached already and if so, returns it without creating a new one.
      * Otherwise, creates the view and caches it for later.
      */
-    shared_ptr<vk::raii::ImageView> get_cached_view(const RendererContext &ctx, ViewParams params);
+    auto get_cached_view(const RendererContext &ctx, ViewParams params) -> shared_ptr<vk::raii::ImageView>;
 };
 
 class CubeImage final : public Image {
@@ -162,11 +137,9 @@ public:
     explicit CubeImage(const RendererContext &ctx, const vk::ImageCreateInfo &image_info,
                        vk::MemoryPropertyFlags properties);
 
-    shared_ptr<vk::raii::ImageView>
-    get_view(const RendererContext &ctx) override;
+    auto get_view(const RendererContext &ctx) -> shared_ptr<vk::raii::ImageView> override;
 
-    shared_ptr<vk::raii::ImageView>
-    get_mip_view(const RendererContext &ctx, uint32_t mip_level) override;
+    auto get_mip_view(const RendererContext &ctx, uint32_t mip_level) -> shared_ptr<vk::raii::ImageView> override;
 
     void copy_from_buffer(vk::Buffer buffer, const vk::raii::CommandBuffer &command_buffer) override;
 
@@ -183,13 +156,13 @@ class Texture {
     Texture() = default;
 
 public:
-    Image &get_image() const { return *image; }
+    auto get_image() const -> Image & { return *image; }
 
-    const vk::raii::Sampler &get_sampler() const { return *sampler; }
+    auto get_sampler() const -> const vk::raii::Sampler & { return *sampler; }
 
-    uint32_t get_mip_levels() const { return image->get_mip_levels(); }
+    auto get_mip_levels() const -> uint32_t { return image->get_mip_levels(); }
 
-    vk::Format get_format() const { return image->get_format(); }
+    auto get_format() const -> vk::Format { return image->get_format(); }
 
     void generate_mipmaps(const RendererContext &ctx, vk::ImageLayout final_layout, const vk::raii::CommandBuffer& command_buffer) const;
 };

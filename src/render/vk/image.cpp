@@ -145,40 +145,24 @@ static const map<pair<vk::ImageLayout, vk::ImageLayout>, ImageBarrierInfo> trans
 namespace zrx {
 Image::Image(const RendererContext &ctx, const vk::ImageCreateInfo &image_info,
              const vk::MemoryPropertyFlags properties, const vk::ImageAspectFlags aspect)
-    : allocator(**ctx.allocator),
-      extent(image_info.extent),
+    : extent(image_info.extent),
       format(image_info.format),
       mip_levels(image_info.mipLevels),
       aspect_mask(aspect) {
-    VmaAllocationCreateFlags flags;
-    if (properties & vk::MemoryPropertyFlagBits::eDeviceLocal) {
-        flags = 0;
-    } else {
-        flags = VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+    vma::AllocationCreateFlags flags {};
+    if (!(properties & vk::MemoryPropertyFlagBits::eDeviceLocal)) {
+        flags = vma::AllocationCreateFlagBits::eHostAccessRandom;
     }
 
-    const VmaAllocationCreateInfo alloc_info{
+    const vma::AllocationCreateInfo alloc_info{
         .flags = flags,
-        .usage = VMA_MEMORY_USAGE_AUTO,
-        .requiredFlags = static_cast<VkMemoryPropertyFlags>(properties)
+        .usage = vma::MemoryUsage::eAuto,
+        .requiredFlags = properties
     };
 
-    const auto result = vmaCreateImage(
-        allocator,
-        reinterpret_cast<const VkImageCreateInfo *>(&image_info),
-        &alloc_info,
-        reinterpret_cast<VkImage *>(&image),
-        &allocation,
-        nullptr
-    );
-
-    if (result != VK_SUCCESS) {
-        Logger::error("failed to allocate buffer!");
-    }
-}
-
-Image::~Image() {
-    vmaDestroyImage(allocator, static_cast<VkImage>(image), allocation);
+    auto [allocation, image] = ctx.allocator->createImage(image_info, alloc_info);
+    this->allocation = allocation;
+    this->image = make_unique<vk::raii::Image>(*ctx.device, image);
 }
 
 auto Image::get_view(const RendererContext &ctx) -> shared_ptr<vk::raii::ImageView> {
@@ -206,8 +190,8 @@ auto Image::get_cached_view(const RendererContext &ctx, ViewParams params) -> sh
     const auto &[base_mip, mip_count, base_layer, layer_count] = params;
 
     auto view = layer_count == 1
-                    ? utils::img::create_image_view(ctx, image, format, aspect_mask, base_mip, mip_count, base_layer)
-                    : utils::img::create_cube_image_view(ctx, image, format, aspect_mask, base_mip, mip_count);
+                    ? utils::img::create_image_view(ctx, **image, format, aspect_mask, base_mip, mip_count, base_layer)
+                    : utils::img::create_cube_image_view(ctx, **image, format, aspect_mask, base_mip, mip_count);
     auto view_ptr = make_shared<vk::raii::ImageView>(std::move(view));
     cached_views.emplace(params, view_ptr);
     return view_ptr;
@@ -230,7 +214,7 @@ void Image::copy_from_buffer(const vk::Buffer buffer, const vk::raii::CommandBuf
 
     command_buffer.copyBufferToImage(
         buffer,
-        image,
+        **image,
         vk::ImageLayout::eTransferDstOptimal,
         region
     );
@@ -267,7 +251,7 @@ void Image::transition_layout(vk::ImageLayout old_layout, vk::ImageLayout new_la
         .newLayout = new_layout,
         .srcQueueFamilyIndex = vk::QueueFamilyIgnored,
         .dstQueueFamilyIndex = vk::QueueFamilyIgnored,
-        .image = image,
+        .image = **image,
         .subresourceRange = range,
     };
 
@@ -279,152 +263,6 @@ void Image::transition_layout(vk::ImageLayout old_layout, vk::ImageLayout new_la
         nullptr,
         barrier
     );
-}
-
-void Image::save_to_file(const RendererContext &ctx, const std::filesystem::path &path) const {
-    const vk::ImageCreateInfo temp_image_info{
-        .imageType = vk::ImageType::e2D,
-        .format = vk::Format::eR8G8B8A8Unorm,
-        .extent = extent,
-        .mipLevels = 1,
-        .arrayLayers = 1,
-        .samples = vk::SampleCountFlagBits::e1,
-        .tiling = vk::ImageTiling::eLinear,
-        .usage = vk::ImageUsageFlagBits::eTransferDst,
-        .sharingMode = vk::SharingMode::eExclusive,
-        .initialLayout = vk::ImageLayout::eUndefined,
-    };
-
-    const Image temp_image{
-        ctx,
-        temp_image_info,
-        vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent,
-        vk::ImageAspectFlagBits::eColor
-    };
-
-    utils::cmd::do_single_time_commands(ctx, [&](const auto &cmd_buffer) {
-        transition_layout(
-            vk::ImageLayout::eShaderReadOnlyOptimal,
-            vk::ImageLayout::eTransferSrcOptimal,
-            cmd_buffer
-        );
-
-        transition_layout(
-            vk::ImageLayout::eUndefined,
-            vk::ImageLayout::eTransferDstOptimal,
-            cmd_buffer
-        );
-    });
-
-    const vk::ImageCopy image_copy_region{
-        .srcSubresource = {
-            .aspectMask = vk::ImageAspectFlagBits::eColor,
-            .layerCount = 1
-        },
-        .dstSubresource = {
-            .aspectMask = vk::ImageAspectFlagBits::eColor,
-            .layerCount = 1
-        },
-        .extent = extent
-    };
-
-    const vk::Offset3D blit_offset{
-        .x = static_cast<int32_t>(extent.width),
-        .y = static_cast<int32_t>(extent.height),
-        .z = static_cast<int32_t>(extent.depth)
-    };
-
-    const vk::ImageMemoryBarrier2 image_memory_barrier{
-        .srcStageMask = vk::PipelineStageFlagBits2::eTransfer,
-        .srcAccessMask = vk::AccessFlagBits2::eTransferRead,
-        .dstStageMask = vk::PipelineStageFlagBits2::eTransfer,
-        .dstAccessMask = vk::AccessFlagBits2::eMemoryRead,
-        .oldLayout = vk::ImageLayout::eTransferDstOptimal,
-        .newLayout = vk::ImageLayout::eGeneral,
-        .image = *temp_image,
-        .subresourceRange = {
-            .aspectMask = vk::ImageAspectFlagBits::eColor,
-            .levelCount = 1,
-            .layerCount = 1,
-        }
-    };
-
-    const vk::DependencyInfo dependency_info{
-        .imageMemoryBarrierCount = 1,
-        .pImageMemoryBarriers = &image_memory_barrier
-    };
-
-    const vk::ImageBlit blit_info{
-        .srcSubresource = {
-            .aspectMask = vk::ImageAspectFlagBits::eColor,
-            .layerCount = 1
-        },
-        .srcOffsets = {{vk::Offset3D(), blit_offset}},
-        .dstSubresource = {
-            .aspectMask = vk::ImageAspectFlagBits::eColor,
-            .layerCount = 1
-        },
-        .dstOffsets = {{vk::Offset3D(), blit_offset}}
-    };
-
-    bool supports_blit = true;
-
-    // check if the device supports blitting from this image's format
-    const vk::FormatProperties src_format_properties = ctx.physical_device->getFormatProperties(format);
-    if (!(src_format_properties.linearTilingFeatures & vk::FormatFeatureFlagBits::eBlitSrc)) {
-        supports_blit = false;
-    }
-
-    // check if the device supports blitting to linear images
-    const vk::FormatProperties dst_format_properties = ctx.physical_device->getFormatProperties(temp_image.format);
-    if (!(dst_format_properties.linearTilingFeatures & vk::FormatFeatureFlagBits::eBlitDst)) {
-        supports_blit = false;
-    }
-
-    utils::cmd::do_single_time_commands(ctx, [&](const auto &commandBuffer) {
-        if (supports_blit) {
-            commandBuffer.blitImage(
-                image,
-                vk::ImageLayout::eTransferSrcOptimal,
-                *temp_image,
-                vk::ImageLayout::eTransferDstOptimal,
-                blit_info,
-                vk::Filter::eLinear
-            );
-        } else {
-            commandBuffer.copyImage(
-                image,
-                vk::ImageLayout::eTransferSrcOptimal,
-                *temp_image,
-                vk::ImageLayout::eTransferDstOptimal,
-                image_copy_region
-            );
-        }
-
-        commandBuffer.pipelineBarrier2(dependency_info);
-    });
-
-    void *data;
-    vmaMapMemory(temp_image.allocator, temp_image.allocation, &data);
-
-    stbi_write_png(
-        path.string().c_str(),
-        static_cast<int>(temp_image.extent.width),
-        static_cast<int>(temp_image.extent.height),
-        STBI_rgb_alpha,
-        data,
-        vk::blockSize(temp_image.format) * temp_image.extent.width
-    );
-
-    vmaUnmapMemory(temp_image.allocator, temp_image.allocation);
-
-    utils::cmd::do_single_time_commands(ctx, [&](const auto &cmd_buffer) {
-        transition_layout(
-            vk::ImageLayout::eTransferSrcOptimal,
-            vk::ImageLayout::eShaderReadOnlyOptimal,
-            cmd_buffer
-        );
-    });
 }
 
 // ==================== CubeImage ====================
@@ -459,7 +297,7 @@ void CubeImage::copy_from_buffer(const vk::Buffer buffer, const vk::raii::Comman
 
     command_buffer.copyBufferToImage(
         buffer,
-        image,
+        **image,
         vk::ImageLayout::eTransferDstOptimal,
         region
     );
@@ -794,7 +632,7 @@ auto TextureBuilder::create(const RendererContext &ctx) const -> Texture {
     if (name) {
         ctx.device->setDebugUtilsObjectNameEXT(vk::DebugUtilsObjectNameInfoEXT {
             .objectType = vk::ObjectType::eImage,
-            .objectHandle = reinterpret_cast<uint64_t>(static_cast<VkImage>(**texture.image)),
+            .objectHandle = reinterpret_cast<uint64_t>(static_cast<VkImage>(***texture.image)),
             .pObjectName = name,
         });
     }
@@ -1057,17 +895,14 @@ auto TextureBuilder::make_staging_buffer(const RendererContext &ctx, const Loade
     const vk::DeviceSize texture_size = layer_size * layer_count;
 
     auto staging_buffer = make_unique<Buffer>(
-        **ctx.allocator,
+        ctx,
         texture_size,
         vk::BufferUsageFlagBits::eTransferSrc,
         vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
     );
 
-    void *mapped = staging_buffer->map();
-
     for (size_t i = 0; i < get_layer_count(); i++) {
-        const size_t offset = layer_size * i;
-        std::memcpy(static_cast<char *>(mapped) + offset, data.sources[i], static_cast<size_t>(layer_size));
+        staging_buffer->copy_from_ptr(data.sources[i], layer_size, layer_size * i);
 
         if (is_separate_channels || is_from_swizzle_fill) {
             std::free(data.sources[i]);
@@ -1075,8 +910,6 @@ auto TextureBuilder::make_staging_buffer(const RendererContext &ctx, const Loade
             stbi_image_free(data.sources[i]);
         }
     }
-
-    staging_buffer->unmap();
 
     return staging_buffer;
 }

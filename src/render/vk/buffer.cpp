@@ -7,89 +7,32 @@ import cvulkan;
 
 import Cinder.Render.Mesh;
 import :Command;
+#include "glm/gtx/scalar_relational.inl"
 
 namespace zrx {
-Buffer::Buffer(const VmaAllocator _allocator, const vk::DeviceSize size, const vk::BufferUsageFlags usage,
+Buffer::Buffer(const RendererContext& ctx, const vk::DeviceSize size, const vk::BufferUsageFlags usage,
                const vk::MemoryPropertyFlags properties)
-    : allocator(_allocator), size(size) {
+    : size(size), allocator(*ctx.allocator) {
     const vk::BufferCreateInfo buffer_info{
         .size = size,
         .usage = usage,
         .sharingMode = vk::SharingMode::eExclusive,
     };
 
-    VmaAllocationCreateFlags flags{};
+    vma::AllocationCreateFlags flags{};
     if (properties & vk::MemoryPropertyFlagBits::eHostVisible) {
-        flags |= VMA_ALLOCATION_CREATE_HOST_ACCESS_RANDOM_BIT;
+        flags |= vma::AllocationCreateFlagBits::eHostAccessRandom;
     }
 
-    const VmaAllocationCreateInfo alloc_info{
+    const vma::AllocationCreateInfo alloc_info{
         .flags = flags,
-        .usage = VMA_MEMORY_USAGE_AUTO,
+        .usage = vma::MemoryUsage::eAuto,
         .requiredFlags = static_cast<VkMemoryPropertyFlags>(properties)
     };
 
-    const auto result = vmaCreateBuffer(
-        allocator,
-        reinterpret_cast<const VkBufferCreateInfo *>(&buffer_info),
-        &alloc_info,
-        reinterpret_cast<VkBuffer *>(&buffer),
-        &allocation,
-        nullptr
-    );
-
-    if (result != VK_SUCCESS) {
-        Logger::error("failed to allocate buffer!");
-    }
-}
-
-Buffer::~Buffer() {
-    if (mapped) {
-        unmap();
-    }
-
-    vmaDestroyBuffer(allocator, static_cast<VkBuffer>(buffer), allocation);
-}
-
-Buffer::Buffer(Buffer &&other) {
-    allocator = other.allocator;
-    buffer = other.buffer;
-    allocation = other.allocation;
-    size = other.size;
-
-    other.buffer = nullptr;
-    other.allocation = nullptr;
-    other.size = 0;
-}
-
-Buffer& Buffer::operator=(Buffer &&other) {
-    allocator = other.allocator;
-    buffer = other.buffer;
-    allocation = other.allocation;
-    size = other.size;
-
-    other.buffer = nullptr;
-    other.allocation = nullptr;
-    other.size = 0;
-
-    return *this;
-}
-
-void *Buffer::map() {
-    if (!mapped && vmaMapMemory(allocator, allocation, &mapped) != VK_SUCCESS) {
-        Logger::error("failed to map buffer memory!");
-    }
-
-    return mapped;
-}
-
-void Buffer::unmap() {
-    if (!mapped) {
-        Logger::error("tried to unmap a buffer that wasn't mapped!");
-    }
-
-    vmaUnmapMemory(allocator, allocation);
-    mapped = nullptr;
+    auto [allocation, buffer] = ctx.allocator->createBuffer(buffer_info, alloc_info);
+    this->allocation = allocation;
+    this->buffer = make_unique<vk::raii::Buffer>(*ctx.device, buffer);
 }
 
 void Buffer::copy_from_buffer(const RendererContext &ctx, const Buffer &other_buffer,
@@ -102,14 +45,18 @@ void Buffer::copy_from_buffer(const RendererContext &ctx, const Buffer &other_bu
             .size = size,
         };
 
-        command_buffer.copyBuffer(*other_buffer, buffer, copy_region);
+        command_buffer.copyBuffer(*other_buffer, *buffer, copy_region);
     });
+}
+
+void Buffer::copy_from_ptr(const void *ptr, vk::DeviceSize size, vk::DeviceSize dst_offset) const {
+    allocation->copyFromMemory(ptr, dst_offset, size);
 }
 
 namespace utils::buf {
     auto create_uniform_buffer(const RendererContext &ctx, const vk::DeviceSize size) -> Buffer {
         return Buffer {
-            **ctx.allocator,
+            ctx,
             size,
             vk::BufferUsageFlagBits::eUniformBuffer,
             vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent

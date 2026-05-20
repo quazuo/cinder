@@ -9,8 +9,7 @@ module;
 
 export module glfw;
 
-export
-{
+export {
     using ::GLFWwindow;
     using ::glfwWindowShouldClose;
     using ::glfwTerminate;

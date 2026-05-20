@@ -2,7 +2,7 @@ module;
 
 export module Cinder.Render.Vulkan:Buffer;
 
-import vma;
+import vk_mem_alloc;
 import std;
 import cvulkan;
 
@@ -19,49 +19,25 @@ export namespace zrx {
  * buffer, e.g. for use as a staging buffer.
  */
 class Buffer {
-    VmaAllocator allocator;
-    vk::Buffer buffer;
-    VmaAllocation allocation;
+    unique_ptr<vk::raii::Buffer> buffer;
     vk::DeviceSize size;
     void *mapped = nullptr;
 
+    reference_wrapper<const vma::raii::Allocator> allocator;
+    unique_ptr<vma::raii::Allocation> allocation;
+
 public:
-    explicit Buffer(VmaAllocator _allocator, vk::DeviceSize size, vk::BufferUsageFlags usage,
+    explicit Buffer(const RendererContext& ctx, vk::DeviceSize size, vk::BufferUsageFlags usage,
                     vk::MemoryPropertyFlags properties);
 
-    ~Buffer();
-
-    Buffer(const Buffer &other) = delete;
-
-    Buffer(Buffer &&other);
-
-    Buffer &operator=(const Buffer &other) = delete;
-
-    Buffer &operator=(Buffer &&other);
-
     /**
-         * Returns a raw handle to the actual Vulkan buffer.
-         *
-         * @return Handle to the buffer.
-         */
-    auto operator*() const -> const vk::Buffer& { return buffer; }
+     * Returns a raw handle to the actual Vulkan buffer.
+     *
+     * @return Handle to the buffer.
+     */
+    auto operator*() const -> const vk::raii::Buffer& { return *buffer; }
 
     auto get_size() const -> vk::DeviceSize { return size; }
-
-    /**
-     * Maps the buffer's memory to host memory. This requires the buffer to *not* be created
-     * with the vk::MemoryPropertyFlagBits::eDeviceLocal flag set in `properties` during object creation.
-     * If already mapped, just returns the pointer to the previous mapping.
-     *
-     * @return Pointer to the mapped memory.
-     */
-    auto map() -> void*;
-
-    /**
-         * Unmaps the memory, after which the pointer returned by `map()` becomes invalidated.
-         * Fails if `map()` wasn't called beforehand.
-         */
-    void unmap();
 
     /**
      * Copies the contents of some other given buffer to this buffer and waits until completion.
@@ -74,6 +50,15 @@ public:
      */
     void copy_from_buffer(const RendererContext &ctx, const Buffer &other_buffer, vk::DeviceSize size,
                           vk::DeviceSize src_offset = 0, vk::DeviceSize dst_offset = 0) const;
+
+    /**
+     * Copies the contents of some other pointer to this buffer and waits until completion.
+     *
+     * @param ptr Pointer from which to copy.
+     * @param size Size of the data to copy.
+     * @param dst_offset Offset in this (destination) buffer.
+     */
+    void copy_from_ptr(const void *ptr, vk::DeviceSize size, vk::DeviceSize dst_offset = 0) const;
 };
 
 struct BufferSlice {
@@ -97,19 +82,17 @@ namespace utils::buf {
                              const vk::BufferUsageFlags usage) -> Buffer {
         const vk::DeviceSize buffer_size = sizeof(contents[0]) * contents.size();
 
-        Buffer staging_buffer{
-            **ctx.allocator,
+        const Buffer staging_buffer{
+            ctx,
             buffer_size,
             vk::BufferUsageFlagBits::eTransferSrc,
             vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
         };
 
-        void *data = staging_buffer.map();
-        std::memcpy(data, contents.data(), static_cast<size_t>(buffer_size));
-        staging_buffer.unmap();
+        staging_buffer.copy_from_ptr(contents.data(), buffer_size);
 
         Buffer result_buffer {
-            **ctx.allocator,
+            ctx,
             buffer_size,
             vk::BufferUsageFlagBits::eTransferDst | usage,
             vk::MemoryPropertyFlagBits::eDeviceLocal
@@ -122,19 +105,17 @@ namespace utils::buf {
 
     auto create_local_buffer(const RendererContext &ctx, const void *data, const vk::DeviceSize size,
                              const vk::BufferUsageFlags usage) -> Buffer {
-        Buffer staging_buffer{
-            **ctx.allocator,
+        const Buffer staging_buffer{
+            ctx,
             size,
             vk::BufferUsageFlagBits::eTransferSrc,
             vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
         };
 
-        void *staging_data = staging_buffer.map();
-        std::memcpy(staging_data, data, static_cast<size_t>(size));
-        staging_buffer.unmap();
+        staging_buffer.copy_from_ptr(data, size);
 
         Buffer result_buffer {
-            **ctx.allocator,
+            ctx,
             size,
             vk::BufferUsageFlagBits::eTransferDst | usage,
             vk::MemoryPropertyFlagBits::eDeviceLocal

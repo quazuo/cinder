@@ -6,6 +6,7 @@ import spirv_reflect;
 import glfw;
 import std;
 import imgui;
+import vk_mem_alloc;
 
 import :GlfwStatics;
 import Cinder.Globals;
@@ -76,7 +77,23 @@ VulkanRenderer::VulkanRenderer() {
     create_logical_device(vkb_physical_device);
     create_queues();
 
-    ctx.allocator = make_unique<VmaAllocatorWrapper>(**ctx.physical_device, **ctx.device, **instance);
+    // create allocator
+    {
+        static constexpr vma::VulkanFunctions funcs{
+            .vkGetInstanceProcAddr = vkGetInstanceProcAddr,
+            .vkGetDeviceProcAddr = vkGetDeviceProcAddr
+        };
+
+        const vma::AllocatorCreateInfo allocator_create_info{
+            .flags = vma::AllocatorCreateFlagBits::eBufferDeviceAddress,
+            .physicalDevice = **ctx.physical_device,
+            .device = **ctx.device,
+            .pVulkanFunctions = &funcs,
+            .instance = instance,
+        };
+
+        ctx.allocator = make_unique<vma::raii::Allocator>(instance, **ctx.device, allocator_create_info);
+    }
 
     resource_manager = make_unique<ResourceManager>(ctx, BINDLESS_ARRAY_SIZE, MAX_FRAMES_IN_FLIGHT);
     repeated_frame_begin_actions.emplace_back([&](const FrameBeginActionContext& fba_ctx) {
@@ -1332,10 +1349,6 @@ auto VulkanRenderer::is_first_node_targetting_final_image(const RenderNodeHandle
     });
 
     return first_it == flattened.end() || *first_it == node_handle;
-}
-
-auto VulkanRenderer::should_run_node_pass(const RenderNodeHandle node_handle) const -> bool {
-    return render_graph->nodes().at(node_handle).should_run();
 }
 
 auto VulkanRenderer::get_node_target_extent(const RenderNodeHandle node_handle) const -> vk::Extent2D {

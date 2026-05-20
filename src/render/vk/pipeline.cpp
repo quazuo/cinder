@@ -482,49 +482,45 @@ RtPipelineBuilder::build_sbt(const RendererContext &ctx, const vk::raii::Pipelin
         .size = align_up(hit_count * handle_size_aligned, rt_properties.shaderGroupBaseAlignment)
     };
 
-    const uint32_t data_size = handle_count * handle_size;
-    vector handles      = pipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>(0, handle_count, data_size);
+    const size_t data_size = handle_count * handle_size;
+    const vector<uint8_t> handles = pipeline.getRayTracingShaderGroupHandlesKHR<uint8_t>(0, handle_count, data_size);
 
     const vk::DeviceSize sbt_size = rgen_region.size + miss_region.size + hit_region.size;
-    auto sbt_buffer = make_unique<Buffer>(
-        **ctx.allocator,
+    Buffer sbt_buffer {
+        ctx,
         sbt_size,
         vk::BufferUsageFlagBits::eShaderBindingTableKHR
         | vk::BufferUsageFlagBits::eShaderDeviceAddress
         | vk::BufferUsageFlagBits::eTransferSrc,
         vk::MemoryPropertyFlagBits::eHostVisible
         | vk::MemoryPropertyFlagBits::eHostCoherent
-    );
+    };
 
     const vk::DeviceAddress sbt_address = ctx.device->getBufferAddress({.buffer = **sbt_buffer});
     rgen_region.deviceAddress = sbt_address;
     miss_region.deviceAddress = rgen_region.deviceAddress + rgen_region.size;
     hit_region.deviceAddress  = miss_region.deviceAddress + miss_region.size;
 
-    auto get_handle_ptr     = [&](const uint32_t i) { return handles.data() + i * handle_size; };
-    auto *sbt_buffer_mapped = static_cast<uint8_t *>(sbt_buffer->map());
+    auto get_handle_ptr = [&](const uint32_t i) { return handles.data() + i * handle_size; };
 
     uint32_t handle_index = 0;
 
-    uint8_t *rgen_data = sbt_buffer_mapped;
-    std::memcpy(rgen_data, get_handle_ptr(handle_index++), handle_size);
+    sbt_buffer.copy_from_ptr(get_handle_ptr(handle_index++), handle_size);
 
-    uint8_t *miss_data = sbt_buffer_mapped + rgen_region.size;
+    size_t offset = rgen_region.size;
     for (uint32_t i = 0; i < miss_count; i++) {
-        std::memcpy(miss_data, get_handle_ptr(handle_index++), handle_size);
-        miss_data += miss_region.stride;
+        sbt_buffer.copy_from_ptr(get_handle_ptr(handle_index++), handle_size, offset);
+        offset += miss_region.stride;
     }
 
-    uint8_t *hit_data = sbt_buffer_mapped + rgen_region.size + miss_region.size;
+    offset = rgen_region.size + miss_region.size;
     for (uint32_t i = 0; i < hit_count; i++) {
-        std::memcpy(hit_data, get_handle_ptr(handle_index++), handle_size);
-        hit_data += hit_region.stride;
+        sbt_buffer.copy_from_ptr(get_handle_ptr(handle_index++), handle_size, offset);
+        offset += hit_region.stride;
     }
-
-    sbt_buffer->unmap();
 
     return {
-        .backing_buffer = std::move(sbt_buffer),
+        .backing_buffer = make_unique<Buffer>(std::move(sbt_buffer)),
         .rgen_region = rgen_region,
         .miss_region = miss_region,
         .hit_region = hit_region

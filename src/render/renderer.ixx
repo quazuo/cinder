@@ -239,8 +239,6 @@ private:
 
     auto is_first_node_targetting_final_image(RenderNodeHandle node_handle) const -> bool;
 
-    auto should_run_node_pass(RenderNodeHandle node_handle) const -> bool;
-
     auto get_node_target_extent(RenderNodeHandle node_handle) const -> vk::Extent2D;
 
     auto get_target_color_format(ResourceHandle resource_handle) const -> vk::Format;
