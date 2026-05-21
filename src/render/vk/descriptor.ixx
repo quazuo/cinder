@@ -225,7 +225,7 @@ public:
 
             return vk::DescriptorImageInfo{
                 .sampler = *resource.get_sampler(),
-                .imageView = **resource.get_image().get_view(ctx),
+                .imageView = **resource.get_image().get_full_view(ctx),
                 .imageLayout = image_layout,
             };
         } else if constexpr (std::is_same_v<ResourceType, AccelerationStructure>) {

@@ -261,10 +261,10 @@ vector<SwapChainRenderTargets> SwapChain::get_render_targets(const RendererConte
         const bool is_msaa = msaa_sample_count != vk::SampleCountFlagBits::e1;
 
         auto color_target = is_msaa
-            ? RenderTarget{ color_image->get_view(ctx), view, image_format }
+            ? RenderTarget{ color_image->get_full_view(ctx), view, image_format }
             : RenderTarget{ view, image_format };
 
-        RenderTarget depth_target{ depth_image->get_view(ctx), depth_format };
+        RenderTarget depth_target{ depth_image->get_full_view(ctx), depth_format };
 
         targets.emplace_back(std::move(color_target), std::move(depth_target));
     }

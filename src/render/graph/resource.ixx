@@ -129,4 +129,31 @@ struct ComputePipelineDesc {
     struct CustomProperties {
     } custom_properties;
 };
+
+template <typename T>
+    requires is_texture_resource_desc_type<T>
+auto get_tex_builder_from_resource_desc(const T& resource_desc) -> TextureBuilder {
+    TextureBuilder builder;
+
+    builder.with_format(resource_desc.format);
+    builder.with_name(resource_desc.name.c_str());
+    builder.with_flags(resource_desc.flags);
+    builder.with_config(resource_desc.overrides);
+
+    if constexpr (std::is_same_v<T, ExternalTextureResourceDesc>) {
+        builder.from_paths(resource_desc.paths);
+        builder.with_layout(vk::ImageLayout::eShaderReadOnlyOptimal);
+
+        if (description.paths.size() > 1 && !(description.flags & TextureFlags::CUBEMAP))
+            builder.as_separate_channels();
+        if (description.swizzle)
+            builder.with_swizzle(*description.swizzle);
+    }
+
+    if constexpr (!std::is_same_v<T, ExternalTextureResourceDesc>) {
+        builder.with_extent(resource_desc.extent);
+    }
+
+    return builder;
+}
 } // zrx

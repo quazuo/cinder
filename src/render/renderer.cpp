@@ -887,7 +887,7 @@ auto VulkanRenderer::create_node_render_infos(const RenderNodeHandle node_handle
                     color_targets.emplace_back(std::move(swap_chain_targets.color_target));
                 } else {
                     const auto &target_texture = resource_manager->get<Texture>(color_target_handle);
-                    color_targets.emplace_back(target_texture.get_image().get_view(ctx), target_texture.get_format());
+                    color_targets.emplace_back(target_texture.get_image().get_full_view(ctx), target_texture.get_format());
                 }
             }
 

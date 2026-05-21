@@ -88,6 +88,6 @@ private:
 
     // ========================== gui ==========================
 
-    void render_gui_section(const float delta_time);
+    void render_gui_section(float delta_time);
 };
 }
