@@ -673,7 +673,7 @@ void VulkanRenderer::create_render_graph_resources() {
         if (description.swizzle)
             builder.with_swizzle(*description.swizzle);
 
-        resource_manager->add(handle, builder.create(ctx), description.name);
+        resource_manager->attach_builder(handle, std::move(builder));
 
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get<Texture>(handle);
@@ -722,7 +722,7 @@ void VulkanRenderer::create_render_graph_resources() {
             builder.with_extent({description.extent.width, description.extent.height, 1u});
         }
 
-        resource_manager->add_from_builder<TextureBuilder>(handle, std::move(builder), description.name);
+        resource_manager->attach_builder<TextureBuilder>(handle, std::move(builder));
         const auto bindless_handle = resource_manager->get_bindless_handle(handle);
         const auto& texture = resource_manager->get<Texture>(handle);
 
@@ -753,24 +753,24 @@ void VulkanRenderer::create_render_graph_resources() {
             builder.with_extent({description.extent.width, description.extent.height, 1u});
         }
 
-        resource_manager->add(handle, builder.create(ctx), description.name);
+        resource_manager->attach_builder<TextureBuilder>(handle, std::move(builder));
     }
 
     for (const auto &[handle, description]: render_graph->graphics_pipelines()) {
         auto builder = create_graph_gfx_pipeline_builder(handle);
-        resource_manager->add_from_builder(handle, std::move(builder));
+        resource_manager->attach_builder(handle, std::move(builder));
     }
 
     for (const auto &[handle, description]: render_graph->compute_pipelines()) {
         auto builder = create_graph_compute_pipeline_builder(handle);
-        resource_manager->add_from_builder(handle, std::move(builder));
+        resource_manager->attach_builder(handle, std::move(builder));
     }
 
     bindless_descriptor_set->commit_updates();
 }
 
 auto VulkanRenderer::create_graph_gfx_pipeline_builder(const ResourceHandle pipeline_handle) const -> GraphicsPipelineBuilder {
-    const auto &pipeline_info = render_graph->graphics_pipelines().at(pipeline_handle);
+    const auto &pipeline_info = resource_manager->get_desc<GraphicsPipelineDesc>(pipeline_handle);
 
     vector<vk::Format> color_formats;
     for (const auto &format_variant: pipeline_info.color_formats) {
@@ -830,7 +830,7 @@ auto VulkanRenderer::create_graph_gfx_pipeline_builder(const ResourceHandle pipe
 }
 
 auto VulkanRenderer::create_graph_compute_pipeline_builder(const ResourceHandle pipeline_handle) const -> ComputePipelineBuilder {
-    const auto &pipeline_info = render_graph->compute_pipelines().at(pipeline_handle);
+    const auto &pipeline_info = resource_manager->get_desc<ComputePipelineDesc>(pipeline_handle);
 
     vector<vk::DescriptorSetLayout> descriptor_set_layouts;
     descriptor_set_layouts.push_back(*bindless_descriptor_set->get_layout());

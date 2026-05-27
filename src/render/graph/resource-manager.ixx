@@ -87,9 +87,13 @@ public:
 private:
     reference_wrapper<const RendererContext> renderer_ctx;
 
+    // todo - put everything into one map, big struct in value type
+
     map<ResourceHandle, ResourceKind> handle_to_kind_mapping;
 
-    // todo - replace by vectors
+    map<ResourceHandle, ResourceDescVariant> descriptions;
+
+    // todo - replace by vectors??
     map<ResourceHandle, Buffer> buffers;
     map<ResourceHandle, Texture> textures;
     map<ResourceHandle, Model> models;
@@ -121,78 +125,49 @@ private:
 public:
     explicit ResourceManager(const RendererContext& ctx, uint32_t max_bindless_handles, uint32_t frames_in_flight);
 
-    // template <typename T>
-    //     requires is_resource_type<T>
-    // auto add_raw(T&& resource, const std::string& name = "NO_NAME") -> ResourceHandle {
-    //     const ResourceHandle handle = get_new_handle(free_resource_handles);
-    //
-    //     handle_to_kind_mapping.emplace(handle, resource_type_to_kind_v<T>);
-    //
-    //     if constexpr (std::is_same_v<T, Model>) {
-    //         add_model_materials(handle, resource);
-    //     }
-    //
-    //     auto& resource_map = get_resource_map<T>();
-    //
-    //     if (resource_map.contains(handle)) {
-    //         queued_for_removal_resources[renderer_ctx.get().current_frame_idx]
-    //             .emplace_back(std::move(resource_map.extract(handle).mapped()));
-    //     }
-    //
-    //     resource_map.emplace(handle, std::move(resource));
-    //
-    //     const auto bindless_handle = get_new_handle(free_bindless_handles);
-    //     bindless_handle_mapping.emplace(handle, bindless_handle);
-    //
-    //     resource_names.emplace(handle, name);
-    //
-    //     return handle;
-    // }
-    //
-    // template <typename T>
-    //     requires is_builder_type<T>
-    // auto add_from_builder(T&& builder, const std::string& name = "NO_NAME") -> ResourceHandle {
-    //     const ResourceHandle handle = add_raw(builder.create(renderer_ctx.get()), name);
-    //     get_builder_map<T>().emplace(handle, std::move(builder));
-    //
-    //     using BuiltResourceType = std::invoke_result_t<decltype(&T::create), T, const RendererContext&>;
-    //     handle_to_kind_mapping.emplace(handle, resource_type_to_kind_v<BuiltResourceType>);
-    //
-    //     return handle;
-    // }
-
     template <typename T>
-        requires is_texture_resource_desc_type<T>
-    auto add_from_desc(T&& desc) -> ResourceHandle {
-        const ResourceHandle handle = get_new_handle(free_resource_handles);
+        requires is_resource_type<T>
+    auto attach_raw(const ResourceHandle& handle, T&& resource) {
+        handle_to_kind_mapping.emplace(handle, resource_type_to_kind_v<T>);
 
-        // todo - create texture
+        if constexpr (std::is_same_v<T, Model>) {
+            add_model_materials(handle, resource);
+        }
 
-        handle_to_kind_mapping.emplace(handle, ResourceKind::TEXTURE);
-        resource_names.emplace(handle, desc.name);
-        return handle;
+        auto& resource_map = get_resource_map<T>();
+
+        if (resource_map.contains(handle)) {
+            auto& removal_queue = queued_for_removal_resources[renderer_ctx.get().current_frame_idx];
+            removal_queue.emplace_back(std::move(resource_map.extract(handle).mapped()));
+        }
+
+        resource_map.emplace(handle, std::move(resource));
+
+        const auto bindless_handle = get_new_handle(free_bindless_handles);
+        bindless_handle_mapping.emplace(handle, bindless_handle);
     }
 
     template <typename T>
-        requires is_buffer_resource_desc_type<T>
-    auto add_from_desc(T&& desc) -> ResourceHandle {
-        const ResourceHandle handle = get_new_handle(free_resource_handles);
-
-        // todo - create buffer
-
-        handle_to_kind_mapping.emplace(handle, ResourceKind::BUFFER);
-        resource_names.emplace(handle, desc.name);
-        return handle;
+        requires is_builder_type<T>
+    auto attach_builder(const ResourceHandle& handle, T&& builder) {
+        get_builder_map<T>().emplace(handle, std::move(builder));
     }
 
     template <typename T>
-        requires is_model_resource_desc_type<T>
+        requires is_resource_desc_type<T>
     auto add_from_desc(T&& desc) -> ResourceHandle {
         const ResourceHandle handle = get_new_handle(free_resource_handles);
 
-        // todo - create model
+        descriptions.emplace(handle, desc);
 
-        handle_to_kind_mapping.emplace(handle, ResourceKind::MODEL);
+        if constexpr (is_texture_resource_desc_type<T>) {
+            handle_to_kind_mapping.emplace(handle, ResourceKind::TEXTURE);
+        } else if constexpr (is_buffer_resource_desc_type<T>) {
+            handle_to_kind_mapping.emplace(handle, ResourceKind::BUFFER);
+        } else if constexpr (is_model_resource_desc_type<T>) {
+            handle_to_kind_mapping.emplace(handle, ResourceKind::MODEL);
+        }
+
         resource_names.emplace(handle, desc.name);
         return handle;
     }

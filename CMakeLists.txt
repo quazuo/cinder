@@ -39,10 +39,9 @@ target_compile_definitions(VulkanHppModule PUBLIC
 target_compile_features(VulkanHppModule PUBLIC cxx_std_20)
 target_link_libraries(VulkanHppModule PUBLIC Vulkan::Vulkan)
 
-# ========================= VulkanMemoryAllocator =========================
+# ========================= VMA =========================
 
-add_subdirectory(deps/VulkanMemoryAllocator)
-# find_package(VulkanMemoryAllocator CONFIG REQUIRED)
+add_subdirectory(deps/VulkanMemoryAllocator-Hpp/include)
 
 # ========================= GLFW =========================
 
@@ -134,11 +133,11 @@ set(ALL_LIBS
         assimp
         glfw
         glm::glm
+        spirv-reflect-static
+        vk-bootstrap::vk-bootstrap
         Vulkan::Vulkan
         VulkanHppModule
-        GPUOpen::VulkanMemoryAllocator
-        vk-bootstrap::vk-bootstrap
-        spirv-reflect-static
+        VulkanMemoryAllocator-Hpp::VulkanMemoryAllocator-Hpp
 )
 
 file(GLOB HEADER_ONLY_DEPS_IMPL_SRCS

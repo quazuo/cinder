@@ -72,23 +72,43 @@ struct ModelResourceDesc {
     bool has_materials = false;
 };
 
-concept is_buffer_resource_desc_type = is_one_of<T,
-    VertexBufferResourceDesc,
-    UniformBufferResourceDesc>;
+#define BUFFER_RESOURCE_DESC_TYPES  \
+    VertexBufferResourceDesc,       \
+    UniformBufferResourceDesc
 
-concept is_texture_resource_desc_type = is_one_of<T,
-    ExternalTextureResourceDesc,
-    TargetTextureResourceDesc,
-    PersistentTextureResourceDesc,
-    TransientTextureResourceDesc>;
+#define TEXTURE_RESOURCE_DESC_TYPES \
+    ExternalTextureResourceDesc,    \
+    TargetTextureResourceDesc,      \
+    PersistentTextureResourceDesc,  \
+    TransientTextureResourceDesc
 
-concept is_model_resource_desc_type = is_one_of<T,
-    ModelResourceDesc>;
+#define MODEL_RESOURCE_DESC_TYPES   \
+    ModelResourceDesc
 
-concept is_resource_desc_type = is_one_of<T,
-    is_buffer_resource_desc_type,
-    is_texture_resource_desc_type,
-    is_model_resource_desc_type>;
+#define ALL_RESOURCE_DESC_TYPES     \
+    BUFFER_RESOURCE_DESC_TYPES,     \
+    TEXTURE_RESOURCE_DESC_TYPES,    \
+    MODEL_RESOURCE_DESC_TYPES
+
+using BufferResourceDescVariant  = variant<BUFFER_RESOURCE_DESC_TYPES>;
+using TextureResourceDescVariant = variant<TEXTURE_RESOURCE_DESC_TYPES>;
+using ModelResourceDescVariant   = variant<MODEL_RESOURCE_DESC_TYPES>;
+using ResourceDescVariant     = variant<ALL_RESOURCE_DESC_TYPES>;
+
+template <typename T>
+concept is_buffer_resource_desc_type = is_one_of<T, BUFFER_RESOURCE_DESC_TYPES>;
+
+template <typename T>
+concept is_texture_resource_desc_type = is_one_of<T, TEXTURE_RESOURCE_DESC_TYPES>;
+
+template <typename T>
+concept is_model_resource_desc_type = is_one_of<T, MODEL_RESOURCE_DESC_TYPES>;
+
+template <typename T>
+concept is_resource_desc_type = std::holds_alternative<
+    is_buffer_resource_desc_type<T>,
+    is_texture_resource_desc_type<T>,
+    is_model_resource_desc_type<T>>;
 
 // basically same purpose as std::monostate but with a specific name
 struct FinalImageFormatPlaceholder {};
@@ -129,31 +149,4 @@ struct ComputePipelineDesc {
     struct CustomProperties {
     } custom_properties;
 };
-
-template <typename T>
-    requires is_texture_resource_desc_type<T>
-auto get_tex_builder_from_resource_desc(const T& resource_desc) -> TextureBuilder {
-    TextureBuilder builder;
-
-    builder.with_format(resource_desc.format);
-    builder.with_name(resource_desc.name.c_str());
-    builder.with_flags(resource_desc.flags);
-    builder.with_config(resource_desc.overrides);
-
-    if constexpr (std::is_same_v<T, ExternalTextureResourceDesc>) {
-        builder.from_paths(resource_desc.paths);
-        builder.with_layout(vk::ImageLayout::eShaderReadOnlyOptimal);
-
-        if (description.paths.size() > 1 && !(description.flags & TextureFlags::CUBEMAP))
-            builder.as_separate_channels();
-        if (description.swizzle)
-            builder.with_swizzle(*description.swizzle);
-    }
-
-    if constexpr (!std::is_same_v<T, ExternalTextureResourceDesc>) {
-        builder.with_extent(resource_desc.extent);
-    }
-
-    return builder;
-}
 } // zrx
