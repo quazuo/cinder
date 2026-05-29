@@ -87,8 +87,8 @@ Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material
         path.make_preferred();
 
         try {
-            base_color = make_unique<Texture>(
-                TextureBuilder()
+            base_color = make_unique<Image>(
+                ImageBuilder()
                     .with_format(vk::Format::eR8G8B8A8Srgb)
                     .from_paths({path})
                     .create(ctx)
@@ -111,8 +111,8 @@ Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material
         path /= normal_rel_path.C_Str();
         path.make_preferred();
 
-        normal = make_unique<Texture>(
-            TextureBuilder()
+        normal = make_unique<Image>(
+            ImageBuilder()
                 .with_format(vk::Format::eR8G8B8A8Unorm)
                 .from_paths({path})
                 .create(ctx)
@@ -144,7 +144,7 @@ Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material
         metallic_path.make_preferred();
     }
 
-    auto orm_builder = TextureBuilder()
+    auto orm_builder = ImageBuilder()
             .with_format(vk::Format::eR8G8B8A8Unorm)
             .with_swizzle({
                 ao_path.empty() ? SwizzleComponent::MAX : SwizzleComponent::R,
@@ -165,7 +165,7 @@ Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material
         orm_builder.as_separate_channels().from_paths({ao_path, roughness_path, metallic_path});
     }
 
-    orm = make_unique<Texture>(orm_builder.create(ctx));
+    orm = make_unique<Image>(orm_builder.create(ctx));
 }
 
 Model::Model(const RendererContext &ctx, const std::filesystem::path &path, const bool load_materials) {
@@ -302,8 +302,8 @@ vector<MeshDescription> Model::get_mesh_descriptions() const {
 }
 
 void Model::bind_buffers(const vk::raii::CommandBuffer &command_buffer) const {
-    command_buffer.bindVertexBuffers(0, **vertex_buffer, {0});
-    command_buffer.bindVertexBuffers(1, **instance_data_buffer, {0});
+    command_buffer.bindVertexBuffers(0, ***vertex_buffer, {0});
+    command_buffer.bindVertexBuffers(1, ***instance_data_buffer, {0});
     command_buffer.bindIndexBuffer(**index_buffer, 0, vk::IndexType::eUint32);
 }
 
@@ -384,7 +384,7 @@ void Model::create_blas(const RendererContext &ctx) {
     // scratch buffer creation
 
     const Buffer scratch_buffer{
-        **ctx.allocator,
+        ctx,
         build_sizes.buildScratchSize,
         vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer,
         vk::MemoryPropertyFlagBits::eDeviceLocal
@@ -397,7 +397,7 @@ void Model::create_blas(const RendererContext &ctx) {
     const uint32_t acceleration_structure_size = build_sizes.accelerationStructureSize;
 
     auto blas_buffer = make_unique<Buffer>(
-        **ctx.allocator,
+        ctx,
         acceleration_structure_size,
         vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR,
         vk::MemoryPropertyFlagBits::eDeviceLocal

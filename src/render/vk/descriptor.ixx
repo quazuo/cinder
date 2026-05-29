@@ -2,7 +2,7 @@ module;
 
 export module Cinder.Render.Vulkan:Descriptor;
 
-import vulkan_hpp;
+import vulkan;
 import std;
 
 import :Image;
@@ -18,7 +18,7 @@ struct DefaultDescriptorType {
 };
 
 template<>
-struct DefaultDescriptorType<Texture> {
+struct DefaultDescriptorType<Image> {
     static constexpr auto type = vk::DescriptorType::eCombinedImageSampler;
 };
 
@@ -39,7 +39,7 @@ struct DefaultDescriptorType<AccelerationStructure> {
 
 template<typename T>
 concept is_valid_descriptor_resource =
-            std::same_as<T, Texture>
+            std::same_as<T, Image>
             || std::same_as<T, Buffer>
             || std::same_as<T, BufferSlice>
             || std::same_as<T, AccelerationStructure>;
@@ -56,19 +56,19 @@ struct ResourcePack final {
     vector<ResourceSlot> resources;
 
     ResourcePack(const uint32_t descriptor_count, const vk::ShaderStageFlags scope,
-                 const vk::DescriptorType type          = DefaultDescriptorType<T>::type,
+                 const vk::DescriptorType type = DefaultDescriptorType<T>::type,
                  const vk::DescriptorBindingFlags flags = {})
         : scope(scope), type(type), flags(flags), descriptor_count(descriptor_count), resources(descriptor_count) {
     }
 
     ResourcePack(const T &resource, const vk::ShaderStageFlags scope,
-                 const vk::DescriptorType type          = DefaultDescriptorType<T>::type,
+                 const vk::DescriptorType type = DefaultDescriptorType<T>::type,
                  const vk::DescriptorBindingFlags flags = {})
         : scope(scope), type(type), flags(flags), descriptor_count(1), resources({resource}) {
     }
 
     ResourcePack(const std::initializer_list<ResourceSlot> resources, const vk::ShaderStageFlags scope,
-                 const vk::DescriptorType type          = DefaultDescriptorType<T>::type,
+                 const vk::DescriptorType type = DefaultDescriptorType<T>::type,
                  const vk::DescriptorBindingFlags flags = {})
         : scope(scope), type(type), flags(flags), descriptor_count(resources.size()), resources(resources) {
     }
@@ -190,7 +190,7 @@ public:
 
         if constexpr (std::is_same_v<ResourceType, Buffer> || std::is_same_v<ResourceType, BufferSlice>) {
             write.pBufferInfo = &std::get<vk::DescriptorBufferInfo>(info);
-        } else if constexpr (std::is_same_v<ResourceType, Texture>) {
+        } else if constexpr (std::is_same_v<ResourceType, Image>) {
             write.pImageInfo = &std::get<vk::DescriptorImageInfo>(info);
         } else if constexpr (std::is_same_v<ResourceType, AccelerationStructure>) {
             write.pNext = &std::get<vk::WriteDescriptorSetAccelerationStructureKHR>(info);
@@ -218,14 +218,14 @@ public:
                 .offset = resource.offset,
                 .range = resource.size,
             };
-        } else if constexpr (std::is_same_v<ResourceType, Texture>) {
+        } else if constexpr (std::is_same_v<ResourceType, Image>) {
             const auto image_layout = pack.type == vk::DescriptorType::eCombinedImageSampler
                                           ? vk::ImageLayout::eShaderReadOnlyOptimal
                                           : vk::ImageLayout::eGeneral;
 
             return vk::DescriptorImageInfo{
                 .sampler = *resource.get_sampler(),
-                .imageView = **resource.get_image().get_full_view(ctx),
+                .imageView = **resource.get_full_view(ctx),
                 .imageLayout = image_layout,
             };
         } else if constexpr (std::is_same_v<ResourceType, AccelerationStructure>) {
@@ -388,10 +388,10 @@ public:
                       vk::DeviceSize size, vk::DeviceSize offset = 0, uint32_t array_element = 0) -> DescriptorSet&;
 
     /**
-     * Queues an update to a given binding in this descriptor set, referencing a texture.
+     * Queues an update to a given binding in this descriptor set, referencing an image.
      * To actually push the update, `commitUpdates` must be called after all desired updates are queued.
      */
-    auto queue_update(const RendererContext &ctx, uint32_t binding, const Texture &texture,
+    auto queue_update(const RendererContext &ctx, uint32_t binding, Image &image,
                       vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler,
                       uint32_t array_element = 0) -> DescriptorSet&;
 
@@ -416,9 +416,9 @@ public:
                         vk::DeviceSize size, vk::DeviceSize offset = 0, uint32_t array_element = 0) const;
 
     /**
-     * Immediately updates a single binding in this descriptor set, referencing a texture.
+     * Immediately updates a single binding in this descriptor set, referencing an image.
      */
-    void update_binding(const RendererContext &ctx, uint32_t binding, const Texture &texture,
+    void update_binding(const RendererContext &ctx, uint32_t binding, Image &image,
                         vk::DescriptorType type = vk::DescriptorType::eCombinedImageSampler,
                         uint32_t array_element  = 0) const;
 

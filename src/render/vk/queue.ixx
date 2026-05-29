@@ -3,7 +3,7 @@ module;
 export module Cinder.Render.Vulkan:Queue;
 
 import std;
-import vulkan_hpp;
+import vulkan;
 
 import Cinder.Globals;
 import :Sync;

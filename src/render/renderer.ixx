@@ -3,10 +3,11 @@ module;
 export module Cinder.Render:Renderer;
 
 import vk_bootstrap;
-import vulkan_hpp;
+import vulkan;
 import std;
 import glfw;
 import cvulkan;
+import vulkan;
 
 import Cinder.Utils;
 import Cinder.Render.Graph;
@@ -58,7 +59,7 @@ class VulkanRenderer {
 
     // bindless resources
 
-    using BindlessDescriptorSet = FixedDescriptorSet<Texture, Texture, Buffer>;
+    using BindlessDescriptorSet = FixedDescriptorSet<Image, Image, Buffer>;
     unique_ptr<BindlessDescriptorSet> bindless_descriptor_set;
 
     static constexpr uint32_t BINDLESS_ARRAY_SIZE = 256;
@@ -210,9 +211,15 @@ public:
 private:
     void create_render_graph_resources();
 
-    auto create_graph_gfx_pipeline_builder(ResourceHandle pipeline_handle) const -> GraphicsPipelineBuilder;
-
-    auto create_graph_compute_pipeline_builder(ResourceHandle pipeline_handle) const -> ComputePipelineBuilder;
+    void create_resource(ResourceHandle handle, const VertexBufferResourceDesc& description);
+    void create_resource(ResourceHandle handle, const UniformBufferResourceDesc& description);
+    void create_resource(ResourceHandle handle, const ExternalTextureResourceDesc& description);
+    void create_resource(ResourceHandle handle, const TargetTextureResourceDesc& description);
+    void create_resource(ResourceHandle handle, const PersistentTextureResourceDesc& description);
+    void create_resource(ResourceHandle handle, const TransientTextureResourceDesc& description);
+    void create_resource(ResourceHandle handle, const ModelResourceDesc& description);
+    void create_resource(ResourceHandle handle, const GraphicsPipelineResourceDesc& description);
+    void create_resource(ResourceHandle handle, const ComputePipelineResourceDesc& description);
 
     void queue_set_update_with_handle(DescriptorSet &descriptor_set, ResourceHandle res_handle,
                                       uint32_t binding, uint32_t array_element = 0) const;

@@ -33,6 +33,8 @@ public:
 
     auto get_partitioned() const -> vector<vector<RenderNodeHandle>>;
 
+    auto get_all_used_resources() const -> vector<ResourceHandle>;
+
     auto add_node(const RenderNodeGraphics &node) -> RenderNodeHandle;
     auto add_node(const RenderNodeCompute &node)  -> RenderNodeHandle;
 

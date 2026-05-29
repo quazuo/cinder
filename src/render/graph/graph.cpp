@@ -75,6 +75,26 @@ vector<vector<RenderNodeHandle>> RenderGraph::get_partitioned() const {
     return partitions;
 }
 
+auto RenderGraph::get_all_used_resources() const -> vector<ResourceHandle> {
+    set<ResourceHandle> result;
+
+    for (const auto &node: nodes_ | std::views::values) {
+        if (node.is_graphics()) {
+            const auto& gfx_node = node.get_graphics();
+            result.insert_range(gfx_node.bound_resources);
+            result.insert_range(gfx_node.color_targets);
+            if (gfx_node.depth_target) result.emplace(*gfx_node.depth_target);
+
+        } else if (node.is_compute()) {
+            const auto& compute_node = node.get_compute();
+            result.insert_range(compute_node.bound_read_resources);
+            result.insert_range(compute_node.bound_write_resources);
+        }
+    }
+
+    return vector(result.begin(), result.end());
+}
+
 RenderNodeHandle RenderGraph::add_node(const RenderNodeGraphics &node) {
     const auto new_handle = RenderNodeHandle::get_new();
     nodes_.emplace(new_handle, node);
@@ -91,9 +111,9 @@ RenderNodeHandle RenderGraph::add_node(const RenderNodeGraphics &node) {
     }
 
     for (const auto& res: new_targets_set) {
-        if (!target_tex_resources_.contains(res)) {
-            Logger::error("invalid render node: resource with invalid type specified as target for node <{}>", node.name);
-        }
+        // if (!target_tex_resources_.contains(res)) {
+        //     Logger::error("invalid render node: resource with invalid type specified as target for node <{}>", node.name);
+        // }
 
         produced_resources.emplace(res);
     }

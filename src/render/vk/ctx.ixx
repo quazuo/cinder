@@ -3,7 +3,7 @@ module;
 export module Cinder.Render.Vulkan:Context;
 
 import vk_mem_alloc;
-import vulkan_hpp;
+import vulkan;
 import std;
 import glfw;
 

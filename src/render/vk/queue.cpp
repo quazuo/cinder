@@ -2,7 +2,7 @@ module;
 
 module Cinder.Render.Vulkan;
 
-import vulkan_hpp;
+import vulkan;
 
 import :Context;
 

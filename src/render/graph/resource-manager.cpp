@@ -29,7 +29,7 @@ ResourceManager::ResourceManager(
     }
 
     for (uint32_t i = 0; i < MAX_RESOURCE_COUNT; i++) {
-        free_resource_handles.push(i);
+        free_resource_handles.push(ResourceHandle::get_new());
     }
 
     for (uint32_t i = 0; i < MAX_MATERIAL_COUNT; i++) {
@@ -42,7 +42,7 @@ void ResourceManager::clear_removal_queue() {
     queued_for_removal_resources[renderer_ctx.get().current_frame_idx].clear();
 }
 
-void ResourceManager::add_model_materials(const Model& model) {
+void ResourceManager::add_model_materials(ResourceHandle handle, const Model& model) {
     vector<ModelMaterialHandle> material_handles;
 
     for (size_t i = 0; i < model.get_materials().size(); i++) {
@@ -77,10 +77,10 @@ void ResourceManager::recreate(const ResourceHandle handle) {
     };
 
     switch (handle_to_kind_mapping.at(handle)) {
-        case ResourceKind::TEXTURE:
-            removal_queue.emplace_back(std::move(textures.extract(handle).mapped()));
-            if (!texture_builders.contains(handle)) error_missing_builder();
-            textures.emplace(handle, texture_builders.at(handle).create(renderer_ctx.get()));
+        case ResourceKind::IMAGE:
+            removal_queue.emplace_back(std::move(images.extract(handle).mapped()));
+            if (!image_builders.contains(handle)) error_missing_builder();
+            images.emplace(handle, image_builders.at(handle).create(renderer_ctx.get()));
             break;
         case ResourceKind::GRAPHICS_PIPELINE:
             removal_queue.emplace_back(std::move(graphics_pipelines.extract(handle).mapped()));

@@ -4,7 +4,7 @@ export module Cinder.Render.Gui;
 
 import std;
 import imgui;
-import vulkan_hpp;
+import vulkan;
 import glfw;
 import legit_profiler;
 

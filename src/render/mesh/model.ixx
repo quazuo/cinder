@@ -26,9 +26,9 @@ struct MeshDescription {
 };
 
 struct Material {
-    unique_ptr<Texture> base_color;
-    unique_ptr<Texture> normal;
-    unique_ptr<Texture> orm;
+    unique_ptr<Image> base_color;
+    unique_ptr<Image> normal;
+    unique_ptr<Image> orm;
 
     Material() = default;
 

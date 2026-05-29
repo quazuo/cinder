@@ -6,4 +6,5 @@ export import :InputManager;
 export import :Logger;
 export import :Spirv;
 export import :UniqueHandle;
+export import :EnumMap;
 

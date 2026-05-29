@@ -20,6 +20,10 @@ export {
 
     using ::aiTextureType_BASE_COLOR;
     using ::aiTextureType_NORMALS;
+    using ::aiTextureType_AMBIENT_OCCLUSION;
+    using ::aiTextureType_DIFFUSE_ROUGHNESS;
+    using ::aiTextureType_METALNESS;
+    using ::aiTextureType_NORMAL_CAMERA;
 
     using ::aiProcess_RemoveRedundantMaterials;
     using ::aiProcess_FindInstances;

@@ -7,7 +7,7 @@ module;
 export module Cinder.Render.Vulkan:Image;
 
 import vk_mem_alloc;
-import vulkan_hpp;
+import vulkan;
 import std;
 
 import :Buffer;
@@ -49,7 +49,7 @@ struct std::hash<zrx::ViewParams> {
 };
 
 export namespace zrx {
-class TextureBuilder;
+class ImageBuilder;
 
 /**
  * Abstraction over a Vulkan image, making it easier to manage by hiding all the Vulkan API calls.
@@ -57,45 +57,51 @@ class TextureBuilder;
  */
 class Image {
     vk::raii::Image image;
-    shared_ptr<vma::Allocation> allocation;
+    shared_ptr<vma::raii::Allocation> allocation;
 
     vk::Extent3D extent;
     vk::Format format;
     uint32_t mip_level_count;
     uint32_t layer_count;
     vk::ImageAspectFlags aspect_mask;
+    bool is_cubemap;
 
-    std::unordered_map<ViewParams, shared_ptr<vk::raii::ImageView> > cached_views;
+    mutable std::unordered_map<ViewParams, shared_ptr<vk::raii::ImageView> > cached_views;
+
+    optional<vk::raii::Sampler> sampler;
 
 public:
     explicit Image(const RendererContext &ctx, const vk::ImageCreateInfo &image_info,
-                   vk::ImageAspectFlags aspect, shared_ptr<vma::Allocation>&& allocation);
+                   vk::ImageAspectFlags aspect, shared_ptr<vma::raii::Allocation>&& allocation);
+
+    explicit Image(const RendererContext &ctx, const vk::ImageCreateInfo &image_info,
+                   vk::ImageAspectFlags aspect, vk::MemoryPropertyFlags properties);
 
     /**
      * Returns a raw handle to the actual Vulkan image.
      * @return Handle to the image.
      */
-    const auto operator*() const -> vk::raii::Image & { return image; }
+    auto operator*() const -> const vk::raii::Image & { return image; }
 
     /**
      * Returns an image view containing all mip levels and all layers of this image.
      */
-    auto get_full_view(const RendererContext &ctx) -> shared_ptr<vk::raii::ImageView>;
+    auto get_full_view(const RendererContext &ctx) const -> shared_ptr<vk::raii::ImageView>;
 
     /**
      * Returns an image view containing a single mip level and all layers of this image.
      */
-    auto get_mip_view(const RendererContext &ctx, uint32_t mip_level) -> shared_ptr<vk::raii::ImageView>;
+    auto get_mip_view(const RendererContext &ctx, uint32_t mip_level) const -> shared_ptr<vk::raii::ImageView>;
 
     /**
      * Returns an image view containing all mip levels and a single specified layer of this image.
      */
-    auto get_layer_view(const RendererContext &ctx, uint32_t layer) -> shared_ptr<vk::raii::ImageView>;
+    auto get_layer_view(const RendererContext &ctx, uint32_t layer) const -> shared_ptr<vk::raii::ImageView>;
 
     /**
      * Returns an image view containing a single mip level and a single specified layer of this image.
      */
-    auto get_layer_mip_view(const RendererContext &ctx, uint32_t layer, uint32_t mip_level) -> shared_ptr<vk::raii::ImageView>;
+    auto get_layer_mip_view(const RendererContext &ctx, uint32_t layer, uint32_t mip_level) const -> shared_ptr<vk::raii::ImageView>;
 
     auto get_extent() const -> vk::Extent3D { return extent; }
 
@@ -104,6 +110,14 @@ public:
     auto get_format() const -> vk::Format { return format; }
 
     auto get_mip_levels() const -> uint32_t { return mip_level_count; }
+
+    auto get_layer_count() const -> uint32_t { return layer_count; }
+
+    auto has_sampler() const -> bool { return sampler.has_value(); }
+
+    auto get_sampler() const -> const vk::raii::Sampler & { return *sampler; }
+
+    void attach_sampler(vk::raii::Sampler&& s) { sampler = std::move(s); }
 
     /**
      * Records commands that copy the contents of a given buffer to this image.
@@ -125,34 +139,14 @@ public:
     void transition_layout(vk::ImageLayout old_layout, vk::ImageLayout new_layout,
                            vk::ImageSubresourceRange range, const vk::raii::CommandBuffer &command_buffer) const;
 
+    void generate_mipmaps(const RendererContext &ctx, vk::ImageLayout final_layout, const vk::raii::CommandBuffer& command_buffer) const;
+
 private:
     /**
      * Checks if a given view is cached already and if so, returns it without creating a new one.
      * Otherwise, creates the view and caches it for later.
      */
-    auto get_cached_view(const RendererContext &ctx, ViewParams params) -> shared_ptr<vk::raii::ImageView>;
-};
-
-class Texture {
-    Image image;
-    optional<vk::raii::Sampler> sampler;
-
-    friend TextureBuilder;
-
-    Texture(Image&& image) : image(image) {}
-
-    Texture(Image&& image, vk::raii::Sampler&& sampler) : image(image), sampler(sampler) {}
-
-public:
-    auto get_image() const -> Image & { return *image; }
-
-    auto get_sampler() const -> const vk::raii::Sampler & { return *sampler; }
-
-    auto get_mip_levels() const -> uint32_t { return image->get_mip_levels(); }
-
-    auto get_format() const -> vk::Format { return image->get_format(); }
-
-    void generate_mipmaps(const RendererContext &ctx, vk::ImageLayout final_layout, const vk::raii::CommandBuffer& command_buffer) const;
+    auto get_cached_view(const RendererContext &ctx, ViewParams params) const -> shared_ptr<vk::raii::ImageView>;
 };
 
 enum class SwizzleComponent {
@@ -175,36 +169,36 @@ constexpr SwizzleDesc default_swizzle = {
     SwizzleComponent::A
 };
 
-struct TextureOverrides {
+struct ImageOverrides {
     optional<vk::Filter>            mag_filter;
     optional<vk::Filter>            min_filter;
     optional<vk::SamplerMipmapMode> mipmap_mode;
     optional<float>                 mip_lod_bias;
 };
 
-enum class TextureFlags : uint32_t {
+enum class ImageFlags : uint32_t {
     CUBEMAP    = 1 << 0,
     HDR        = 1 << 1,
     NO_MIPMAPS = 1 << 2,
 };
 
 template <>
-struct enable_bitmask_operators<TextureFlags> : std::true_type {};
+struct enable_bitmask_operators<ImageFlags> : std::true_type {};
 
 /**
  * Builder used to streamline texture creation due to a huge amount of different parameters.
  * Currently only some specific scenarios are supported and some parameter combinations
  * might not be implemented, due to them not being needed at the moment.
  */
-class TextureBuilder {
-    TextureOverrides default_config = {
+class ImageBuilder {
+    ImageOverrides default_config = {
         .mag_filter   = vk::Filter::eLinear,
         .min_filter   = vk::Filter::eLinear,
         .mipmap_mode  = vk::SamplerMipmapMode::eLinear,
         .mip_lod_bias = 0.0f,
     };
 
-    TextureOverrides config;
+    ImageOverrides config;
 
     optional<vk::Format> format{};
     vk::ImageLayout layout = vk::ImageLayout::eShaderReadOnlyOptimal;
@@ -212,7 +206,7 @@ class TextureBuilder {
                                 | vk::ImageUsageFlagBits::eTransferDst
                                 | vk::ImageUsageFlagBits::eSampled;
 
-    TextureFlags tex_flags{};
+    ImageFlags tex_flags{};
     bool is_separate_channels = false;
     bool is_uninitialized = false;
     bool is_window_sized = false;
@@ -231,54 +225,54 @@ class TextureBuilder {
 
     optional<shared_ptr<vma::raii::Allocation>> allocation;
 
-    struct LoadedTextureData {
+    struct LoadedImageData {
         vector<void *> sources;
         vk::Extent3D extent;
         uint32_t layer_count;
     };
 
-    optional<LoadedTextureData> loaded_texture_data;
+    optional<LoadedImageData> loaded_texture_data;
 
     bool is_locked = false;
 
 public:
-    auto with_format(vk::Format f)                              -> TextureBuilder&;
-    auto with_layout(vk::ImageLayout l)                         -> TextureBuilder&;
-    auto with_usage(vk::ImageUsageFlags u)                      -> TextureBuilder&;
-    auto with_config(const TextureOverrides &c)                 -> TextureBuilder&;
-    auto with_mag_filter(vk::Filter f)                          -> TextureBuilder&;
-    auto with_min_filter(vk::Filter f)                          -> TextureBuilder&;
-    auto with_mipmap_mode(vk::SamplerMipmapMode m)              -> TextureBuilder&;
-    auto with_mip_lod_bias(float lod_bias)                      -> TextureBuilder&;
-    auto with_flags(TextureFlags flags)                         -> TextureBuilder&;
-    auto as_separate_channels()                                 -> TextureBuilder&;
-    auto with_sampler_address_mode(vk::SamplerAddressMode mode) -> TextureBuilder&;
-    auto as_uninitialized()                                     -> TextureBuilder&;
-    auto with_extent(vk::Extent3D extent)                       -> TextureBuilder&;
-    auto with_window_size()                                     -> TextureBuilder&;
-    auto with_swizzle(const SwizzleDesc &sw)                    -> TextureBuilder&;
-    auto with_name(const char *n)                               -> TextureBuilder&;
-    auto with_allocation(shared_ptr<vma::raii::Allocation> a)   -> TextureBuilder&;
+    auto with_format(vk::Format f)                              -> ImageBuilder&;
+    auto with_layout(vk::ImageLayout l)                         -> ImageBuilder&;
+    auto with_usage(vk::ImageUsageFlags u)                      -> ImageBuilder&;
+    auto with_config(const ImageOverrides &c)                 -> ImageBuilder&;
+    auto with_mag_filter(vk::Filter f)                          -> ImageBuilder&;
+    auto with_min_filter(vk::Filter f)                          -> ImageBuilder&;
+    auto with_mipmap_mode(vk::SamplerMipmapMode m)              -> ImageBuilder&;
+    auto with_mip_lod_bias(float lod_bias)                      -> ImageBuilder&;
+    auto with_flags(ImageFlags flags)                         -> ImageBuilder&;
+    auto as_separate_channels()                                 -> ImageBuilder&;
+    auto with_sampler_address_mode(vk::SamplerAddressMode mode) -> ImageBuilder&;
+    auto as_uninitialized()                                     -> ImageBuilder&;
+    auto with_extent(vk::Extent3D extent)                       -> ImageBuilder&;
+    auto with_window_size()                                     -> ImageBuilder&;
+    auto with_swizzle(const SwizzleDesc &sw)                    -> ImageBuilder&;
+    auto with_name(const char *n)                               -> ImageBuilder&;
+    auto with_allocation(shared_ptr<vma::raii::Allocation> a)   -> ImageBuilder&;
 
     /**
      * Designates the texture's contents to be initialized with data stored in a given file.
      * This requires 6 different paths for cubemap textures.
      */
-    auto from_paths(const vector<std::filesystem::path> &sources) -> TextureBuilder&;
+    auto from_paths(const vector<std::filesystem::path> &sources) -> ImageBuilder&;
 
     /**
      * Designates the texture's contents to be initialized with data stored in memory.
      */
-    auto from_memory(void *ptr, vk::Extent3D extent) -> TextureBuilder&;
+    auto from_memory(void *ptr, vk::Extent3D extent) -> ImageBuilder&;
 
     /**
      * Designates the texture's contents to be initialized with static data defined using `with_swizzle`.
      */
-    auto from_swizzle_fill(vk::Extent3D extent) -> TextureBuilder&;
+    auto from_swizzle_fill(vk::Extent3D extent) -> ImageBuilder&;
 
-    auto get_image_create_info() const -> vk::ImageCreateInfo;
+    auto get_image_create_info(const RendererContext& ctx) -> vk::ImageCreateInfo;
 
-    auto create(const RendererContext &ctx) const -> Texture;
+    auto create(const RendererContext &ctx) -> Image;
 
 private:
     void check_params() const;
@@ -287,15 +281,15 @@ private:
 
     auto get_layer_count() const -> uint32_t;
 
-    void load_texture_data();
+    void load_image_data(const RendererContext& ctx);
 
-    auto load_from_paths() const -> LoadedTextureData;
+    auto load_from_paths() const -> LoadedImageData;
 
-    auto load_from_memory() const -> LoadedTextureData;
+    auto load_from_memory() const -> LoadedImageData;
 
-    auto load_from_swizzle_fill(vk::Extent3D extent) const -> LoadedTextureData;
+    auto load_from_swizzle_fill(vk::Extent3D extent) const -> LoadedImageData;
 
-    auto make_staging_buffer(const RendererContext &ctx, const LoadedTextureData &data) const -> Buffer;
+    auto make_staging_buffer(const RendererContext &ctx, const LoadedImageData &data) const -> Buffer;
 
     static auto merge_channels(const vector<void *> &channels_data, size_t texture_size, size_t component_count) -> void*;
 
@@ -322,7 +316,7 @@ public:
 
     RenderTarget(shared_ptr<vk::raii::ImageView> view, shared_ptr<vk::raii::ImageView> resolve_view, vk::Format format);
 
-    RenderTarget(const RendererContext &ctx, const Texture &texture);
+    RenderTarget(const RendererContext &ctx, Image &image);
 
     auto operator*() const -> const vk::raii::ImageView& { return *view; }
 

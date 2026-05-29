@@ -12,7 +12,7 @@ import Cinder.Globals;
 import Cinder.Utils;
 
 namespace zrx {
-#define NON_PIPELINE_RESOURCE_TYPES Texture, Buffer, Model
+#define NON_PIPELINE_RESOURCE_TYPES Image, Buffer, Model
 #define PIPELINE_RESOURCE_TYPES GraphicsPipeline, ComputePipeline
 #define RESOURCE_TYPES NON_PIPELINE_RESOURCE_TYPES, PIPELINE_RESOURCE_TYPES
 
@@ -30,7 +30,7 @@ template <typename T>
 concept is_pipeline_type = is_one_of<T, PIPELINE_RESOURCE_TYPES>;
 
 enum class ResourceKind {
-    TEXTURE,
+    IMAGE,
     BUFFER,
     MODEL,
     GRAPHICS_PIPELINE,
@@ -41,8 +41,8 @@ template <typename T>
 struct ResourceTypeToKind;
 
 template <>
-struct ResourceTypeToKind<Texture> {
-    static constexpr auto value = ResourceKind::TEXTURE;
+struct ResourceTypeToKind<Image> {
+    static constexpr auto value = ResourceKind::IMAGE;
 };
 
 template <>
@@ -95,7 +95,7 @@ private:
 
     // todo - replace by vectors??
     map<ResourceHandle, Buffer> buffers;
-    map<ResourceHandle, Texture> textures;
+    map<ResourceHandle, Image> images;
     map<ResourceHandle, Model> models;
     map<ResourceHandle, GraphicsPipeline> graphics_pipelines;
     map<ResourceHandle, ComputePipeline> compute_pipelines;
@@ -104,7 +104,7 @@ private:
     map<ResourceHandle, vector<ModelMaterialHandle>> models_to_materials;
     map<ModelMaterialHandle, MaterialTextureHandles> materials;
 
-    map<ResourceHandle, TextureBuilder> texture_builders;
+    map<ResourceHandle, ImageBuilder> image_builders;
     map<ResourceHandle, GraphicsPipelineBuilder> graphics_pipeline_builders;
     map<ResourceHandle, ComputePipelineBuilder> compute_pipeline_builders;
 
@@ -149,7 +149,8 @@ public:
 
     template <typename T>
         requires is_builder_type<T>
-    auto attach_builder(const ResourceHandle& handle, T&& builder) {
+    auto attach_builder(const RendererContext& ctx, const ResourceHandle& handle, T&& builder) {
+        attach_raw(handle, builder.create(ctx));
         get_builder_map<T>().emplace(handle, std::move(builder));
     }
 
@@ -161,14 +162,17 @@ public:
         descriptions.emplace(handle, desc);
 
         if constexpr (is_texture_resource_desc_type<T>) {
-            handle_to_kind_mapping.emplace(handle, ResourceKind::TEXTURE);
+            handle_to_kind_mapping.emplace(handle, ResourceKind::IMAGE);
         } else if constexpr (is_buffer_resource_desc_type<T>) {
             handle_to_kind_mapping.emplace(handle, ResourceKind::BUFFER);
         } else if constexpr (is_model_resource_desc_type<T>) {
             handle_to_kind_mapping.emplace(handle, ResourceKind::MODEL);
         }
 
-        resource_names.emplace(handle, desc.name);
+        if constexpr (!is_pipeline_resource_desc_type<T>) {
+            resource_names.emplace(handle, desc.name);
+        }
+
         return handle;
     }
 
@@ -183,6 +187,8 @@ public:
     auto get_name(ResourceHandle handle) const -> const std::string&;
 
     auto get_bindless_handle(const ResourceHandle handle) const -> BindlessHandle { return bindless_handle_mapping.at(handle); }
+
+    auto get_desc_variant(const ResourceHandle handle) const -> const ResourceDescVariant& { return descriptions.at(handle); }
 
     template <typename T>
         requires is_resource_type<T>
@@ -219,8 +225,8 @@ private:
     auto get_resource_map() const -> const map<ResourceHandle, T>& {
         if constexpr (std::is_same_v<T, Buffer>) {
             return buffers;
-        } else if constexpr (std::is_same_v<T, Texture>) {
-            return textures;
+        } else if constexpr (std::is_same_v<T, Image>) {
+            return images;
         } else if constexpr (std::is_same_v<T, Model>) {
             return models;
         } else if constexpr (std::is_same_v<T, GraphicsPipeline>) {
@@ -245,8 +251,8 @@ private:
     template <typename T>
         requires is_builder_type<T>
     auto get_builder_map() const -> const map<ResourceHandle, T>& {
-        if constexpr (std::is_same_v<T, TextureBuilder>) {
-            return texture_builders;
+        if constexpr (std::is_same_v<T, ImageBuilder>) {
+            return image_builders;
         } else if constexpr (std::is_same_v<T, GraphicsPipelineBuilder>) {
             return graphics_pipeline_builders;
         } else if constexpr (std::is_same_v<T, ComputePipelineBuilder>) {

@@ -3,7 +3,7 @@ module;
 module Cinder.Render.Vulkan;
 
 import std;
-import vulkan_hpp;
+import vulkan;
 
 import :Context;
 import :Image;
@@ -64,11 +64,11 @@ DescriptorSet &DescriptorSet::queue_update(const uint32_t binding, const Buffer 
     return *this;
 }
 
-DescriptorSet &DescriptorSet::queue_update(const RendererContext &ctx, const uint32_t binding, const Texture &texture,
+DescriptorSet &DescriptorSet::queue_update(const RendererContext &ctx, const uint32_t binding, Image &image,
                                            const vk::DescriptorType type, const uint32_t array_element) {
     const vk::DescriptorImageInfo image_info{
-        .sampler = *texture.get_sampler(),
-        .imageView = **texture.get_image().get_full_view(ctx),
+        .sampler = *image.get_sampler(),
+        .imageView = **image.get_full_view(ctx),
         .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
     };
 
@@ -167,11 +167,11 @@ void DescriptorSet::update_binding(const RendererContext &ctx, const uint32_t bi
     ctx.device->updateDescriptorSets(write, nullptr);
 }
 
-void DescriptorSet::update_binding(const RendererContext &ctx, const uint32_t binding, const Texture &texture,
+void DescriptorSet::update_binding(const RendererContext &ctx, const uint32_t binding, Image &image,
                                    const vk::DescriptorType type, const uint32_t array_element) const {
     const vk::DescriptorImageInfo image_info{
-        .sampler = *texture.get_sampler(),
-        .imageView = **texture.get_image().get_full_view(ctx),
+        .sampler = *image.get_sampler(),
+        .imageView = **image.get_full_view(ctx),
         .imageLayout = vk::ImageLayout::eShaderReadOnlyOptimal,
     };
 

@@ -126,6 +126,8 @@ include_directories(
         deps/imGuIZMO.quat/
         deps/LegitProfiler/
         deps/pix/Include/
+        deps/VulkanMemoryAllocator-Hpp/include
+        deps/VulkanMemoryAllocator-Hpp/VulkanMemoryAllocator/include
         .
 )
 
@@ -178,6 +180,7 @@ target_sources(cinder
                 ${CINDER_MODULES}
                 ${DEPS_CUSTOM_MODULES}
                 "deps/glm/glm/glm.cppm"
+                "deps/VulkanMemoryAllocator-Hpp/include/vk_mem_alloc.cppm"
         PRIVATE
                 ${CINDER_SRCS}
                 ${ENKITS_SRCS}

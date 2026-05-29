@@ -8,7 +8,13 @@ import imfilebrowser;
 import std;
 import glfw;
 import glm;
-import vulkan_hpp;
+import vulkan;
+
+#include <vulkan/vulkan_hpp_macros.hpp>
+
+#if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1
+VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
+#endif
 
 import Cinder.Utils;
 import Cinder.Render;
@@ -17,12 +23,6 @@ import Cinder.Render.Vulkan;
 import Cinder.Render.Gui;
 import Cinder.Render.Mesh;
 import Cinder.Globals;
-
-#include <vulkan/vulkan_hpp_macros.hpp>
-
-#if VULKAN_HPP_DISPATCH_LOADER_DYNAMIC == 1
-VULKAN_HPP_DEFAULT_DISPATCH_LOADER_DYNAMIC_STORAGE
-#endif
 
 export namespace zrx {
 class Engine {
@@ -65,6 +65,38 @@ class Engine {
     bool use_ssao              = false;
     bool should_capture_skybox = true;
     bool do_blur               = false;
+
+    enum RenderingResource {
+        Model_Scene,
+        VB_Skybox,
+        VB_ScreenSpaceQuad,
+        UBO_General,
+        UBO_Materials,
+        Tex_Envmap,
+        Tex_Skybox,
+        Tex_GNormal,
+        Tex_GPos,
+        Tex_GDepth,
+        Tex_SSAO,
+        Tex_Shadowmap,
+        Tex_BasePass,
+        Tex_PostBlurX,
+        Tex_PostBlurY,
+        Tex_PostGui,
+        Pipe_SsQuad,
+        Pipe_CubeCapture,
+        Pipe_Shadowmap,
+        Pipe_Prepass,
+        Pipe_SSAO,
+        Pipe_Skybox,
+        Pipe_Main,
+        Pipe_BlurX,
+        Pipe_BlurY,
+        Pipe_Final,
+        Count
+    };
+
+    enum_map<RenderingResource, ResourceHandle> render_resources;
 
 public:
     Engine();

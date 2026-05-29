@@ -3,7 +3,7 @@ module;
 export module Cinder.Render.Graph:Resource;
 
 import std;
-import vulkan_hpp;
+import vulkan;
 
 import Cinder.Render.Vulkan;
 import Cinder.Render.Mesh;
@@ -37,8 +37,8 @@ struct ExternalTextureResourceDesc {
     string name{};
     vector<std::filesystem::path> paths{};
     vk::Format format{};
-    TextureOverrides overrides{};
-    TextureFlags flags{};
+    ImageOverrides overrides{};
+    ImageFlags flags{};
     optional<SwizzleDesc> swizzle{};
 };
 
@@ -46,24 +46,24 @@ struct TargetTextureResourceDesc {
     string name{};
     vk::Format format{};
     vk::Extent2D extent = {0, 0}; // {0, 0} means we're using the swapchain image's extent
-    TextureOverrides overrides{};
-    TextureFlags flags{};
+    ImageOverrides overrides{};
+    ImageFlags flags{};
 };
 
 struct PersistentTextureResourceDesc {
     string name{};
     vk::Format format{};
     vk::Extent2D extent = {0, 0}; // {0, 0} means we're using the swapchain image's extent
-    TextureOverrides overrides{};
-    TextureFlags flags{};
+    ImageOverrides overrides{};
+    ImageFlags flags{};
 };
 
 struct TransientTextureResourceDesc {
     string name{};
     vk::Format format{};
     vk::Extent2D extent = {0, 0}; // {0, 0} means we're using the swapchain image's extent
-    TextureOverrides overrides{};
-    TextureFlags flags{};
+    ImageOverrides overrides{};
+    ImageFlags flags{};
 };
 
 struct ModelResourceDesc {
@@ -72,58 +72,11 @@ struct ModelResourceDesc {
     bool has_materials = false;
 };
 
-#define BUFFER_RESOURCE_DESC_TYPES  \
-    VertexBufferResourceDesc,       \
-    UniformBufferResourceDesc
-
-#define TEXTURE_RESOURCE_DESC_TYPES \
-    ExternalTextureResourceDesc,    \
-    TargetTextureResourceDesc,      \
-    PersistentTextureResourceDesc,  \
-    TransientTextureResourceDesc
-
-#define MODEL_RESOURCE_DESC_TYPES   \
-    ModelResourceDesc
-
-#define ALL_RESOURCE_DESC_TYPES     \
-    BUFFER_RESOURCE_DESC_TYPES,     \
-    TEXTURE_RESOURCE_DESC_TYPES,    \
-    MODEL_RESOURCE_DESC_TYPES
-
-using BufferResourceDescVariant  = variant<BUFFER_RESOURCE_DESC_TYPES>;
-using TextureResourceDescVariant = variant<TEXTURE_RESOURCE_DESC_TYPES>;
-using ModelResourceDescVariant   = variant<MODEL_RESOURCE_DESC_TYPES>;
-using ResourceDescVariant     = variant<ALL_RESOURCE_DESC_TYPES>;
-
-template <typename T>
-concept is_buffer_resource_desc_type = is_one_of<T, BUFFER_RESOURCE_DESC_TYPES>;
-
-template <typename T>
-concept is_texture_resource_desc_type = is_one_of<T, TEXTURE_RESOURCE_DESC_TYPES>;
-
-template <typename T>
-concept is_model_resource_desc_type = is_one_of<T, MODEL_RESOURCE_DESC_TYPES>;
-
-template <typename T>
-concept is_resource_desc_type = std::holds_alternative<
-    is_buffer_resource_desc_type<T>,
-    is_texture_resource_desc_type<T>,
-    is_model_resource_desc_type<T>>;
-
 // basically same purpose as std::monostate but with a specific name
 struct FinalImageFormatPlaceholder {};
-
 constexpr auto FINAL_FORMAT = FinalImageFormatPlaceholder();
 
-enum class ShaderBindingType {
-    Empty,
-    SampledTexture,
-    StorageTexture,
-    UniformBuffer,
-    StorageBuffer,
-};
-
-struct GraphicsPipelineDesc {
+struct GraphicsPipelineResourceDesc {
     using AttachmentFormat = std::variant<vk::Format, FinalImageFormatPlaceholder>;
 
     std::filesystem::path vertex_path;
@@ -143,10 +96,65 @@ struct GraphicsPipelineDesc {
     } custom_properties;
 };
 
-struct ComputePipelineDesc {
+struct ComputePipelineResourceDesc {
     std::filesystem::path path;
 
     struct CustomProperties {
     } custom_properties;
+};
+
+#define BUFFER_RESOURCE_DESC_TYPES      \
+    VertexBufferResourceDesc,           \
+    UniformBufferResourceDesc
+
+#define TEXTURE_RESOURCE_DESC_TYPES     \
+    ExternalTextureResourceDesc,        \
+    TargetTextureResourceDesc,          \
+    PersistentTextureResourceDesc,      \
+    TransientTextureResourceDesc
+
+#define MODEL_RESOURCE_DESC_TYPES       \
+    ModelResourceDesc
+
+#define PIPELINE_RESOURCE_DESC_TYPES    \
+    GraphicsPipelineResourceDesc,       \
+    ComputePipelineResourceDesc
+
+#define ALL_RESOURCE_DESC_TYPES         \
+    BUFFER_RESOURCE_DESC_TYPES,         \
+    TEXTURE_RESOURCE_DESC_TYPES,        \
+    MODEL_RESOURCE_DESC_TYPES,          \
+    PIPELINE_RESOURCE_DESC_TYPES
+
+using BufferResourceDescVariant   = variant<BUFFER_RESOURCE_DESC_TYPES>;
+using TextureResourceDescVariant  = variant<TEXTURE_RESOURCE_DESC_TYPES>;
+using ModelResourceDescVariant    = variant<MODEL_RESOURCE_DESC_TYPES>;
+using PipelineResourceDescVariant = variant<PIPELINE_RESOURCE_DESC_TYPES>;
+using ResourceDescVariant         = variant<ALL_RESOURCE_DESC_TYPES>;
+
+template <typename T>
+concept is_buffer_resource_desc_type = is_one_of<T, BUFFER_RESOURCE_DESC_TYPES>;
+
+template <typename T>
+concept is_texture_resource_desc_type = is_one_of<T, TEXTURE_RESOURCE_DESC_TYPES>;
+
+template <typename T>
+concept is_model_resource_desc_type = is_one_of<T, MODEL_RESOURCE_DESC_TYPES>;
+
+template <typename T>
+concept is_pipeline_resource_desc_type = is_one_of<T, PIPELINE_RESOURCE_DESC_TYPES>;
+
+template <typename T>
+concept is_resource_desc_type = is_buffer_resource_desc_type<T>
+                                || is_texture_resource_desc_type<T>
+                                || is_model_resource_desc_type<T>
+                                || is_pipeline_resource_desc_type<T>;
+
+enum class ShaderBindingType {
+    Empty,
+    SampledTexture,
+    StorageTexture,
+    UniformBuffer,
+    StorageBuffer,
 };
 } // zrx

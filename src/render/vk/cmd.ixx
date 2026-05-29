@@ -2,7 +2,7 @@ module;
 
 export module Cinder.Render.Vulkan:Command;
 
-import vulkan_hpp;
+import vulkan;
 import std;
 
 import Cinder.Globals;

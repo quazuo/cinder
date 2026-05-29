@@ -8,7 +8,7 @@ import imfilebrowser;
 import std;
 import glfw;
 import glm;
-import vulkan_hpp;
+import vulkan;
 
 import Cinder.Utils;
 import Cinder.Render;
@@ -76,22 +76,23 @@ void Engine::tick() {
 
 void Engine::register_render_graph_resources() {
     auto& resource_manager = renderer.get_resource_manager();
+    auto& rr = render_resources;
 
     // ================== models and vertex buffers ==================
 
-    const auto scene_model = resource_manager.add_from_desc(ModelResourceDesc{
+    rr[Model_Scene] = resource_manager.add_from_desc(ModelResourceDesc{
         .name = "scene-model",
         .path = "../assets/example models/Sponza/Sponza.gltf",
         .has_materials = true,
     });
 
-    const auto skybox_vert_buf = resource_manager.add_from_desc(VertexBufferResourceDesc{
+    rr[VB_Skybox] = resource_manager.add_from_desc(VertexBufferResourceDesc{
         .name = "skybox-vb",
         .size = skybox_vertices.size() * sizeof(SkyboxVertex),
         .data = skybox_vertices.data()
     });
 
-    const auto ss_quad_vert_buf = resource_manager.add_from_desc(VertexBufferResourceDesc{
+    rr[VB_ScreenSpaceQuad] = resource_manager.add_from_desc(VertexBufferResourceDesc{
         .name = "ss-quad-vb",
         .size = screen_space_quad_vertices.size() * sizeof(ScreenSpaceQuadVertex),
         .data = screen_space_quad_vertices.data()
@@ -99,76 +100,76 @@ void Engine::register_render_graph_resources() {
 
     // ================== uniform buffers ==================
 
-    const auto general_ubo = resource_manager.add_from_desc(UniformBufferResourceDesc{
+    rr[UBO_General] = resource_manager.add_from_desc(UniformBufferResourceDesc{
         .name = "general-ubo",
         .size = sizeof(GraphicsUBO)
     });
 
-    renderer.add_frame_begin_action([=](const FrameBeginActionContext &fba_ctx) {
-        Buffer& buffer = fba_ctx.resource_manager.get().get<Buffer>(general_ubo);
+    renderer.add_frame_begin_action([&](const FrameBeginActionContext &fba_ctx) {
+        Buffer& buffer = fba_ctx.resource_manager.get().get<Buffer>(rr[UBO_General]);
         update_graphics_uniform_buffer(buffer);
     });
 
-    const auto material_ubo = resource_manager.add_from_desc(UniformBufferResourceDesc{
+    rr[UBO_Materials] = resource_manager.add_from_desc(UniformBufferResourceDesc{
         .name = "material-ubo",
         .size = sizeof(MaterialsUBO)
     });
 
-    renderer.add_frame_begin_action([=](const FrameBeginActionContext &fba_ctx) {
+    renderer.add_frame_begin_action([&](const FrameBeginActionContext &fba_ctx) {
         static bool has_been_done = false;
         if (!has_been_done) {
             auto& resource_manager = fba_ctx.resource_manager.get();
-            Buffer& material_ubo_buffer = resource_manager.get<Buffer>(material_ubo);
-            update_materials_uniform_buffer(material_ubo_buffer, scene_model, resource_manager);
+            Buffer& material_ubo_buffer = resource_manager.get<Buffer>(rr[UBO_Materials]);
+            update_materials_uniform_buffer(material_ubo_buffer, rr[Model_Scene], resource_manager);
             has_been_done = true;
         }
     });
 
     // ================== external textures ==================
 
-    const auto envmap_texture = resource_manager.add_from_desc(ExternalTextureResourceDesc{
+    rr[Tex_Envmap] = resource_manager.add_from_desc(ExternalTextureResourceDesc{
         .name = "envmap-texture",
         .paths = {"../assets/envmaps/vienna.hdr"},
         .format = vk::Format::eR32G32B32A32Sfloat,
-        .flags = TextureFlags::HDR
+        .flags = ImageFlags::HDR
     });
 
     // ================== render target textures ==================
 
     constexpr auto skybox_tex_format = vk::Format::eR8G8B8A8Srgb;
-    const auto skybox_texture = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_Skybox] = resource_manager.add_from_desc(TargetTextureResourceDesc{
         .name = "skybox-texture",
         .format = skybox_tex_format,
         .extent = {2048, 2048},
-        .flags = TextureFlags::CUBEMAP | TextureFlags::NO_MIPMAPS
+        .flags = ImageFlags::CUBEMAP | ImageFlags::NO_MIPMAPS
     });
 
     constexpr auto g_buffer_color_format = vk::Format::eR16G16B16A16Sfloat;
-    const auto g_buffer_normal = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_GNormal] = resource_manager.add_from_desc(TargetTextureResourceDesc{
         .name = "g-buffer-normal",
         .format = g_buffer_color_format,
     });
 
-    const auto g_buffer_pos = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_GPos] = resource_manager.add_from_desc(TargetTextureResourceDesc{
         .name = "g-buffer-pos",
         .format = g_buffer_color_format,
     });
 
     constexpr auto g_buffer_depth_format = vk::Format::eD32Sfloat;
-    const auto g_buffer_depth = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_GDepth] = resource_manager.add_from_desc(TargetTextureResourceDesc{
         .name = "g-buffer-depth",
         .format = g_buffer_depth_format,
-        .flags = TextureFlags::NO_MIPMAPS,
+        .flags = ImageFlags::NO_MIPMAPS,
     });
 
     constexpr auto ssao_tex_format = vk::Format::eR8G8B8A8Unorm;
-    const auto ssao_texture = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_SSAO] = resource_manager.add_from_desc(TargetTextureResourceDesc{
         .name = "ssao-texture",
         .format = ssao_tex_format,
     });
 
     constexpr auto shadowmap_tex_format = vk::Format::eD32Sfloat;
-    const auto shadowmap_texture = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_Shadowmap] = resource_manager.add_from_desc(TargetTextureResourceDesc{
         .name = "shadowmap-texture",
         .format = shadowmap_tex_format,
         .extent = {2048, 2048},
@@ -176,36 +177,36 @@ void Engine::register_render_graph_resources() {
             .mag_filter = vk::Filter::eNearest,
             .min_filter = vk::Filter::eNearest,
         },
-        .flags = TextureFlags::NO_MIPMAPS,
+        .flags = ImageFlags::NO_MIPMAPS,
     });
 
     constexpr auto final_no_gamma_format = vk::Format::eR8G8B8A8Unorm;
-    const auto base_pass_texture = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_BasePass] = resource_manager.add_from_desc(TargetTextureResourceDesc{
         .name = "base-pass-texture",
         .format = final_no_gamma_format,
-        .flags = TextureFlags::NO_MIPMAPS
+        .flags = ImageFlags::NO_MIPMAPS
     });
-    const auto post_blur_x_texture = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_PostBlurX] = resource_manager.add_from_desc(TargetTextureResourceDesc{
         .name = "post-blur-x-texture",
         .format = final_no_gamma_format,
-        .flags = TextureFlags::NO_MIPMAPS
+        .flags = ImageFlags::NO_MIPMAPS
     });
-    const auto post_blur_y_texture = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_PostBlurY] = resource_manager.add_from_desc(TargetTextureResourceDesc{
         .name = "post-blur-y-texture",
         .format = final_no_gamma_format,
-        .flags = TextureFlags::NO_MIPMAPS
+        .flags = ImageFlags::NO_MIPMAPS
     });
-    const auto post_gui_texture = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_PostGui] = resource_manager.add_from_desc(TargetTextureResourceDesc{
         .name = "post-gui-texture",
         .format = final_no_gamma_format,
-        .flags = TextureFlags::NO_MIPMAPS
+        .flags = ImageFlags::NO_MIPMAPS
     });
 
     // ================== shaders ==================
 
     renderer.set_shader_base_path("../shaders/obj/");
 
-    const auto ss_quad_depth_pipeline = resource_manager.add_pipeline(GraphicsPipelineDesc{
+    rr[Pipe_SsQuad] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
         .vertex_path = "ss-quad-depth-vert.spv",
         .fragment_path = "ss-quad-depth-frag.spv",
         .vertex_bindings = ScreenSpaceQuadVertex::get_binding_descriptions(),
@@ -213,7 +214,7 @@ void Engine::register_render_graph_resources() {
         .color_formats = { FINAL_FORMAT },
     });
 
-    const auto cubecap_pipeline = resource_manager.add_pipeline(GraphicsPipelineDesc{
+    rr[Pipe_CubeCapture] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
         .vertex_path = "sphere-cube-vert.spv",
         .fragment_path = "sphere-cube-frag.spv",
         .vertex_bindings = SkyboxVertex::get_binding_descriptions(),
@@ -224,7 +225,7 @@ void Engine::register_render_graph_resources() {
         }
     });
 
-    const auto shadowmap_pipeline = resource_manager.add_pipeline(GraphicsPipelineDesc{
+    rr[Pipe_Shadowmap] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
         .vertex_path = "shadowmap-vert.spv",
         .fragment_path = "shadowmap-frag.spv",
         .vertex_bindings = ModelVertex::get_binding_descriptions(),
@@ -232,7 +233,7 @@ void Engine::register_render_graph_resources() {
         .depth_format = shadowmap_tex_format
     });
 
-    const auto prepass_pipeline = resource_manager.add_pipeline(GraphicsPipelineDesc{
+    rr[Pipe_Prepass] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
         .vertex_path = "prepass-vert.spv",
         .fragment_path = "prepass-frag.spv",
         .vertex_bindings = ModelVertex::get_binding_descriptions(),
@@ -241,7 +242,7 @@ void Engine::register_render_graph_resources() {
         .depth_format = g_buffer_depth_format
     });
 
-    const auto ssao_pipeline = resource_manager.add_pipeline(GraphicsPipelineDesc{
+    rr[Pipe_SSAO] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
         .vertex_path = "ssao-vert.spv",
         .fragment_path = "ssao-frag.spv",
         .vertex_bindings = ScreenSpaceQuadVertex::get_binding_descriptions(),
@@ -249,7 +250,7 @@ void Engine::register_render_graph_resources() {
         .color_formats = {ssao_tex_format}
     });
 
-    const auto skybox_pipeline = resource_manager.add_pipeline(GraphicsPipelineDesc{
+    rr[Pipe_Skybox] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
         .vertex_path = "skybox-vert.spv",
         .fragment_path = "skybox-frag.spv",
         .vertex_bindings = SkyboxVertex::get_binding_descriptions(),
@@ -261,7 +262,7 @@ void Engine::register_render_graph_resources() {
         }
     });
 
-    const auto main_pipeline = resource_manager.add_pipeline(GraphicsPipelineDesc{
+    rr[Pipe_Main] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
         .vertex_path = "main-vert.spv",
         .fragment_path = "main-frag.spv",
         .vertex_bindings = ModelVertex::get_binding_descriptions(),
@@ -270,15 +271,15 @@ void Engine::register_render_graph_resources() {
         .depth_format = FINAL_FORMAT
     });
 
-    const auto blur_x_pipeline = resource_manager.add_pipeline(ComputePipelineDesc{
+    rr[Pipe_BlurX] = resource_manager.add_from_desc(ComputePipelineResourceDesc{
         .path = "blur-x-comp.spv",
     });
 
-    const auto blur_y_pipeline = resource_manager.add_pipeline(ComputePipelineDesc{
+    rr[Pipe_BlurY] = resource_manager.add_from_desc(ComputePipelineResourceDesc{
         .path = "blur-y-comp.spv",
     });
 
-    const auto final_pipeline = resource_manager.add_pipeline(GraphicsPipelineDesc{
+    rr[Pipe_Final] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
         .vertex_path = "ss-quad-vert.spv",
         .fragment_path = "ss-quad-frag.spv",
         .vertex_bindings = ScreenSpaceQuadVertex::get_binding_descriptions(),
@@ -289,18 +290,19 @@ void Engine::register_render_graph_resources() {
 
 void Engine::build_render_graph() {
     RenderGraph render_graph;
+    const auto& rr = render_resources;
 
     // ================== nodes ==================
 
     if (should_capture_skybox) {
         render_graph.add_node(RenderNodeGraphics {
             .name = "cubemap-capture",
-            .bound_resources = {general_ubo, envmap_texture},
-            .color_targets = {skybox_texture},
-            .body = [=](RenderPassContext &ctx) {
-                ctx.bind_pipeline(cubecap_pipeline);
-                ctx.bind_resources({general_ubo, envmap_texture});
-                ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
+            .bound_resources = {rr[UBO_General], rr[Tex_Envmap]},
+            .color_targets = {rr[Tex_Skybox]},
+            .body = [&](RenderPassContext &ctx) {
+                ctx.bind_pipeline(rr[Pipe_CubeCapture]);
+                ctx.bind_resources({rr[UBO_General], rr[Tex_Envmap]});
+                ctx.draw(rr[VB_Skybox], skybox_vertices.size(), 1, 0, 0);
             },
             .custom_properties = RenderNodeGraphics::CustomProperties {
                 .multiview_count = 6
@@ -310,53 +312,53 @@ void Engine::build_render_graph() {
 
     render_graph.add_node(RenderNodeGraphics {
         .name = "shadowmap",
-        .bound_resources = {general_ubo},
-        .depth_target = shadowmap_texture,
-        .body = [=](RenderPassContext &ctx) {
-            ctx.bind_pipeline(shadowmap_pipeline);
-            ctx.bind_resources({general_ubo});
-            ctx.draw_model(scene_model);
+        .bound_resources = {rr[UBO_General]},
+        .depth_target = rr[Tex_Shadowmap],
+        .body = [&](RenderPassContext &ctx) {
+            ctx.bind_pipeline(rr[Pipe_Shadowmap]);
+            ctx.bind_resources({rr[UBO_General]});
+            ctx.draw_model(rr[Model_Scene]);
         },
     });
 
     if (use_ssao) {
         render_graph.add_node(RenderNodeGraphics {
             .name = "prepass",
-            .bound_resources = {general_ubo},
-            .color_targets = {g_buffer_normal, g_buffer_pos},
-            .depth_target = g_buffer_depth,
-            .body = [=](RenderPassContext &ctx) {
-                ctx.bind_pipeline(prepass_pipeline);
-                ctx.bind_resources({general_ubo});
-                ctx.draw_model(scene_model);
+            .bound_resources = {rr[UBO_General]},
+            .color_targets = {rr[Tex_GNormal], rr[Tex_GPos]},
+            .depth_target = rr[Tex_GDepth],
+            .body = [&](RenderPassContext &ctx) {
+                ctx.bind_pipeline(rr[Pipe_Prepass]);
+                ctx.bind_resources({rr[UBO_General]});
+                ctx.draw_model(rr[Model_Scene]);
             },
         });
 
         render_graph.add_node(RenderNodeGraphics {
             .name = "ssao",
-            .bound_resources = {general_ubo, g_buffer_depth, g_buffer_normal, g_buffer_pos},
-            .color_targets = {ssao_texture},
-            .body = [=](RenderPassContext &ctx) {
-                ctx.bind_pipeline(ssao_pipeline);
-                ctx.bind_resources({general_ubo, g_buffer_depth, g_buffer_normal, g_buffer_pos});
-                ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
+            .bound_resources = {rr[UBO_General], rr[Tex_GDepth], rr[Tex_GNormal], rr[Tex_GPos]},
+            .color_targets = {rr[Tex_SSAO]},
+            .body = [&](RenderPassContext &ctx) {
+                ctx.bind_pipeline(rr[Pipe_SSAO]);
+                ctx.bind_resources({rr[UBO_General], rr[Tex_GDepth], rr[Tex_GNormal], rr[Tex_GPos]});
+                ctx.draw(rr[VB_ScreenSpaceQuad], screen_space_quad_vertices.size(), 1, 0, 0);
             },
         });
     }
 
     render_graph.add_node(RenderNodeGraphics {
         .name = "main",
-        .bound_resources = {general_ubo, ssao_texture, skybox_texture, shadowmap_texture},
-        .color_targets = {base_pass_texture},
+        .bound_resources = {rr[UBO_General], rr[Tex_SSAO], rr[Tex_Skybox], rr[Tex_Shadowmap]},
+        .color_targets = {rr[Tex_BasePass]},
         .depth_target = FINAL_IMAGE_HANDLE,
-        .body = [=](RenderPassContext &ctx) {
-            ctx.bind_pipeline(main_pipeline);
-            ctx.bind_resources({general_ubo, ssao_texture, shadowmap_texture, material_ubo, CURRENT_MATERIAL_HANDLE});
-            ctx.draw_model(scene_model);
+        .body = [&](RenderPassContext &ctx) {
+            ctx.bind_pipeline(rr[Pipe_Main]);
+            ctx.bind_resources({rr[UBO_General], rr[Tex_SSAO], rr[Tex_Shadowmap], rr[UBO_Materials], CURRENT_MATERIAL_HANDLE});
+            ctx.draw_model(rr[Model_Scene]);
 
-            ctx.bind_pipeline(skybox_pipeline);
-            ctx.bind_resources({general_ubo, skybox_texture});
-            ctx.draw(skybox_vert_buf, skybox_vertices.size(), 1, 0, 0);
+            ctx.bind_pipeline(rr[Pipe_Skybox]);
+            ctx.bind_resources({rr[UBO_General], rr[Tex_Skybox]});
+            ctx.draw(rr[VB_Skybox], skybox_vertices.size(), 1, 0, 0);
         },
     });
 
@@ -366,21 +368,21 @@ void Engine::build_render_graph() {
         const auto post_processing_nodes = render_graph.add_nodes_sequential({
             RenderNodeCompute {
                 .name = "blur-x",
-                .bound_read_resources = {base_pass_texture},
-                .bound_write_resources = {post_blur_x_texture},
-                .body = [=](ComputePassContext &ctx) {
-                    ctx.bind_pipeline(blur_x_pipeline);
-                    ctx.bind_resources({base_pass_texture, post_blur_x_texture});
+                .bound_read_resources = {rr[Tex_BasePass]},
+                .bound_write_resources = {rr[Tex_PostBlurX]},
+                .body = [&](ComputePassContext &ctx) {
+                    ctx.bind_pipeline(rr[Pipe_BlurX]);
+                    ctx.bind_resources({rr[Tex_BasePass], rr[Tex_PostBlurX]});
                     ctx.dispatch(std::ceil(window_size.x / 32.0f), std::ceil(window_size.y / 32.0f), 1);
                 },
             },
             RenderNodeCompute {
                 .name = "blur-y",
-                .bound_read_resources = {post_blur_x_texture},
-                .bound_write_resources = {post_blur_y_texture},
-                .body = [=](ComputePassContext &ctx) {
-                    ctx.bind_pipeline(blur_y_pipeline);
-                    ctx.bind_resources({post_blur_x_texture, post_blur_y_texture});
+                .bound_read_resources = {rr[Tex_PostBlurX]},
+                .bound_write_resources = {rr[Tex_PostBlurY]},
+                .body = [&](ComputePassContext &ctx) {
+                    ctx.bind_pipeline(rr[Pipe_BlurY]);
+                    ctx.bind_resources({rr[Tex_PostBlurX], rr[Tex_PostBlurY]});
                     ctx.dispatch(std::ceil(window_size.x / 32.0f), std::ceil(window_size.y / 32.0f), 1);
                 },
             }
@@ -388,29 +390,29 @@ void Engine::build_render_graph() {
 
         final_handle = render_graph.add_node(RenderNodeGraphics {
             .name = "final-blurred",
-            .bound_resources = {post_blur_y_texture},
+            .bound_resources = {rr[Tex_PostBlurY]},
             .color_targets = {FINAL_IMAGE_HANDLE},
-            .body = [=](RenderPassContext &ctx) {
-                ctx.bind_pipeline(final_pipeline);
-                ctx.bind_resources({general_ubo, post_blur_y_texture});
-                ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
+            .body = [&](RenderPassContext &ctx) {
+                ctx.bind_pipeline(rr[Pipe_Final]);
+                ctx.bind_resources({rr[UBO_General], rr[Tex_PostBlurY]});
+                ctx.draw(rr[VB_ScreenSpaceQuad], screen_space_quad_vertices.size(), 1, 0, 0);
             },
         });
 
     } else {
         final_handle = render_graph.add_node(RenderNodeGraphics {
             .name = "final-unblurred",
-            .bound_resources = {base_pass_texture},
+            .bound_resources = {rr[Tex_BasePass]},
             .color_targets = {FINAL_IMAGE_HANDLE},
-            .body = [=](RenderPassContext &ctx) {
+            .body = [&](RenderPassContext &ctx) {
                 if (show_debug_quad) {
-                    ctx.bind_pipeline(ss_quad_depth_pipeline);
-                    ctx.bind_resources({general_ubo, shadowmap_texture});
+                    ctx.bind_pipeline(rr[Pipe_SsQuad]);
+                    ctx.bind_resources({rr[UBO_General], rr[Tex_Shadowmap]});
                 } else {
-                    ctx.bind_pipeline(final_pipeline);
-                    ctx.bind_resources({general_ubo, base_pass_texture});
+                    ctx.bind_pipeline(rr[Pipe_Final]);
+                    ctx.bind_resources({rr[UBO_General], rr[Tex_BasePass]});
                 }
-                ctx.draw(ss_quad_vert_buf, screen_space_quad_vertices.size(), 1, 0, 0);
+                ctx.draw(rr[VB_ScreenSpaceQuad], screen_space_quad_vertices.size(), 1, 0, 0);
             },
         });
     }
@@ -420,7 +422,7 @@ void Engine::build_render_graph() {
             .name = "gui",
             .bound_resources = {},
             .color_targets = {FINAL_IMAGE_HANDLE},
-            .body = [=](const RenderPassContext &ctx) {
+            .body = [&](const RenderPassContext &ctx) {
                 renderer.get_gui_renderer().begin_rendering();
                 render_gui_section(curr_delta_time);
                 renderer.get_gui_renderer().end_rendering(ctx.get_raw_cmd_buffer());

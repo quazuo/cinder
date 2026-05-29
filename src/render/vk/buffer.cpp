@@ -2,12 +2,11 @@ module;
 
 module Cinder.Render.Vulkan;
 
-import vulkan_hpp;
+import vulkan;
 import cvulkan;
 
 import Cinder.Render.Mesh;
 import :Command;
-#include "glm/gtx/scalar_relational.inl"
 
 namespace zrx {
 Buffer::Buffer(const RendererContext& ctx, const vk::DeviceSize size, const vk::BufferUsageFlags usage,
@@ -27,12 +26,12 @@ Buffer::Buffer(const RendererContext& ctx, const vk::DeviceSize size, const vk::
     const vma::AllocationCreateInfo alloc_info{
         .flags = flags,
         .usage = vma::MemoryUsage::eAuto,
-        .requiredFlags = static_cast<VkMemoryPropertyFlags>(properties)
+        .requiredFlags = properties
     };
 
-    auto [allocation, buffer] = ctx.allocator->createBuffer(buffer_info, alloc_info);
-    this->allocation = allocation;
-    this->buffer = make_unique<vk::raii::Buffer>(*ctx.device, buffer);
+    auto [allocation, buffer] = ctx.allocator->createBuffer(buffer_info, alloc_info).split();
+    this->allocation = make_unique<vma::raii::Allocation>(std::move(allocation));
+    this->buffer = make_unique<vk::raii::Buffer>(std::move(buffer));
 }
 
 void Buffer::copy_from_buffer(const RendererContext &ctx, const Buffer &other_buffer,
@@ -49,7 +48,7 @@ void Buffer::copy_from_buffer(const RendererContext &ctx, const Buffer &other_bu
     });
 }
 
-void Buffer::copy_from_ptr(const void *ptr, vk::DeviceSize size, vk::DeviceSize dst_offset) const {
+void Buffer::copy_from_ptr(const void *ptr, const vk::DeviceSize size, const vk::DeviceSize dst_offset) const {
     allocation->copyFromMemory(ptr, dst_offset, size);
 }
 

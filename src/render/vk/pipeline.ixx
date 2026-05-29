@@ -2,7 +2,7 @@ module;
 
 export module Cinder.Render.Vulkan:Pipeline;
 
-import vulkan_hpp;
+import vulkan;
 import std;
 
 import Cinder.Utils;

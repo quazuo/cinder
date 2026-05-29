@@ -2,7 +2,7 @@ module;
 
 export module Cinder.Render.Vulkan:Query;
 
-import vulkan_hpp;
+import vulkan;
 import std;
 
 import Cinder.Utils;

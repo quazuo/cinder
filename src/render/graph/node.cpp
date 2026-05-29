@@ -78,7 +78,7 @@ void RenderPassContext::draw(const ResourceHandle vertices_handle,
                              const uint32_t first_vertex, const uint32_t first_instance) {
 
     const Buffer &vertex_buffer = resource_manager.get().get<Buffer>(vertices_handle);
-    command_buffer.get().bindVertexBuffers(0, *vertex_buffer, {0});
+    command_buffer.get().bindVertexBuffers(0, **vertex_buffer, {0});
     push_constants();
     command_buffer.get().draw(vertex_count, instance_count, first_vertex, first_instance);
 }
@@ -166,13 +166,6 @@ set<ResourceHandle> RenderNodeGraphics::get_all_targets_set() const {
 
 const string& RenderNode::name() const {
     return visit([](const auto& n) -> const auto& { return n.name; });
-}
-
-bool RenderNode::should_run() const {
-    return visit([](const auto& n) {
-        const auto& pred = n.should_run_predicate;
-        return !pred || (*pred)();
-    });
 }
 
 const std::vector<RenderNodeHandle>& RenderNode::explicit_dependencies() const {

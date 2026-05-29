@@ -4,7 +4,7 @@ export module Cinder.Render.Mesh:Vertex;
 
 import std;
 import glm;
-import vulkan_hpp;
+import vulkan;
 
 import Cinder.Globals;
 

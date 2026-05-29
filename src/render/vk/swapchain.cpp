@@ -3,7 +3,7 @@ module;
 module Cinder.Render.Vulkan;
 
 import std;
-import vulkan_hpp;
+import vulkan;
 import glfw;
 
 import :Queue;
@@ -210,8 +210,8 @@ void SwapChain::create_color_resources(const RendererContext &ctx) {
     color_image = make_unique<Image>(
         ctx,
         image_info,
-        vk::MemoryPropertyFlagBits::eDeviceLocal,
-        vk::ImageAspectFlagBits::eColor
+        vk::ImageAspectFlagBits::eColor,
+        vk::MemoryPropertyFlagBits::eDeviceLocal
     );
 }
 
@@ -236,8 +236,8 @@ void SwapChain::create_depth_resources(const RendererContext &ctx) {
     depth_image = make_unique<Image>(
         ctx,
         image_info,
-        vk::MemoryPropertyFlagBits::eDeviceLocal,
-        vk::ImageAspectFlagBits::eDepth
+        vk::ImageAspectFlagBits::eDepth,
+        vk::MemoryPropertyFlagBits::eDeviceLocal
     );
 }
 
@@ -246,14 +246,20 @@ vector<SwapChainRenderTargets> SwapChain::get_render_targets(const RendererConte
 
     if (cached_views.empty()) {
         for (const auto &image: images) {
-            auto view = make_shared<vk::raii::ImageView>(utils::img::create_image_view(
-                ctx,
-                image,
-                image_format,
-                vk::ImageAspectFlagBits::eColor
-            ));
+            const vk::ImageViewCreateInfo create_info{
+                .image = image,
+                .viewType = vk::ImageViewType::e2D,
+                .format = image_format,
+                .subresourceRange = {
+                    .aspectMask = vk::ImageAspectFlagBits::eColor,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                },
+            };
 
-            cached_views.emplace_back(view);
+            cached_views.emplace_back(make_shared<vk::raii::ImageView>(*ctx.device, create_info));
         }
     }
 
