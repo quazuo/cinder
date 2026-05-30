@@ -348,7 +348,7 @@ void Engine::build_render_graph() {
 
     render_graph.add_node(RenderNodeGraphics {
         .name = "main",
-        .bound_resources = {rr[UBO_General], rr[Tex_SSAO], rr[Tex_Skybox], rr[Tex_Shadowmap]},
+        .bound_resources = {rr[UBO_General], rr[Tex_SSAO], rr[Tex_Shadowmap], rr[UBO_Materials], rr[Tex_Skybox]},
         .color_targets = {rr[Tex_BasePass]},
         .depth_target = FINAL_IMAGE_HANDLE,
         .body = [&](RenderPassContext &ctx) {

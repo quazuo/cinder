@@ -143,8 +143,10 @@ public:
 
         resource_map.emplace(handle, std::move(resource));
 
-        const auto bindless_handle = get_new_handle(free_bindless_handles);
-        bindless_handle_mapping.emplace(handle, bindless_handle);
+        if constexpr (std::is_same_v<T, Image> || std::is_same_v<T, Buffer>) {
+            const auto bindless_handle = get_new_handle(free_bindless_handles);
+            bindless_handle_mapping.emplace(handle, bindless_handle);
+        }
     }
 
     template <typename T>
@@ -159,15 +161,8 @@ public:
     auto add_from_desc(T&& desc) -> ResourceHandle {
         const ResourceHandle handle = get_new_handle(free_resource_handles);
 
+        handle_to_kind_mapping.emplace(handle, resource_type_to_kind_v<resource_desc_to_type_t<T>>);
         descriptions.emplace(handle, desc);
-
-        if constexpr (is_texture_resource_desc_type<T>) {
-            handle_to_kind_mapping.emplace(handle, ResourceKind::IMAGE);
-        } else if constexpr (is_buffer_resource_desc_type<T>) {
-            handle_to_kind_mapping.emplace(handle, ResourceKind::BUFFER);
-        } else if constexpr (is_model_resource_desc_type<T>) {
-            handle_to_kind_mapping.emplace(handle, ResourceKind::MODEL);
-        }
 
         if constexpr (!is_pipeline_resource_desc_type<T>) {
             resource_names.emplace(handle, desc.name);
@@ -210,6 +205,8 @@ public:
     auto get_material_tex_handles(const ModelMaterialHandle handle) const { return materials.at(handle); }
 
     auto get_model_mat_tex_handles(ResourceHandle handle) const -> vector<MaterialTextureHandles>;
+
+    auto get_all_resource_handles_range() const { return handle_to_kind_mapping | std::views::keys; }
 
     template <typename T>
         requires is_resource_type<T>

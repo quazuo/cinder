@@ -107,7 +107,7 @@ struct ComputePipelineResourceDesc {
     VertexBufferResourceDesc,           \
     UniformBufferResourceDesc
 
-#define TEXTURE_RESOURCE_DESC_TYPES     \
+#define IMAGE_RESOURCE_DESC_TYPES       \
     ExternalTextureResourceDesc,        \
     TargetTextureResourceDesc,          \
     PersistentTextureResourceDesc,      \
@@ -122,12 +122,12 @@ struct ComputePipelineResourceDesc {
 
 #define ALL_RESOURCE_DESC_TYPES         \
     BUFFER_RESOURCE_DESC_TYPES,         \
-    TEXTURE_RESOURCE_DESC_TYPES,        \
+    IMAGE_RESOURCE_DESC_TYPES,          \
     MODEL_RESOURCE_DESC_TYPES,          \
     PIPELINE_RESOURCE_DESC_TYPES
 
 using BufferResourceDescVariant   = variant<BUFFER_RESOURCE_DESC_TYPES>;
-using TextureResourceDescVariant  = variant<TEXTURE_RESOURCE_DESC_TYPES>;
+using TextureResourceDescVariant  = variant<IMAGE_RESOURCE_DESC_TYPES>;
 using ModelResourceDescVariant    = variant<MODEL_RESOURCE_DESC_TYPES>;
 using PipelineResourceDescVariant = variant<PIPELINE_RESOURCE_DESC_TYPES>;
 using ResourceDescVariant         = variant<ALL_RESOURCE_DESC_TYPES>;
@@ -136,7 +136,7 @@ template <typename T>
 concept is_buffer_resource_desc_type = is_one_of<T, BUFFER_RESOURCE_DESC_TYPES>;
 
 template <typename T>
-concept is_texture_resource_desc_type = is_one_of<T, TEXTURE_RESOURCE_DESC_TYPES>;
+concept is_image_resource_desc_type = is_one_of<T, IMAGE_RESOURCE_DESC_TYPES>;
 
 template <typename T>
 concept is_model_resource_desc_type = is_one_of<T, MODEL_RESOURCE_DESC_TYPES>;
@@ -146,9 +146,43 @@ concept is_pipeline_resource_desc_type = is_one_of<T, PIPELINE_RESOURCE_DESC_TYP
 
 template <typename T>
 concept is_resource_desc_type = is_buffer_resource_desc_type<T>
-                                || is_texture_resource_desc_type<T>
+                                || is_image_resource_desc_type<T>
                                 || is_model_resource_desc_type<T>
                                 || is_pipeline_resource_desc_type<T>;
+
+template <typename T>
+struct ResourceDescToType;
+
+template <typename T>
+    requires is_buffer_resource_desc_type<T>
+struct ResourceDescToType<T> {
+    using type = Buffer;
+};
+
+template <typename T>
+    requires is_image_resource_desc_type<T>
+struct ResourceDescToType<T> {
+    using type = Image;
+};
+
+template <typename T>
+    requires is_model_resource_desc_type<T>
+struct ResourceDescToType<T> {
+    using type = Model;
+};
+
+template <>
+struct ResourceDescToType<GraphicsPipelineResourceDesc> {
+    using type = GraphicsPipeline;
+};
+
+template <>
+struct ResourceDescToType<ComputePipelineResourceDesc> {
+    using type = ComputePipeline;
+};
+
+template <typename T>
+using resource_desc_to_type_t = ResourceDescToType<T>::type;
 
 enum class ShaderBindingType {
     Empty,

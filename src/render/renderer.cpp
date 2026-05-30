@@ -591,7 +591,8 @@ void VulkanRenderer::reload_all_pipelines() {
 }
 
 void VulkanRenderer::create_render_graph_resources() {
-    for (const auto& res_handle : render_graph->get_all_used_resources()) {
+    for (const auto& res_handle : resource_manager->get_all_resource_handles_range()) {
+        if (res_handle == FINAL_IMAGE_HANDLE) continue;
         const auto& desc_variant = resource_manager->get_desc_variant(res_handle);
         std::visit([&](const auto& arg) { create_resource(res_handle, arg); }, desc_variant);
     }
@@ -676,6 +677,8 @@ void VulkanRenderer::create_resource(const ResourceHandle handle, const TargetTe
                  ? vk::ImageLayout::eDepthStencilAttachmentOptimal
                  : vk::ImageLayout::eColorAttachmentOptimal;
     } else if (is_compute_accessed) {
+        layout = vk::ImageLayout::eGeneral;
+    } else {
         layout = vk::ImageLayout::eGeneral;
     }
 
