@@ -239,12 +239,12 @@ public:
     auto with_format(vk::Format f)                              -> ImageBuilder&;
     auto with_layout(vk::ImageLayout l)                         -> ImageBuilder&;
     auto with_usage(vk::ImageUsageFlags u)                      -> ImageBuilder&;
-    auto with_config(const ImageOverrides &c)                 -> ImageBuilder&;
+    auto with_config(const ImageOverrides &c)                   -> ImageBuilder&;
     auto with_mag_filter(vk::Filter f)                          -> ImageBuilder&;
     auto with_min_filter(vk::Filter f)                          -> ImageBuilder&;
     auto with_mipmap_mode(vk::SamplerMipmapMode m)              -> ImageBuilder&;
     auto with_mip_lod_bias(float lod_bias)                      -> ImageBuilder&;
-    auto with_flags(ImageFlags flags)                         -> ImageBuilder&;
+    auto with_flags(ImageFlags flags)                           -> ImageBuilder&;
     auto as_separate_channels()                                 -> ImageBuilder&;
     auto with_sampler_address_mode(vk::SamplerAddressMode mode) -> ImageBuilder&;
     auto as_uninitialized()                                     -> ImageBuilder&;

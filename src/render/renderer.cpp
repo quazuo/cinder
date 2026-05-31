@@ -145,7 +145,7 @@ auto VulkanRenderer::create_instance() -> vkb::Instance {
         return vk::False;
     };
 
-    const vector<uint32_t> layer_setting_values = { 100 };
+    constexpr array<uint32_t, 1> layer_setting_values = { 100 };
 
     auto instance_result = vkb::InstanceBuilder()
             .set_app_name("Cinder")
