@@ -41,7 +41,12 @@ target_link_libraries(VulkanHppModule PUBLIC Vulkan::Vulkan)
 
 # ========================= VMA =========================
 
-add_subdirectory(deps/VulkanMemoryAllocator-Hpp/include)
+FetchContent_Declare(
+        vmahpp
+        URL      https://github.com/YaaZ/VulkanMemoryAllocator-Hpp/releases/download/v3.3.0+3/VulkanMemoryAllocator-Hpp-3.3.0.tar.gz
+        URL_HASH SHA256=8c2a0573babe1f86f3241d12b4c9df40bb944649b7f4239c1c611797f8af6cd5
+)
+FetchContent_MakeAvailable(vmahpp)
 
 # ========================= GLFW =========================
 
@@ -80,25 +85,52 @@ add_subdirectory(deps/assimp)
 
 # ========================= enkiTS =========================
 
-add_subdirectory(deps/enkiTS)
-set(ENKITS_SRCS
-        "deps/enkiTS/src/TaskScheduler.cpp"
+FetchContent_Declare(
+        enki
+        GIT_REPOSITORY  https://github.com/dougbinks/enkits
+        GIT_TAG         0289cf6
 )
+FetchContent_MakeAvailable(enki)
 
 # ========================= imGuIZMO.quat =========================
 
-set(IMGUIZMO_QUAT_SRCS
-        deps/imGuIZMO.quat/imguizmo_quat/imGuIZMOquat.cpp
+FetchContent_Declare(
+        imguizmo
+        GIT_REPOSITORY  https://github.com/BrutPitt/imGuIZMO.quat
+        GIT_TAG         23c8e68
 )
+FetchContent_MakeAvailable(imguizmo)
+
+add_library(imguizmo STATIC
+        ${imguizmo_SOURCE_DIR}/imguizmo_quat/imguizmo_quat.cpp
+        ${imguizmo_SOURCE_DIR}/imguizmo_quat/imGuIZMOquat.cpp
+)
+
+target_include_directories(imguizmo PUBLIC
+        ${imguizmo_SOURCE_DIR}/imguizmo_quat
+)
+
+target_compile_options(imguizmo PRIVATE -DIMGUIZMO_USES_GLM)
 
 # ========================= vk-bootstrap =========================
 
-add_subdirectory(deps/vk-bootstrap)
+FetchContent_Declare(
+        vkb
+        GIT_REPOSITORY  https://github.com/charles-lunarg/vk-bootstrap
+        GIT_TAG         da41b78
+)
+FetchContent_MakeAvailable(vkb)
 
 # ========================= SPIRV-Reflect =========================
 
 set(SPIRV_REFLECT_STATIC_LIB ON)
-add_subdirectory(deps/SPIRV-Reflect)
+
+FetchContent_Declare(
+        spirv-refl
+        GIT_REPOSITORY  https://github.com/KhronosGroup/SPIRV-Reflect
+        GIT_TAG         c90b7b7
+)
+FetchContent_MakeAvailable(spirv-refl)
 
 # ========================= glm =========================
 
@@ -118,25 +150,23 @@ target_compile_definitions(glm INTERFACE
 include_directories(
         deps/
         deps/assimp/include/
-        deps/enkiTS/src/
         deps/glfw/include/
         deps/glfw/include/GLFW
         deps/glm/
         deps/imgui/
-        deps/imGuIZMO.quat/
         deps/LegitProfiler/
         deps/pix/Include/
-        deps/VulkanMemoryAllocator-Hpp/include
-        deps/VulkanMemoryAllocator-Hpp/VulkanMemoryAllocator/include
         .
 )
 
 set(ALL_LIBS
         assimp
+        enkiTS
         glfw
         glm::glm
+        imguizmo
         spirv-reflect-static
-        vk-bootstrap::vk-bootstrap
+        vk-bootstrap
         Vulkan::Vulkan
         VulkanHppModule
         VulkanMemoryAllocator-Hpp::VulkanMemoryAllocator-Hpp
@@ -151,25 +181,8 @@ file(GLOB DEPS_CUSTOM_MODULES
         "deps_extras/custom_modules/*.ixx"
 )
 
-file(GLOB CINDER_SRCS
-        "src/*.cpp"
-        "src/render/*.cpp"
-        "src/render/vk/*.cpp"
-        "src/render/gui/*.cpp"
-        "src/render/mesh/*.cpp"
-        "src/render/graph/*.cpp"
-        "src/utils/*.cpp"
-)
-
-file(GLOB CINDER_MODULES
-        "src/*.ixx"
-        "src/render/*.ixx"
-        "src/render/vk/*.ixx"
-        "src/render/gui/*.ixx"
-        "src/render/mesh/*.ixx"
-        "src/render/graph/*.ixx"
-        "src/utils/*.ixx"
-)
+file(GLOB_RECURSE CINDER_SRCS "src/*.cpp")
+file(GLOB_RECURSE CINDER_MODULES "src/*.ixx")
 
 add_executable(cinder)
 
@@ -180,18 +193,14 @@ target_sources(cinder
                 ${CINDER_MODULES}
                 ${DEPS_CUSTOM_MODULES}
                 "deps/glm/glm/glm.cppm"
-                "deps/VulkanMemoryAllocator-Hpp/include/vk_mem_alloc.cppm"
+                "${vmahpp_SOURCE_DIR}/vk_mem_alloc.cppm"
         PRIVATE
                 ${CINDER_SRCS}
-                ${ENKITS_SRCS}
                 ${IMGUI_SRCS}
                 ${IMGUI_IMPL_SRCS}
-                ${IMGUIZMO_QUAT_SRCS}
                 ${HEADER_ONLY_DEPS_IMPL_SRCS})
 
 target_link_libraries(cinder PRIVATE ${ALL_LIBS})
-
-target_compile_options(cinder PRIVATE -DIMGUIZMO_USES_GLM)
 
 #find_package(glm CONFIG REQUIRED)
 #target_link_libraries(main PRIVATE glm::glm)

@@ -12,10 +12,10 @@ module;
 
 #define NOMINMAX 1
 
-#include <../imgui/imgui.h>
-#include <../imgui/backends/imgui_impl_glfw.h>
-#include <../imgui/backends/imgui_impl_vulkan.h>
-#include "../imGuIZMO.quat/imguizmo_quat/imguizmo_quat.h"
+#include <deps/imgui/imgui.h>
+#include <deps/imgui/backends/imgui_impl_glfw.h>
+#include <deps/imgui/backends/imgui_impl_vulkan.h>
+#include "imguizmo_quat.h"
 
 export module imguizmo_quat;
 
