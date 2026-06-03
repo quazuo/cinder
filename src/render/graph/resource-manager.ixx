@@ -216,6 +216,24 @@ public:
         requires is_builder_type<T>
     auto contains(const ResourceHandle handle) const -> bool { return get_builder_map<T>().contains(handle); }
 
+    auto has_attached_resource(const ResourceHandle handle) const -> bool {
+        switch (handle_to_kind_mapping.at(handle)) {
+            case ResourceKind::BUFFER:
+                return buffers.contains(handle);
+            case ResourceKind::IMAGE:
+                return images.contains(handle);
+            case ResourceKind::MODEL:
+                return models.contains(handle);
+            case ResourceKind::GRAPHICS_PIPELINE:
+                return graphics_pipelines.contains(handle);
+            case ResourceKind::COMPUTE_PIPELINE:
+                return compute_pipelines.contains(handle);
+            default:
+                Logger::error("unimplemented switch case in ResourceManager::has_attached_resource");
+                return true; // silence warning
+        }
+    }
+
 private:
     template <typename T>
         requires is_resource_type<T>

@@ -60,11 +60,15 @@ class Engine {
 
     float debug_number = 0;
 
-    bool is_gui_enabled        = true;
-    bool show_debug_quad       = false;
-    bool use_ssao              = false;
-    bool should_capture_skybox = true;
-    bool do_blur               = false;
+    struct RenderFrameSettings {
+        bool is_gui_enabled        = true;
+        bool show_debug_quad       = false;
+        bool use_ssao              = false;
+        bool should_capture_skybox = true;
+        bool do_blur               = false;
+
+        bool operator==(const RenderFrameSettings &rhs) const = default;
+    } render_frame_settings;
 
     enum RenderingResource {
         Model_Scene,

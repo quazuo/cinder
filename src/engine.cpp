@@ -59,6 +59,8 @@ void Engine::run() {
 void Engine::tick() {
     glfwPollEvents();
 
+    const auto old_render_frame_settings = render_frame_settings;
+
     const auto current_time = static_cast<float>(glfwGetTime());
     const float delta_time  = current_time - last_time;
     last_time               = current_time;
@@ -70,8 +72,12 @@ void Engine::tick() {
 
     glfwGetWindowSize(window, &window_size.x, &window_size.y);
 
+    if (old_render_frame_settings != render_frame_settings) {
+        build_render_graph();
+    }
+
     renderer.run_render_graph();
-    should_capture_skybox = false;
+    render_frame_settings.should_capture_skybox = false;
 }
 
 void Engine::register_render_graph_resources() {
@@ -294,7 +300,7 @@ void Engine::build_render_graph() {
 
     // ================== nodes ==================
 
-    if (should_capture_skybox) {
+    if (render_frame_settings.should_capture_skybox) {
         render_graph.add_node(RenderNodeGraphics {
             .name = "cubemap-capture",
             .bound_resources = {rr[UBO_General], rr[Tex_Envmap]},
@@ -321,7 +327,7 @@ void Engine::build_render_graph() {
         },
     });
 
-    if (use_ssao) {
+    if (render_frame_settings.use_ssao) {
         render_graph.add_node(RenderNodeGraphics {
             .name = "prepass",
             .bound_resources = {rr[UBO_General]},
@@ -364,7 +370,7 @@ void Engine::build_render_graph() {
 
     optional<RenderNodeHandle> final_handle;
 
-    if (do_blur) {
+    if (render_frame_settings.do_blur) {
         const auto post_processing_nodes = render_graph.add_nodes_sequential({
             RenderNodeCompute {
                 .name = "blur-x",
@@ -405,7 +411,7 @@ void Engine::build_render_graph() {
             .bound_resources = {rr[Tex_BasePass]},
             .color_targets = {FINAL_IMAGE_HANDLE},
             .body = [&](RenderPassContext &ctx) {
-                if (show_debug_quad) {
+                if (render_frame_settings.show_debug_quad) {
                     ctx.bind_pipeline(rr[Pipe_SsQuad]);
                     ctx.bind_resources({rr[UBO_General], rr[Tex_Shadowmap]});
                 } else {
@@ -417,7 +423,7 @@ void Engine::build_render_graph() {
         });
     }
 
-    if (is_gui_enabled) {
+    if (render_frame_settings.is_gui_enabled) {
         render_graph.add_node(RenderNodeGraphics {
             .name = "gui",
             .bound_resources = {},
@@ -481,7 +487,7 @@ void Engine::update_graphics_uniform_buffer(const Buffer &buffer) const {
             .debug_number = debug_number,
             .z_near = z_near,
             .z_far = z_far,
-            .use_ssao = use_ssao ? 1u : 0,
+            .use_ssao = render_frame_settings.use_ssao ? 1u : 0,
             .camera_pos = camera->get_pos(),
             .bias_weight_1 = shadow_map_config.bias_weight_1,
             .bias_weight_2 = shadow_map_config.bias_weight_2,
@@ -526,12 +532,12 @@ void Engine::update_materials_uniform_buffer(const Buffer &buffer, const Resourc
 void Engine::bind_key_actions() {
     input_manager->bind_callback(glfw::Key::KEY_GRAVE_ACCENT, EActivationType::PRESS_ONCE, [&](const float delta_time) {
         (void) delta_time;
-        is_gui_enabled = !is_gui_enabled;
+        render_frame_settings.is_gui_enabled = !render_frame_settings.is_gui_enabled;
     });
 
     input_manager->bind_callback(glfw::Key::KEY_F1, EActivationType::PRESS_ONCE, [&](const float delta_time) {
         (void) delta_time;
-        do_blur = !do_blur;
+        render_frame_settings.do_blur = !render_frame_settings.do_blur;
     });
 }
 
@@ -560,7 +566,7 @@ void Engine::render_gui_section(const float delta_time) {
     if (ImGui::CollapsingHeader("Engine ", section_flags)) {
         ImGui::Text("FPS: %.2f", fps);
 
-        ImGui::Checkbox("Debug quad", &show_debug_quad);
+        ImGui::Checkbox("Debug quad", &render_frame_settings.show_debug_quad);
         ImGui::Separator();
 
         if (ImGui::Button("Reload shaders")) {
@@ -587,7 +593,7 @@ void Engine::render_gui_section(const float delta_time) {
     }
 
     if (ImGui::CollapsingHeader("Advanced ", section_flags)) {
-        ImGui::Checkbox("SSAO", &use_ssao);
+        ImGui::Checkbox("SSAO", &render_frame_settings.use_ssao);
 
 #ifndef NDEBUG
         ImGui::Separator();

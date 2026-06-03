@@ -542,16 +542,13 @@ void VulkanRenderer::render_gui_section() {
 
         vector<GuiRenderer::ProfilerNodeInfo> profiler_frame_infos;
         const uint32_t timestamp_count = prev_frame_time_query_results.size();
-        auto nodes_range = prev_frame_partitioned_nodes | std::ranges::views::join;
-        auto curr_node = nodes_range.begin();
         const uint64_t frame_start_timestamp = prev_frame_time_query_results.empty() ? 0 : prev_frame_time_query_results[0];
         float last_node_time = 0.0f;
 
         for (uint32_t i = 0; i < timestamp_count; i += 2) {
             const uint64_t start_timestamp = prev_frame_time_query_results[i];
             const uint64_t end_timestamp = prev_frame_time_query_results[i + 1];
-            const RenderNodeHandle node_handle = *(curr_node++);
-            const string& name = render_graph->nodes().at(node_handle).name();
+            const string& name = prev_frame_node_names[i / 2];
 
             ImVec4 color{};
             ImGui::ColorConvertHSVtoRGB(
@@ -598,8 +595,11 @@ void VulkanRenderer::reload_all_pipelines() {
 void VulkanRenderer::create_render_graph_resources() {
     for (const auto& res_handle : resource_manager->get_all_resource_handles_range()) {
         if (res_handle == FINAL_IMAGE_HANDLE) continue;
-        const auto& desc_variant = resource_manager->get_desc_variant(res_handle);
-        std::visit([&](const auto& arg) { create_resource(res_handle, arg); }, desc_variant);
+        if (resource_manager->has_attached_resource(res_handle)) continue;
+        std::visit(
+            [&](const auto& arg) { create_resource(res_handle, arg); },
+            resource_manager->get_desc_variant(res_handle)
+        );
     }
 
     bindless_descriptor_set->commit_updates();
@@ -926,7 +926,6 @@ void VulkanRenderer::run_render_graph() {
     if (start_frame()) {
         Logger::debug("starting frame");
 
-        prev_frame_partitioned_nodes = partitioned_nodes;
         partitioned_nodes = render_graph->get_partitioned();
         const auto node_count = std::ranges::distance(partitioned_nodes | std::ranges::views::join);
 
@@ -950,6 +949,11 @@ void VulkanRenderer::run_render_graph() {
 
         record_graph_commands();
         end_frame();
+
+        prev_frame_node_names.clear();
+        for (const auto& node : partitioned_nodes | std::ranges::views::join) {
+            prev_frame_node_names.emplace_back(render_graph->nodes().at(node).name());
+        }
     }
 }
 

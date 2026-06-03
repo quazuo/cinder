@@ -108,7 +108,7 @@ class VulkanRenderer {
 
     // ================ profiling ================
 
-    vector<vector<RenderNodeHandle>> prev_frame_partitioned_nodes;
+    vector<string> prev_frame_node_names;
     vector<uint64_t> prev_frame_time_query_results;
     uint32_t current_query_idx = 0;
     float timestamp_period = 0.0f;
