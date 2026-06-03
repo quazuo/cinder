@@ -254,6 +254,8 @@ public:
     auto with_name(const char *n)                               -> ImageBuilder&;
     auto with_allocation(shared_ptr<vma::raii::Allocation> a)   -> ImageBuilder&;
 
+    void invalidate_loaded_texture_data();
+
     /**
      * Designates the texture's contents to be initialized with data stored in a given file.
      * This requires 6 different paths for cubemap textures.

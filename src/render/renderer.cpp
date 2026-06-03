@@ -308,33 +308,38 @@ void VulkanRenderer::recreate_swap_chain() {
         get_msaa_sample_count()
     );
 
-    // todo
-    // const auto compute_accessed_resources = gather_compute_accessed_resources();
-    // for (auto& [handle, description]: render_graph->target_tex_resources()) {
-    //     auto extent = description.extent;
-    //     if (extent.width != 0 || extent.height != 0) continue;
-    //
-    //     if (!resource_manager->contains<TextureBuilder>(handle)) {
-    //         Logger::error("missing texture builder for window-sized texture ({}) during window resize",
-    //                       resource_manager->get_name(handle));
-    //     }
-    //
-    //     auto& texture_builder = resource_manager->get<TextureBuilder>(handle);
-    //     texture_builder.with_layout(last_image_layouts.at(handle));
-    //     resource_manager->recreate(handle);
-    //
-    //     // update bindless handles
-    //
-    //     const bool is_compute_accessed = compute_accessed_resources.contains(handle);
-    //     const auto& texture = resource_manager->get<Texture>(handle);
-    //     const auto bindless_handle = resource_manager->get_bindless_handle(handle);
-    //
-    //     bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(texture, static_cast<uint32_t>(bindless_handle));
-    //
-    //     if (is_compute_accessed) {
-    //         bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, static_cast<uint32_t>(bindless_handle));
-    //     }
-    // }
+    const auto compute_accessed_resources = gather_compute_accessed_resources();
+    for (const auto& handle: render_graph->get_all_used_resources()) {
+        if (handle == FINAL_IMAGE_HANDLE) continue;
+        const auto& desc_variant = resource_manager->get_desc_variant(handle);
+        if (!std::holds_alternative<TargetTextureResourceDesc>(desc_variant)) continue;
+        const auto& description = std::get<TargetTextureResourceDesc>(desc_variant);
+
+        auto extent = description.extent;
+        if (extent.width != 0 || extent.height != 0) continue;
+
+        if (!resource_manager->contains<ImageBuilder>(handle)) {
+            Logger::error("missing texture builder for window-sized texture ({}) during window resize",
+                          resource_manager->get_name(handle));
+        }
+
+        auto& image_builder = resource_manager->get<ImageBuilder>(handle);
+        image_builder.invalidate_loaded_texture_data();
+        image_builder.with_layout(last_image_layouts.at(handle));
+        resource_manager->recreate(handle);
+
+        // update bindless handles
+
+        const bool is_compute_accessed = compute_accessed_resources.contains(handle);
+        const auto& image = resource_manager->get<Image>(handle);
+        const auto bindless_handle = resource_manager->get_bindless_handle(handle);
+
+        bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(image, static_cast<uint32_t>(bindless_handle));
+
+        if (is_compute_accessed) {
+            bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(image, static_cast<uint32_t>(bindless_handle));
+        }
+    }
 
     for (auto& [handle, resources]: node_resources) {
         if (render_graph->nodes().at(handle).is_graphics()) {
@@ -994,7 +999,7 @@ void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_h
     // if size > 1, then this means that this pass (node) draws to the swapchain image
     // and thus benefits from double or triple buffering
     const auto &render_infos = node_resources.at(node_handle).render_infos;
-    const size_t subresource_index = render_infos.size() == 1 ? 0 : ctx.current_frame_idx;
+    const size_t subresource_index = render_infos.size() == 1 ? 0 : swap_chain->get_current_image_index();
     const auto &node_render_info = render_infos[subresource_index];
 
     // command_buffer.debugMarkerBeginEXT(vk::DebugMarkerMarkerInfoEXT { .pMarkerName = node.name.c_str(), });

@@ -408,7 +408,7 @@ auto ImageBuilder::with_format(const vk::Format f) -> ImageBuilder& {
 }
 
 auto ImageBuilder::with_layout(const vk::ImageLayout l) -> ImageBuilder& {
-    check_if_locked();
+    // check_if_locked();
     layout = l;
     return *this;
 }
@@ -503,6 +503,11 @@ auto ImageBuilder::with_allocation(shared_ptr<vma::raii::Allocation> a) -> Image
     check_if_locked();
     allocation = a;
     return *this;
+}
+
+void ImageBuilder::invalidate_loaded_texture_data() {
+    is_locked = false;
+    loaded_texture_data.reset();
 }
 
 auto ImageBuilder::from_paths(const vector<std::filesystem::path> &sources) -> ImageBuilder& {
