@@ -54,6 +54,14 @@ SwapChain::SwapChain(const RendererContext &ctx, const vk::raii::SurfaceKHR &sur
     swap_chain = make_unique<vk::raii::SwapchainKHR>(ctx.device->createSwapchainKHR(create_info));
     images = swap_chain->getImages();
 
+    for (int i = 0; const auto& image: images) {
+        ctx.device->setDebugUtilsObjectNameEXT(vk::DebugUtilsObjectNameInfoEXT {
+            .objectType = vk::ObjectType::eImage,
+            .objectHandle = reinterpret_cast<uint64_t>(static_cast<VkImage>(image)),
+            .pObjectName = std::format("__SWAPCHAIN_INTERNAL_IMAGE_{}__", i++).c_str(),
+        });
+    }
+
     create_color_resources(ctx);
 
     depth_format = find_depth_format(ctx);
@@ -213,6 +221,12 @@ void SwapChain::create_color_resources(const RendererContext &ctx) {
         vk::ImageAspectFlagBits::eColor,
         vk::MemoryPropertyFlagBits::eDeviceLocal
     );
+
+    ctx.device->setDebugUtilsObjectNameEXT(vk::DebugUtilsObjectNameInfoEXT {
+        .objectType = vk::ObjectType::eImage,
+        .objectHandle = reinterpret_cast<uint64_t>(static_cast<VkImage>(***color_image)),
+        .pObjectName = "__SWAPCHAIN_COLOR_IMAGE__",
+    });
 }
 
 void SwapChain::create_depth_resources(const RendererContext &ctx) {
@@ -239,6 +253,20 @@ void SwapChain::create_depth_resources(const RendererContext &ctx) {
         vk::ImageAspectFlagBits::eDepth,
         vk::MemoryPropertyFlagBits::eDeviceLocal
     );
+
+    ctx.device->setDebugUtilsObjectNameEXT(vk::DebugUtilsObjectNameInfoEXT {
+        .objectType = vk::ObjectType::eImage,
+        .objectHandle = reinterpret_cast<uint64_t>(static_cast<VkImage>(***depth_image)),
+        .pObjectName = "__SWAPCHAIN_DEPTH_IMAGE__",
+    });
+
+    utils::cmd::do_single_time_commands(ctx, [&](const auto& cmdbuf) {
+        depth_image->transition_layout(
+            vk::ImageLayout::eUndefined,
+            vk::ImageLayout::eDepthStencilAttachmentOptimal,
+            cmdbuf
+        );
+    });
 }
 
 vector<SwapChainRenderTargets> SwapChain::get_render_targets(const RendererContext &ctx) {

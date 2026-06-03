@@ -97,15 +97,15 @@ VulkanRenderer::VulkanRenderer() {
         resource_manager->clear_removal_queue();
     });
 
+    create_command_pool();
+    create_command_buffers();
+
     swap_chain = make_unique<SwapChain>(
         ctx,
         *surface,
         queue_family_indices,
         get_msaa_sample_count()
     );
-
-    create_command_pool();
-    create_command_buffers();
 
     create_descriptor_pool();
 
@@ -993,7 +993,7 @@ void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_h
 
     // if size > 1, then this means that this pass (node) draws to the swapchain image
     // and thus benefits from double or triple buffering
-    const auto &[render_infos] = node_resources.at(node_handle);
+    const auto &render_infos = node_resources.at(node_handle).render_infos;
     const size_t subresource_index = render_infos.size() == 1 ? 0 : ctx.current_frame_idx;
     const auto &node_render_info = render_infos[subresource_index];
 

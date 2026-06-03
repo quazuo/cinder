@@ -255,7 +255,7 @@ void Image::transition_layout(const vk::ImageLayout old_layout, const vk::ImageL
         .baseMipLevel = 0,
         .levelCount = mip_level_count,
         .baseArrayLayer = 0,
-        .layerCount = 1,
+        .layerCount = layer_count,
     };
 
     transition_layout(old_layout, new_layout, range, command_buffer);
