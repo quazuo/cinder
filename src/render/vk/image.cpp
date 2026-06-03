@@ -200,7 +200,7 @@ auto Image::get_layer_mip_view(const RendererContext &ctx, const uint32_t layer,
     return get_cached_view(ctx, {mip_level, 1, layer, 1});
 }
 
-auto Image::get_cached_view(const RendererContext &ctx, ViewParams params) const -> shared_ptr<vk::raii::ImageView> {
+auto Image::get_cached_view(const RendererContext &ctx, ImageViewParams params) const -> shared_ptr<vk::raii::ImageView> {
     if (cached_views.contains(params)) {
         return cached_views.at(params);
     }

@@ -21,26 +21,24 @@ export namespace zrx {
  * Parameters defining which mip levels and layers of a given image are available for a given view.
  * This struct is used mainly for caching views to eliminate creating multiple identical views.
  */
-struct ViewParams {
+struct ImageViewParams {
     uint32_t base_mip_level;
     uint32_t mip_levels;
     uint32_t base_layer;
     uint32_t layer_count;
 
+    ImageViewParams(const uint32_t base_mip, const uint32_t mips, const uint32_t base_layer, const uint32_t layers)
+        : base_mip_level(base_mip), mip_levels(mips), base_layer(base_layer), layer_count(layers) {}
+
     // `unordered_map` requirement
-    bool operator==(const ViewParams &other) const {
-        return base_mip_level == other.base_mip_level
-               && mip_levels == other.mip_levels
-               && base_layer == other.base_layer
-               && layer_count == other.layer_count;
-    }
+    bool operator==(const ImageViewParams &other) const = default;
 };
 } // zrx
 
 // `unordered_map` requirement
 template<>
-struct std::hash<zrx::ViewParams> {
-    size_t operator()(zrx::ViewParams const &params) const noexcept {
+struct std::hash<zrx::ImageViewParams> {
+    size_t operator()(zrx::ImageViewParams const &params) const noexcept {
         return (hash<uint32_t>()(params.mip_levels) >> 1) ^
                (hash<uint32_t>()(params.base_mip_level) << 1) ^
                (hash<uint32_t>()(params.base_layer) << 1) ^
@@ -66,7 +64,7 @@ class Image {
     vk::ImageAspectFlags aspect_mask;
     bool is_cubemap;
 
-    mutable std::unordered_map<ViewParams, shared_ptr<vk::raii::ImageView> > cached_views;
+    mutable std::unordered_map<ImageViewParams, shared_ptr<vk::raii::ImageView> > cached_views;
 
     optional<vk::raii::Sampler> sampler;
 
@@ -146,7 +144,7 @@ private:
      * Checks if a given view is cached already and if so, returns it without creating a new one.
      * Otherwise, creates the view and caches it for later.
      */
-    auto get_cached_view(const RendererContext &ctx, ViewParams params) const -> shared_ptr<vk::raii::ImageView>;
+    auto get_cached_view(const RendererContext &ctx, ImageViewParams params) const -> shared_ptr<vk::raii::ImageView>;
 };
 
 enum class SwizzleComponent {
