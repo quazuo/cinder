@@ -7,14 +7,16 @@ module;
 #define IMGUIZMO_USES_GLM
 #define VGIZMO_USES_GLM
 
+#define IMGUIZMO_IMGUI_FOLDER
+
 #define IMGUI_IMPL_VULKAN_HAS_DYNAMIC_RENDERING
 #define IMGUI_DEFINE_MATH_OPERATORS
 
 #define NOMINMAX 1
 
-#include <deps/imgui/imgui.h>
-#include <deps/imgui/backends/imgui_impl_glfw.h>
-#include <deps/imgui/backends/imgui_impl_vulkan.h>
+#include <imgui.h>
+#include <backends/imgui_impl_glfw.h>
+#include <backends/imgui_impl_vulkan.h>
 #include "imguizmo_quat.h"
 
 export module imguizmo_quat;

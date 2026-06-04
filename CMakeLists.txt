@@ -50,38 +50,62 @@ FetchContent_MakeAvailable(vmahpp)
 
 # ========================= GLFW =========================
 
-set(GLFW_BUILD_DOCS OFF CACHE BOOL "GLFW build documentation" FORCE)
-set(GLFW_BUILD_TESTS OFF CACHE BOOL "GLFW build documentation" FORCE)
+set(GLFW_BUILD_DOCS     OFF CACHE BOOL "GLFW build documentation" FORCE)
+set(GLFW_BUILD_TESTS    OFF CACHE BOOL "GLFW build documentation" FORCE)
 set(GLFW_BUILD_EXAMPLES OFF CACHE BOOL "GLFW build documentation" FORCE)
-add_subdirectory(deps/glfw)
+
+FetchContent_Declare(
+        glfw
+        GIT_REPOSITORY  https://github.com/glfw/glfw
+        GIT_TAG         b00e6a8
+)
+FetchContent_MakeAvailable(glfw)
 
 # ========================= ImGUI =========================
 
+FetchContent_Declare(
+        imgui
+        GIT_REPOSITORY  https://github.com/ocornut/imgui
+        GIT_TAG         6acba3b
+)
+FetchContent_MakeAvailable(imgui)
+
 file(GLOB IMGUI_SRCS
-        "deps/imgui/*.h"
-        "deps/imgui/*.cpp"
+        "${imgui_SOURCE_DIR}/*.h"
+        "${imgui_SOURCE_DIR}/*.cpp"
 )
 
 set(IMGUI_IMPL_SRCS
-        deps/imgui/backends/imgui_impl_glfw.h
-        deps/imgui/backends/imgui_impl_glfw.cpp
-        deps/imgui/backends/imgui_impl_vulkan.h
-        deps/imgui/backends/imgui_impl_vulkan.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.h
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_glfw.cpp
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.h
+        ${imgui_SOURCE_DIR}/backends/imgui_impl_vulkan.cpp
 )
 
-set_source_files_properties(
-        ${IMGUI_SRCS}
-        ${IMGUI_IMPL_SRCS}
-        PROPERTIES COMPILE_FLAGS "-w"
+add_library(imgui STATIC ${IMGUI_SRCS} ${IMGUI_IMPL_SRCS})
+
+target_link_libraries(imgui PUBLIC Vulkan::Vulkan glfw)
+
+target_compile_options(imgui PRIVATE -w)
+
+target_include_directories(imgui PUBLIC
+        ${imgui_SOURCE_DIR}
+        ${imgui_SOURCE_DIR}/backends
 )
 
 # ========================= Assimp =========================
 
-set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build shared libraries" FORCE)
-set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "Assimp build tests" FORCE)
-set(ASSIMP_INSTALL OFF CACHE BOOL "Assimp install" FORCE)
-set(ASSIMP_INSTALL_PDB OFF CACHE BOOL "Assimp install PDB" FORCE)
-add_subdirectory(deps/assimp)
+set(BUILD_SHARED_LIBS   OFF CACHE BOOL "Build shared libraries" FORCE)
+set(ASSIMP_BUILD_TESTS  OFF CACHE BOOL "Assimp build tests"     FORCE)
+set(ASSIMP_INSTALL      OFF CACHE BOOL "Assimp install"         FORCE)
+set(ASSIMP_INSTALL_PDB  OFF CACHE BOOL "Assimp install PDB"     FORCE)
+
+FetchContent_Declare(
+        assimp
+        GIT_REPOSITORY  https://github.com/assimp/assimp
+        GIT_TAG         392a658
+)
+FetchContent_MakeAvailable(assimp)
 
 # ========================= enkiTS =========================
 
@@ -91,26 +115,6 @@ FetchContent_Declare(
         GIT_TAG         0289cf6
 )
 FetchContent_MakeAvailable(enki)
-
-# ========================= imGuIZMO.quat =========================
-
-FetchContent_Declare(
-        imguizmo
-        GIT_REPOSITORY  https://github.com/BrutPitt/imGuIZMO.quat
-        GIT_TAG         23c8e68
-)
-FetchContent_MakeAvailable(imguizmo)
-
-add_library(imguizmo STATIC
-        ${imguizmo_SOURCE_DIR}/imguizmo_quat/imguizmo_quat.cpp
-        ${imguizmo_SOURCE_DIR}/imguizmo_quat/imGuIZMOquat.cpp
-)
-
-target_include_directories(imguizmo PUBLIC
-        ${imguizmo_SOURCE_DIR}/imguizmo_quat
-)
-
-target_compile_options(imguizmo PRIVATE -DIMGUIZMO_USES_GLM)
 
 # ========================= vk-bootstrap =========================
 
@@ -126,36 +130,86 @@ FetchContent_MakeAvailable(vkb)
 set(SPIRV_REFLECT_STATIC_LIB ON)
 
 FetchContent_Declare(
-        spirv-refl
+        spirv-reflect
         GIT_REPOSITORY  https://github.com/KhronosGroup/SPIRV-Reflect
         GIT_TAG         c90b7b7
 )
-FetchContent_MakeAvailable(spirv-refl)
+FetchContent_MakeAvailable(spirv-reflect)
 
 # ========================= glm =========================
 
-set(GLM_ENABLE_CXX_20 ON)
+set(GLM_ENABLE_CXX_20           ON)
 set(GLM_FORCE_DEPTH_ZERO_TO_ONE ON)
-set(GLM_ENABLE_EXPERIMENTAL ON)
-add_subdirectory(deps/glm)
+set(GLM_ENABLE_EXPERIMENTAL     ON)
 
-target_compile_definitions(glm INTERFACE
-        GLM_ENABLE_CXX_20
-        GLM_FORCE_DEPTH_ZERO_TO_ONE
-        GLM_ENABLE_EXPERIMENTAL
+FetchContent_Declare(
+        glm
+        GIT_REPOSITORY  https://github.com/g-truc/glm
+        GIT_TAG         6f14f47
+)
+FetchContent_MakeAvailable(glm)
+
+# ========================= imGuIZMO.quat =========================
+
+FetchContent_Declare(
+        imguizmo
+        GIT_REPOSITORY  https://github.com/BrutPitt/imGuIZMO.quat
+        GIT_TAG         23c8e68
+)
+FetchContent_MakeAvailable(imguizmo)
+
+add_library(imguizmo STATIC
+        ${imguizmo_SOURCE_DIR}/imguizmo_quat/imguizmo_quat.cpp
+        ${imguizmo_SOURCE_DIR}/imguizmo_quat/imGuIZMOquat.cpp
+)
+
+target_link_libraries(imguizmo PUBLIC glm imgui)
+
+target_include_directories(imguizmo PUBLIC
+        ${imguizmo_SOURCE_DIR}/imguizmo_quat
+)
+
+target_compile_options(imguizmo PRIVATE -DIMGUIZMO_USES_GLM -DIMGUIZMO_IMGUI_FOLDER= )
+
+# ========================= LegitProfiler =========================
+# TODO - implement this as my own version... the #includes are annoying
+
+FetchContent_Declare(
+        legit-profiler
+        GIT_REPOSITORY  https://github.com/Raikiri/LegitProfiler
+        GIT_TAG         4c647dc
+)
+FetchContent_MakeAvailable(legit-profiler)
+
+add_library(legit-profiler INTERFACE)
+
+target_include_directories(legit-profiler INTERFACE
+        ${legit-profiler_SOURCE_DIR}
+)
+
+# ========================= imgui-filebrowser =========================
+
+FetchContent_Declare(
+        imgui-filebrowser
+        GIT_REPOSITORY  https://github.com/AirGuanZ/imgui-filebrowser
+        GIT_TAG         47a1884
+)
+FetchContent_MakeAvailable(imgui-filebrowser)
+
+add_library(imgui-filebrowser STATIC
+        ${imgui-filebrowser_SOURCE_DIR}/imfilebrowser.h
+)
+
+target_link_libraries(imgui-filebrowser PUBLIC imgui)
+
+target_include_directories(imgui-filebrowser PUBLIC
+        ${imgui-filebrowser_SOURCE_DIR}
 )
 
 # ========================= General =========================
 
 include_directories(
         deps/
-        deps/assimp/include/
-        deps/glfw/include/
-        deps/glfw/include/GLFW
-        deps/glm/
-        deps/imgui/
-        deps/LegitProfiler/
-        deps/pix/Include/
         .
 )
 
@@ -164,22 +218,22 @@ set(ALL_LIBS
         enkiTS
         glfw
         glm::glm
+        imgui
         imguizmo
+        imgui-filebrowser
+        legit-profiler
         spirv-reflect-static
         vk-bootstrap
         Vulkan::Vulkan
         VulkanHppModule
-        VulkanMemoryAllocator-Hpp::VulkanMemoryAllocator-Hpp
+        VulkanMemoryAllocator-Hpp
 )
 
 file(GLOB HEADER_ONLY_DEPS_IMPL_SRCS
         "deps_extras/impls/stb_image.cpp"
-        "deps_extras/impls/vma.cpp"
 )
 
-file(GLOB DEPS_CUSTOM_MODULES
-        "deps_extras/custom_modules/*.ixx"
-)
+file(GLOB DEPS_CUSTOM_MODULES "deps_extras/custom_modules/*.ixx")
 
 file(GLOB_RECURSE CINDER_SRCS "src/*.cpp")
 file(GLOB_RECURSE CINDER_MODULES "src/*.ixx")
@@ -187,20 +241,13 @@ file(GLOB_RECURSE CINDER_MODULES "src/*.ixx")
 add_executable(cinder)
 
 target_sources(cinder
-        PUBLIC
-        FILE_SET CXX_MODULES
-        FILES
+        PUBLIC FILE_SET CXX_MODULES FILES
                 ${CINDER_MODULES}
                 ${DEPS_CUSTOM_MODULES}
-                "deps/glm/glm/glm.cppm"
+                "${glm_SOURCE_DIR}/glm/glm.cppm"
                 "${vmahpp_SOURCE_DIR}/vk_mem_alloc.cppm"
         PRIVATE
                 ${CINDER_SRCS}
-                ${IMGUI_SRCS}
-                ${IMGUI_IMPL_SRCS}
                 ${HEADER_ONLY_DEPS_IMPL_SRCS})
 
 target_link_libraries(cinder PRIVATE ${ALL_LIBS})
-
-#find_package(glm CONFIG REQUIRED)
-#target_link_libraries(main PRIVATE glm::glm)
