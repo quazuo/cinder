@@ -5,7 +5,6 @@ export module Cinder.Render.Graph:Node;
 import std;
 
 import Cinder.Render.Vulkan;
-import Cinder.Render.Mesh;
 import Cinder.Globals;
 import Cinder.Utils;
 import :Resource;
@@ -24,8 +23,6 @@ class RenderPassContext {
     std::vector<ResourceHandle> bound_resource_handles;
     std::vector<BindlessHandle> bound_resource_ids;
 
-    optional<BindlessHandle> current_material_id;
-
 public:
     explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, const ResourceManager &resource_manager,
                                const vk::raii::DescriptorSet &bindless_set)
@@ -38,13 +35,36 @@ public:
 
     void bind_resources(const std::vector<ResourceHandle>& handles);
 
-    void draw_model(ResourceHandle model_handle);
+    void bind_vertex_buffers(const std::vector<ResourceHandle>& vb_handles);
+
+    void bind_index_buffer(ResourceHandle indices_handle);
 
     void draw(ResourceHandle vertices_handle, uint32_t vertex_count, uint32_t instance_count,
               uint32_t first_vertex, uint32_t first_instance);
 
+    void draw(uint32_t vertex_count, uint32_t instance_count, uint32_t first_vertex, uint32_t first_instance);
+
+    void draw_indexed(ResourceHandle vertices_handle, ResourceHandle indices_handle, uint32_t index_count, uint32_t instance_count,
+                      uint32_t first_index, uint32_t vertex_offset, uint32_t first_instance);
+
+    void draw_indexed(uint32_t index_count, uint32_t instance_count, uint32_t first_index, uint32_t vertex_offset, uint32_t first_instance);
+
+    template <typename T>
+    void push_constants(const T& constants, vk::ShaderStageFlags shader_stages) {
+        if (!last_bound_pipeline) {
+            Logger::error("no pipeline bound during draw!");
+        }
+
+        command_buffer.get().pushConstants<T>(
+            *resource_manager.get().get<GraphicsPipeline>(*last_bound_pipeline).get_layout(),
+            shader_stages,
+            bound_resource_ids.size() * sizeof(decltype(bound_resource_ids[0])),
+            constants
+        );
+    }
+
 private:
-    void push_constants();
+    void push_bindless_constants();
 };
 
 class ComputePassContext {
@@ -75,8 +95,7 @@ private:
 };
 
 struct RenderNodeGraphics {
-    using RenderNodeBodyFn   = std::function<void(RenderPassContext &)>;
-    using ShouldRunPredicate = std::function<bool()>;
+    using RenderNodeBodyFn = std::function<void(RenderPassContext &)>;
 
     string name;
     vector<ResourceHandle> bound_resources;
@@ -93,8 +112,7 @@ struct RenderNodeGraphics {
 };
 
 struct RenderNodeCompute {
-    using RenderNodeBodyFn   = std::function<void(ComputePassContext &)>;
-    using ShouldRunPredicate = std::function<bool()>;
+    using RenderNodeBodyFn = std::function<void(ComputePassContext &)>;
 
     string name;
     vector<ResourceHandle> bound_read_resources;
@@ -102,8 +120,8 @@ struct RenderNodeCompute {
     RenderNodeBodyFn body;
     std::vector<RenderNodeHandle> explicit_dependencies;
 
-    struct CustomProperties {
-    } custom_properties;
+    // struct CustomProperties {
+    // } custom_properties;
 };
 
 class RenderNode {

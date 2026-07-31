@@ -9,7 +9,6 @@ export import :ResourceManager;
 import std;
 
 import Cinder.Render.Vulkan;
-import Cinder.Render.Mesh;
 import Cinder.Globals;
 
 export namespace zrx {

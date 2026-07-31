@@ -4,8 +4,10 @@ export module Cinder.Render.Mesh:Model;
 
 import assimp;
 import std;
+import glm;
 
 import Cinder.Render.Vulkan;
+import Cinder.Render.Graph;
 import Cinder.Globals;
 import :Vertex;
 
@@ -19,67 +21,68 @@ struct Mesh {
     explicit Mesh(const aiMesh *assimp_mesh);
 };
 
-struct MeshDescription {
-    uint32_t material_id;
-    uint32_t vertex_offset;
-    uint32_t index_offset;
-};
+#include "src/render/glsl_to_cpp.inl"
+#include "shaders/utils/model.glsl" // struct MeshDescription { ... }
 
-struct Material {
-    unique_ptr<Image> base_color;
-    unique_ptr<Image> normal;
-    unique_ptr<Image> orm;
+struct MaterialDescPack {
+    optional<ExternalTextureResourceDesc> base_color;
+    optional<ExternalTextureResourceDesc> normal;
+    optional<ExternalTextureResourceDesc> orm;
 
-    Material() = default;
+    MaterialDescPack() = default;
 
-    explicit Material(const RendererContext &ctx, const aiMaterial *assimp_material,
-                      const std::filesystem::path &base_path);
+    explicit MaterialDescPack(const aiMaterial *assimp_material, const std::filesystem::path &base_path);
 };
 
 class Model {
+    string name;
+
     vector<Mesh> meshes;
-    vector<Material> materials;
+    vector<MaterialDescPack> material_desc_packs;
 
-    unique_ptr<Buffer> vertex_buffer;
-    unique_ptr<Buffer> instance_data_buffer;
-    unique_ptr<Buffer> index_buffer;
-    unique_ptr<Buffer> mesh_descriptions_buffer;
+    vector<ModelVertex> vertices;
+    vector<uint32_t> indices;
+    vector<glm::mat4> instance_transforms;
+    vector<MeshDescription> mesh_descriptions;
 
-    unique_ptr<AccelerationStructure> blas;
+    optional<ResourceHandle> vertex_buffer;
+    optional<ResourceHandle> instance_data_buffer;
+    optional<ResourceHandle> index_buffer;
+    optional<ResourceHandle> mesh_descriptions_buffer;
+
+    // unique_ptr<AccelerationStructure> blas;
 
 public:
-    explicit Model(const RendererContext &ctx, const std::filesystem::path &path, bool load_materials);
+    Model(string&& name, const std::filesystem::path &path, bool load_materials);
 
     void add_instances(const aiNode *node, const glm::mat4 &base_transform);
 
     auto get_meshes() const -> const vector<Mesh>& { return meshes; }
 
-    auto get_materials() const -> const vector<Material>& { return materials; }
+    auto get_mesh_descriptions() const -> const vector<MeshDescription>& { return mesh_descriptions; }
 
-    auto get_vertex_buffer() const -> const Buffer& { return *vertex_buffer; }
+    auto get_vertex_buffer() const -> ResourceHandle { return *vertex_buffer; }
 
-    auto get_index_buffer() const -> const Buffer& { return *index_buffer; }
+    auto get_instance_data_buffer() const -> ResourceHandle { return *instance_data_buffer; }
 
-    auto get_mesh_descriptions_buffer() const -> const Buffer& { return *mesh_descriptions_buffer; }
+    auto get_index_buffer() const -> ResourceHandle { return *index_buffer; }
 
-    auto get_blas() const -> const AccelerationStructure& { return *blas; }
+    auto get_mesh_descriptions_buffer() const -> ResourceHandle { return *mesh_descriptions_buffer; }
 
+    // auto get_blas() const -> const AccelerationStructure& { return *blas; }
+
+    void register_render_graph_resources(ResourceManager& resource_manager);
+
+private:
     auto get_vertices() const -> vector<ModelVertex>;
 
     auto get_indices() const -> vector<uint32_t>;
 
     auto get_instance_transforms() const -> vector<glm::mat4>;
 
-    auto get_mesh_descriptions() const -> vector<MeshDescription>;
-
-    void bind_buffers(const vk::raii::CommandBuffer &command_buffer) const;
-
-private:
     void normalize_scale();
 
-    void create_buffers(const RendererContext &ctx);
-
-    void create_blas(const RendererContext &ctx);
+    // void create_blas(const RendererContext &ctx);
 
     auto get_max_vertex_distance() const -> float;
 };

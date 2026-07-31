@@ -7,12 +7,11 @@ import std;
 import :Resource;
 
 import Cinder.Render.Vulkan;
-import Cinder.Render.Mesh;
 import Cinder.Globals;
 import Cinder.Utils;
 
 namespace zrx {
-#define NON_PIPELINE_RESOURCE_TYPES Image, Buffer, Model
+#define NON_PIPELINE_RESOURCE_TYPES Image, Buffer
 #define PIPELINE_RESOURCE_TYPES GraphicsPipeline, ComputePipeline
 #define RESOURCE_TYPES NON_PIPELINE_RESOURCE_TYPES, PIPELINE_RESOURCE_TYPES
 
@@ -32,7 +31,6 @@ concept is_pipeline_type = is_one_of<T, PIPELINE_RESOURCE_TYPES>;
 enum class ResourceKind {
     IMAGE,
     BUFFER,
-    MODEL,
     GRAPHICS_PIPELINE,
     COMPUTE_PIPELINE,
 };
@@ -48,11 +46,6 @@ struct ResourceTypeToKind<Image> {
 template <>
 struct ResourceTypeToKind<Buffer> {
     static constexpr auto value = ResourceKind::BUFFER;
-};
-
-template <>
-struct ResourceTypeToKind<Model> {
-    static constexpr auto value = ResourceKind::MODEL;
 };
 
 template <>
@@ -73,18 +66,10 @@ export namespace zrx {
 struct BindlessHandleTag {};
 using BindlessHandle = UniqueHandle<BindlessHandleTag>;
 
-const BindlessHandle EMPTY_TEXTURE_BINDLESS_HANDLE = BindlessHandle::get_new_special();
+const BindlessHandle PLACEHOLDER_BINDLESS_HANDLE = BindlessHandle::get_new_special();
 const BindlessHandle CURR_MAT_BINDLESS_HANDLE = BindlessHandle::get_new_special();
 
 class ResourceManager {
-public:
-    struct MaterialTextureHandles {
-        BindlessHandle base_color;
-        BindlessHandle normal;
-        BindlessHandle orm;
-    };
-
-private:
     reference_wrapper<const RendererContext> renderer_ctx;
 
     // todo - put everything into one map, big struct in value type
@@ -96,13 +81,8 @@ private:
     // todo - replace by vectors??
     map<ResourceHandle, Buffer> buffers;
     map<ResourceHandle, Image> images;
-    map<ResourceHandle, Model> models;
     map<ResourceHandle, GraphicsPipeline> graphics_pipelines;
     map<ResourceHandle, ComputePipeline> compute_pipelines;
-
-    using ModelMaterialHandle = uint32_t;
-    map<ResourceHandle, vector<ModelMaterialHandle>> models_to_materials;
-    map<ModelMaterialHandle, MaterialTextureHandles> materials;
 
     map<ResourceHandle, ImageBuilder> image_builders;
     map<ResourceHandle, GraphicsPipelineBuilder> graphics_pipeline_builders;
@@ -116,8 +96,6 @@ private:
 
     HandlePrioQueue<ResourceHandle> free_resource_handles;
 
-    HandlePrioQueue<ModelMaterialHandle> free_model_mat_handles;
-
     map<ResourceHandle, std::string> resource_names;
 
     vector<vector<ResourceVariant>> queued_for_removal_resources; // one queue for each frame in flight
@@ -130,10 +108,6 @@ public:
     auto attach_raw(const ResourceHandle& handle, T&& resource) {
         handle_to_kind_mapping.emplace(handle, resource_type_to_kind_v<T>);
 
-        if constexpr (std::is_same_v<T, Model>) {
-            add_model_materials(handle, resource);
-        }
-
         auto& resource_map = get_resource_map<T>();
 
         if (resource_map.contains(handle)) {
@@ -144,8 +118,10 @@ public:
         resource_map.emplace(handle, std::move(resource));
 
         if constexpr (std::is_same_v<T, Image> || std::is_same_v<T, Buffer>) {
-            const auto bindless_handle = get_new_handle(free_bindless_handles);
-            bindless_handle_mapping.emplace(handle, bindless_handle);
+            if (!bindless_handle_mapping.contains(handle)) {
+                const auto bindless_handle = get_new_handle(free_bindless_handles);
+                bindless_handle_mapping.emplace(handle, bindless_handle);
+            }
         }
     }
 
@@ -168,10 +144,13 @@ public:
             resource_names.emplace(handle, desc.name);
         }
 
+        if constexpr (is_image_resource_desc_type<T> || is_buffer_resource_desc_type<T>) {
+            const auto bindless_handle = get_new_handle(free_bindless_handles);
+            bindless_handle_mapping.emplace(handle, bindless_handle);
+        }
+
         return handle;
     }
-
-    void add_model_materials(ResourceHandle handle, const Model& model);
 
     void recreate(ResourceHandle handle);
 
@@ -180,7 +159,7 @@ public:
     void clear_removal_queue();
 
     auto get_name(ResourceHandle handle) const -> const std::string&;
-
+    
     auto get_bindless_handle(const ResourceHandle handle) const -> BindlessHandle { return bindless_handle_mapping.at(handle); }
 
     auto get_desc_variant(const ResourceHandle handle) const -> const ResourceDescVariant& { return descriptions.at(handle); }
@@ -201,11 +180,6 @@ public:
         requires is_builder_type<T>
     auto get(const ResourceHandle handle) -> T& { return get_builder_map<T>().at(handle); }
 
-    auto get_model_material_handles(const ResourceHandle handle) const { return models_to_materials.at(handle); }
-    auto get_material_tex_handles(const ModelMaterialHandle handle) const { return materials.at(handle); }
-
-    auto get_model_mat_tex_handles(ResourceHandle handle) const -> vector<MaterialTextureHandles>;
-
     auto get_all_resource_handles_range() const { return handle_to_kind_mapping | std::views::keys; }
 
     template <typename T>
@@ -222,8 +196,6 @@ public:
                 return buffers.contains(handle);
             case ResourceKind::IMAGE:
                 return images.contains(handle);
-            case ResourceKind::MODEL:
-                return models.contains(handle);
             case ResourceKind::GRAPHICS_PIPELINE:
                 return graphics_pipelines.contains(handle);
             case ResourceKind::COMPUTE_PIPELINE:
@@ -242,8 +214,6 @@ private:
             return buffers;
         } else if constexpr (std::is_same_v<T, Image>) {
             return images;
-        } else if constexpr (std::is_same_v<T, Model>) {
-            return models;
         } else if constexpr (std::is_same_v<T, GraphicsPipeline>) {
             return graphics_pipelines;
         } else if constexpr (std::is_same_v<T, ComputePipeline>) {

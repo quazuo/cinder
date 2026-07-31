@@ -59,6 +59,7 @@ class Engine {
     } shadow_map_config;
 
     float debug_number = 0;
+    int debug_tex = 0;
 
     struct RenderFrameSettings {
         bool is_gui_enabled        = true;
@@ -71,11 +72,9 @@ class Engine {
     } render_frame_settings;
 
     enum RenderingResource {
-        Model_Scene,
         VB_Skybox,
         VB_ScreenSpaceQuad,
         UBO_General,
-        UBO_Materials,
         Tex_Envmap,
         Tex_Skybox,
         Tex_GNormal,
@@ -101,6 +100,7 @@ class Engine {
     };
 
     enum_map<RenderingResource, ResourceHandle> render_resources;
+    optional<Model> scene_model;
 
 public:
     Engine();
@@ -115,8 +115,6 @@ private:
     void build_render_graph();
 
     void update_graphics_uniform_buffer(const Buffer &buffer) const;
-
-    void update_materials_uniform_buffer(const Buffer &buffer, ResourceHandle model_handle, const ResourceManager& resource_manager) const;
 
     void bind_key_actions();
 

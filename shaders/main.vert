@@ -17,10 +17,9 @@ layout (location = 3) out mat3 TBN;
 
 layout (push_constant) uniform PushResourceIDs {
     uint general_ubo_id;
+    uint mesh_desc_ubo_id;
     uint ssao_tex_id;
     uint shadowmap_id;
-    uint material_ubo_id;
-    uint material_id;
 } constants;
 
 layout (set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform UniformBufferObject {

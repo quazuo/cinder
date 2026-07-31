@@ -72,10 +72,13 @@ Mesh::Mesh(const aiMesh *assimp_mesh) : material_id(assimp_mesh->mMaterialIndex)
             indices.push_back(face.mIndices[i]);
         }
     }
+
+    instances.push_back(glm::gtc::identity<glm::mat4>());
 }
 
-Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material,
-                   const std::filesystem::path &base_path) {
+MaterialDescPack::MaterialDescPack(const aiMaterial *assimp_material, const std::filesystem::path &base_path) {
+    static uint32_t mat_idx = 0;
+
     // base color
 
     aiString base_color_rel_path;
@@ -86,17 +89,11 @@ Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material
         path /= base_color_rel_path.C_Str();
         path.make_preferred();
 
-        try {
-            base_color = make_unique<Image>(
-                ImageBuilder()
-                    .with_format(vk::Format::eR8G8B8A8Srgb)
-                    .from_paths({path})
-                    .create(ctx)
-            );
-        } catch (std::exception &e) {
-            std::cerr << "failed to allocate buffer for texture: " << path << std::endl;
-            base_color = nullptr;
-        }
+        base_color = ExternalTextureResourceDesc {
+            .name = std::format("tex-base-color#{}@{}", mat_idx, assimp_material->GetName().C_Str()),
+            .paths = { path },
+            .format = vk::Format::eR8G8B8A8Srgb,
+        };
     }
 
     // normal map
@@ -111,12 +108,11 @@ Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material
         path /= normal_rel_path.C_Str();
         path.make_preferred();
 
-        normal = make_unique<Image>(
-            ImageBuilder()
-                .with_format(vk::Format::eR8G8B8A8Unorm)
-                .from_paths({path})
-                .create(ctx)
-        );
+        normal = ExternalTextureResourceDesc {
+            .name = std::format("tex-normal#{}@{}", mat_idx, assimp_material->GetName().C_Str()),
+            .paths = { path },
+            .format = vk::Format::eR8G8B8A8Unorm,
+        };
     }
 
     // orm
@@ -144,31 +140,37 @@ Material::Material(const RendererContext &ctx, const aiMaterial *assimp_material
         metallic_path.make_preferred();
     }
 
-    auto orm_builder = ImageBuilder()
-            .with_format(vk::Format::eR8G8B8A8Unorm)
-            .with_swizzle({
-                ao_path.empty() ? SwizzleComponent::MAX : SwizzleComponent::R,
-                roughness_path.empty() ? SwizzleComponent::MAX : SwizzleComponent::G,
-                metallic_path.empty() ? SwizzleComponent::ZERO : SwizzleComponent::B,
-                SwizzleComponent::MAX,
-            });
+    ExternalTextureResourceDesc orm_desc {
+        .name = std::format("tex-orm#{}@{}", mat_idx, assimp_material->GetName().C_Str()),
+        .format = vk::Format::eR8G8B8A8Unorm,
+        .swizzle = SwizzleDesc {
+            ao_path.empty() ? SwizzleComponent::MAX : SwizzleComponent::R,
+            roughness_path.empty() ? SwizzleComponent::MAX : SwizzleComponent::G,
+            metallic_path.empty() ? SwizzleComponent::ZERO : SwizzleComponent::B,
+            SwizzleComponent::MAX,
+        }
+    };
 
     if (ao_path.empty() && roughness_path.empty() && metallic_path.empty()) {
-        orm_builder.from_swizzle_fill({1, 1, 1});
+        orm_desc.paths = {};
     } else if (!ao_path.empty() && (ao_path == roughness_path || ao_path == metallic_path)) {
-        orm_builder.from_paths({ao_path});
+        orm_desc.paths = {ao_path};
     } else if (!roughness_path.empty() && (roughness_path == ao_path || roughness_path == metallic_path)) {
-        orm_builder.from_paths({roughness_path});
+        orm_desc.paths = {roughness_path};
     } else if (!metallic_path.empty() && (metallic_path == ao_path || metallic_path == roughness_path)) {
-        orm_builder.from_paths({metallic_path});
+        orm_desc.paths = {metallic_path};
     } else {
-        orm_builder.as_separate_channels().from_paths({ao_path, roughness_path, metallic_path});
+        orm_desc.paths = {ao_path, roughness_path, metallic_path};
     }
 
-    orm = make_unique<Image>(orm_builder.create(ctx));
+    if (!orm_desc.paths.empty()) {
+        orm = orm_desc;
+    }
+
+    mat_idx++;
 }
 
-Model::Model(const RendererContext &ctx, const std::filesystem::path &path, const bool load_materials) {
+Model::Model(string&& name, const std::filesystem::path &path, const bool load_materials) : name(name) {
     Assimp::Importer importer;
 
     const aiScene *scene = importer.ReadFile(
@@ -191,31 +193,37 @@ Model::Model(const RendererContext &ctx, const std::filesystem::path &path, cons
     }
 
     if (load_materials) {
-        constexpr size_t MAX_MATERIAL_COUNT = 32;
-        if (scene->mNumMaterials > MAX_MATERIAL_COUNT) {
-            Logger::error("Models with more than 32 materials are not supported");
-        }
-
         for (size_t i = 0; i < scene->mNumMaterials; i++) {
             std::filesystem::path base_path = path.parent_path();
-            materials.emplace_back(ctx, scene->mMaterials[i], base_path);
+            material_desc_packs.emplace_back(scene->mMaterials[i], base_path);
         }
     }
+
+    uint32_t index_offset  = 0;
+    uint32_t vertex_offset = 0;
 
     for (size_t i = 0; i < scene->mNumMeshes; i++) {
         meshes.emplace_back(scene->mMeshes[i]);
 
-        if (!load_materials) {
-            meshes.back().material_id = 0;
-        }
+        mesh_descriptions.emplace_back(MeshDescription {
+            .vertex_offset = vertex_offset,
+            .index_offset  = index_offset,
+            .base_color_id = PLACEHOLDER_BINDLESS_HANDLE,
+            .normal_id     = PLACEHOLDER_BINDLESS_HANDLE,
+            .orm_id        = PLACEHOLDER_BINDLESS_HANDLE,
+        });
+
+        index_offset += static_cast<uint32_t>(meshes[i].indices.size());
+        vertex_offset += static_cast<std::int32_t>(meshes[i].vertices.size());
     }
 
     add_instances(scene->mRootNode, glm::gtc::identity<glm::mat4>());
-
     normalize_scale();
-
-    create_buffers(ctx);
     // create_blas(ctx);
+
+    vertices = get_vertices();
+    indices = get_indices();
+    instance_transforms = get_instance_transforms();
 }
 
 void Model::add_instances(const aiNode *node, const glm::mat4 &base_transform) {
@@ -281,151 +289,136 @@ vector<glm::mat4> Model::get_instance_transforms() const {
     return result;
 }
 
-vector<MeshDescription> Model::get_mesh_descriptions() const {
-    vector<MeshDescription> result;
-
-    uint32_t index_offset  = 0;
-    uint32_t vertex_offset = 0;
-
-    for (const auto &mesh: meshes) {
-        result.emplace_back(MeshDescription{
-            .material_id = mesh.material_id,
-            .vertex_offset = vertex_offset,
-            .index_offset = index_offset,
-        });
-
-        index_offset += static_cast<uint32_t>(mesh.indices.size());
-        vertex_offset += static_cast<std::int32_t>(mesh.vertices.size());
-    }
-
-    return result;
-}
-
-void Model::bind_buffers(const vk::raii::CommandBuffer &command_buffer) const {
-    command_buffer.bindVertexBuffers(0, ***vertex_buffer, {0});
-    command_buffer.bindVertexBuffers(1, ***instance_data_buffer, {0});
-    command_buffer.bindIndexBuffer(**index_buffer, 0, vk::IndexType::eUint32);
-}
-
-void Model::create_buffers(const RendererContext &ctx) {
-    constexpr auto ray_tracing_flags = vk::BufferUsageFlagBits::eStorageBuffer
-                                       | vk::BufferUsageFlagBits::eShaderDeviceAddress
-                                       | vk::BufferUsageFlagBits::eAccelerationStructureBuildInputReadOnlyKHR;
-
-    vertex_buffer = make_unique<Buffer>(utils::buf::create_local_buffer(
-        ctx,
-        get_vertices(),
-        vk::BufferUsageFlagBits::eVertexBuffer | ray_tracing_flags
-    ));
-
-    instance_data_buffer = make_unique<Buffer>(utils::buf::create_local_buffer(
-        ctx,
-        get_instance_transforms(),
-        vk::BufferUsageFlagBits::eVertexBuffer | ray_tracing_flags
-    ));
-
-    index_buffer = make_unique<Buffer>(utils::buf::create_local_buffer(
-        ctx,
-        get_indices(),
-        vk::BufferUsageFlagBits::eIndexBuffer | ray_tracing_flags
-    ));
-
-    mesh_descriptions_buffer = make_unique<Buffer>(utils::buf::create_local_buffer(
-        ctx,
-        get_mesh_descriptions(),
-        ray_tracing_flags
-    ));
-}
-
-void Model::create_blas(const RendererContext &ctx) {
-    // todo - convert some of the stuff to VMA calls
-
-    const vk::DeviceAddress vertex_address = ctx.device->getBufferAddress({.buffer = **vertex_buffer});
-    const vk::DeviceAddress index_address  = ctx.device->getBufferAddress({.buffer = **index_buffer});
-
-    const uint32_t max_primitive_count = get_indices().size() / 3;
-
-    const vk::AccelerationStructureGeometryTrianglesDataKHR geometry_triangles{
-        .vertexFormat = vk::Format::eR32G32B32Sfloat,
-        .vertexData = vertex_address,
-        .vertexStride = sizeof(ModelVertex),
-        .maxVertex = static_cast<uint32_t>(get_vertices().size() - 1),
-        .indexType = vk::IndexType::eUint32,
-        .indexData = index_address,
-    };
-
-    const vk::AccelerationStructureGeometryKHR geometry{
-        .geometryType = vk::GeometryTypeKHR::eTriangles,
-        .geometry = geometry_triangles,
-        .flags = vk::GeometryFlagBitsKHR::eOpaque,
-    };
-
-    vk::AccelerationStructureBuildGeometryInfoKHR geometry_info{
-        .type = vk::AccelerationStructureTypeKHR::eBottomLevel,
-        .flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace,
-        .mode = vk::BuildAccelerationStructureModeKHR::eBuild,
-        .geometryCount = 1u,
-        .pGeometries = &geometry,
-    };
-
-    const vk::AccelerationStructureBuildRangeInfoKHR range_info{
-        .primitiveCount = max_primitive_count,
-        .primitiveOffset = 0,
-        .firstVertex = 0,
-        .transformOffset = 0,
-    };
-
-    const auto build_sizes = ctx.device->getAccelerationStructureBuildSizesKHR(
-        vk::AccelerationStructureBuildTypeKHR::eDevice,
-        geometry_info,
-        max_primitive_count
-    );
-
-    // scratch buffer creation
-
-    const Buffer scratch_buffer{
-        ctx,
-        build_sizes.buildScratchSize,
-        vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer,
-        vk::MemoryPropertyFlagBits::eDeviceLocal
-    };
-
-    geometry_info.scratchData = ctx.device->getBufferAddress({.buffer = *scratch_buffer});
-
-    // acceleration structure creation
-
-    const uint32_t acceleration_structure_size = build_sizes.accelerationStructureSize;
-
-    auto blas_buffer = make_unique<Buffer>(
-        ctx,
-        acceleration_structure_size,
-        vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR,
-        vk::MemoryPropertyFlagBits::eDeviceLocal
-    );
-
-    const vk::AccelerationStructureCreateInfoKHR as_create_info{
-        .buffer = **blas_buffer,
-        .size = acceleration_structure_size,
-        .type = vk::AccelerationStructureTypeKHR::eBottomLevel,
-    };
-
-    auto blas_handle = make_unique<vk::raii::AccelerationStructureKHR>(
-        ctx.device->createAccelerationStructureKHR(as_create_info)
-    );
-
-    geometry_info.dstAccelerationStructure = **blas_handle;
-
-    blas = make_unique<AccelerationStructure>(
-        std::move(blas_handle),
-        std::move(blas_buffer)
-    );
-
-    // todo - compact
-
-    utils::cmd::do_single_time_commands(ctx, [&](const vk::raii::CommandBuffer &command_buffer) {
-        command_buffer.buildAccelerationStructuresKHR(geometry_info, &range_info);
+void Model::register_render_graph_resources(ResourceManager &resource_manager) {
+    vertex_buffer = resource_manager.add_from_desc(VertexBufferResourceDesc{
+        .name = std::format("model-vb@{}", name),
+        .size = vertices.size() * sizeof(decltype(vertices[0])),
+        .data = vertices.data(),
     });
+
+    instance_data_buffer = resource_manager.add_from_desc(VertexBufferResourceDesc{
+        .name = std::format("model-idb@{}", name),
+        .size = instance_transforms.size() * sizeof(decltype(instance_transforms[0])),
+        .data = instance_transforms.data(),
+    });
+
+    index_buffer = resource_manager.add_from_desc(IndexBufferResourceDesc{
+        .name = std::format("model-ib@{}", name),
+        .size = indices.size() * sizeof(decltype(indices[0])),
+        .data = indices.data(),
+    });
+
+    mesh_descriptions_buffer = resource_manager.add_from_desc(UniformBufferResourceDesc{
+        .name = std::format("model-md@{}", name),
+        .size = mesh_descriptions.size() * sizeof(decltype(mesh_descriptions[0])),
+    });
+
+    for (auto [mesh, mesh_desc] : std::views::zip(meshes, mesh_descriptions)) {
+        const MaterialDescPack& mdp = material_desc_packs[mesh.material_id];
+
+        if (mdp.base_color) {
+            mesh_desc.base_color_id = resource_manager.get_bindless_handle(resource_manager.add_from_desc(*mdp.base_color));
+        }
+
+        if (mdp.normal) {
+            mesh_desc.normal_id = resource_manager.get_bindless_handle(resource_manager.add_from_desc(*mdp.normal));
+        }
+
+        if (mdp.orm) {
+            mesh_desc.orm_id = resource_manager.get_bindless_handle(resource_manager.add_from_desc(*mdp.orm));
+        }
+    }
 }
+
+// void Model::create_blas(const RendererContext &ctx) {
+//     // todo - convert some of the stuff to VMA calls
+//
+//     const vk::DeviceAddress vertex_address = ctx.device->getBufferAddress({.buffer = **vertex_buffer});
+//     const vk::DeviceAddress index_address  = ctx.device->getBufferAddress({.buffer = **index_buffer});
+//
+//     const uint32_t max_primitive_count = get_indices().size() / 3;
+//
+//     const vk::AccelerationStructureGeometryTrianglesDataKHR geometry_triangles{
+//         .vertexFormat = vk::Format::eR32G32B32Sfloat,
+//         .vertexData = vertex_address,
+//         .vertexStride = sizeof(ModelVertex),
+//         .maxVertex = static_cast<uint32_t>(get_vertices().size() - 1),
+//         .indexType = vk::IndexType::eUint32,
+//         .indexData = index_address,
+//     };
+//
+//     const vk::AccelerationStructureGeometryKHR geometry{
+//         .geometryType = vk::GeometryTypeKHR::eTriangles,
+//         .geometry = geometry_triangles,
+//         .flags = vk::GeometryFlagBitsKHR::eOpaque,
+//     };
+//
+//     vk::AccelerationStructureBuildGeometryInfoKHR geometry_info{
+//         .type = vk::AccelerationStructureTypeKHR::eBottomLevel,
+//         .flags = vk::BuildAccelerationStructureFlagBitsKHR::ePreferFastTrace,
+//         .mode = vk::BuildAccelerationStructureModeKHR::eBuild,
+//         .geometryCount = 1u,
+//         .pGeometries = &geometry,
+//     };
+//
+//     const vk::AccelerationStructureBuildRangeInfoKHR range_info{
+//         .primitiveCount = max_primitive_count,
+//         .primitiveOffset = 0,
+//         .firstVertex = 0,
+//         .transformOffset = 0,
+//     };
+//
+//     const auto build_sizes = ctx.device->getAccelerationStructureBuildSizesKHR(
+//         vk::AccelerationStructureBuildTypeKHR::eDevice,
+//         geometry_info,
+//         max_primitive_count
+//     );
+//
+//     // scratch buffer creation
+//
+//     const Buffer scratch_buffer{
+//         ctx,
+//         build_sizes.buildScratchSize,
+//         vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eStorageBuffer,
+//         vk::MemoryPropertyFlagBits::eDeviceLocal
+//     };
+//
+//     geometry_info.scratchData = ctx.device->getBufferAddress({.buffer = *scratch_buffer});
+//
+//     // acceleration structure creation
+//
+//     const uint32_t acceleration_structure_size = build_sizes.accelerationStructureSize;
+//
+//     auto blas_buffer = make_unique<Buffer>(
+//         ctx,
+//         acceleration_structure_size,
+//         vk::BufferUsageFlagBits::eShaderDeviceAddress | vk::BufferUsageFlagBits::eAccelerationStructureStorageKHR,
+//         vk::MemoryPropertyFlagBits::eDeviceLocal
+//     );
+//
+//     const vk::AccelerationStructureCreateInfoKHR as_create_info{
+//         .buffer = **blas_buffer,
+//         .size = acceleration_structure_size,
+//         .type = vk::AccelerationStructureTypeKHR::eBottomLevel,
+//     };
+//
+//     auto blas_handle = make_unique<vk::raii::AccelerationStructureKHR>(
+//         ctx.device->createAccelerationStructureKHR(as_create_info)
+//     );
+//
+//     geometry_info.dstAccelerationStructure = **blas_handle;
+//
+//     blas = make_unique<AccelerationStructure>(
+//         std::move(blas_handle),
+//         std::move(blas_buffer)
+//     );
+//
+//     // todo - compact
+//
+//     utils::cmd::do_single_time_commands(ctx, [&](const vk::raii::CommandBuffer &command_buffer) {
+//         command_buffer.buildAccelerationStructuresKHR(geometry_info, &range_info);
+//     });
+// }
 
 void Model::normalize_scale() {
     constexpr float standard_scale = 10.0f;

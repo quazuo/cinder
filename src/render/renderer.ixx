@@ -212,12 +212,12 @@ private:
     void create_render_graph_resources();
 
     void create_resource(ResourceHandle handle, const VertexBufferResourceDesc& description);
+    void create_resource(ResourceHandle handle, const IndexBufferResourceDesc& description);
     void create_resource(ResourceHandle handle, const UniformBufferResourceDesc& description);
     void create_resource(ResourceHandle handle, const ExternalTextureResourceDesc& description);
     void create_resource(ResourceHandle handle, const TargetTextureResourceDesc& description);
     void create_resource(ResourceHandle handle, const PersistentTextureResourceDesc& description);
     void create_resource(ResourceHandle handle, const TransientTextureResourceDesc& description);
-    void create_resource(ResourceHandle handle, const ModelResourceDesc& description);
     void create_resource(ResourceHandle handle, const GraphicsPipelineResourceDesc& description);
     void create_resource(ResourceHandle handle, const ComputePipelineResourceDesc& description);
 

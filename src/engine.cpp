@@ -22,7 +22,6 @@ namespace zrx {
 namespace glsl {
     #include "render/glsl_to_cpp.inl"
     #include "shaders/utils/ubo.glsl"
-    #include "shaders/utils/material.glsl"
 }
 
 struct GraphicsUBO {
@@ -30,10 +29,6 @@ struct GraphicsUBO {
     GLSL_ALIGN16 glsl::Matrices matrices{};
     GLSL_ALIGN16 glsl::LightData light{};
     GLSL_ALIGN16 glsl::MiscData misc{};
-};
-
-struct MaterialsUBO {
-    GLSL_ALIGN16 glsl::Material mats[MAX_MATERIAL_COUNT];
 };
 
 Engine::Engine() {
@@ -86,10 +81,17 @@ void Engine::register_render_graph_resources() {
 
     // ================== models and vertex buffers ==================
 
-    rr[Model_Scene] = resource_manager.add_from_desc(ModelResourceDesc{
-        .name = "scene-model",
-        .path = "../assets/example models/Sponza/Sponza.gltf",
-        .has_materials = true,
+    scene_model = Model { "sponza", "../assets/example models/Sponza/Sponza.gltf", true };
+    scene_model->register_render_graph_resources(resource_manager);
+
+    renderer.add_frame_begin_action([&](const FrameBeginActionContext &fba_ctx) {
+        Buffer& buffer = fba_ctx.resource_manager.get().get<Buffer>(scene_model->get_mesh_descriptions_buffer());
+        const auto& mds = scene_model->get_mesh_descriptions();
+
+        uint32_t buf_size = buffer.get_size();
+        uint32_t data_size = mds.size() * sizeof(decltype(mds[0]));
+
+        buffer.copy_from_ptr(mds.data(), mds.size() * sizeof(decltype(mds[0])));
     });
 
     rr[VB_Skybox] = resource_manager.add_from_desc(VertexBufferResourceDesc{
@@ -114,21 +116,6 @@ void Engine::register_render_graph_resources() {
     renderer.add_frame_begin_action([&](const FrameBeginActionContext &fba_ctx) {
         Buffer& buffer = fba_ctx.resource_manager.get().get<Buffer>(rr[UBO_General]);
         update_graphics_uniform_buffer(buffer);
-    });
-
-    rr[UBO_Materials] = resource_manager.add_from_desc(UniformBufferResourceDesc{
-        .name = "material-ubo",
-        .size = sizeof(MaterialsUBO)
-    });
-
-    renderer.add_frame_begin_action([&](const FrameBeginActionContext &fba_ctx) {
-        static bool has_been_done = false;
-        if (!has_been_done) {
-            auto& resource_manager = fba_ctx.resource_manager.get();
-            Buffer& material_ubo_buffer = resource_manager.get<Buffer>(rr[UBO_Materials]);
-            update_materials_uniform_buffer(material_ubo_buffer, rr[Model_Scene], resource_manager);
-            has_been_done = true;
-        }
     });
 
     // ================== external textures ==================
@@ -297,6 +284,34 @@ void Engine::register_render_graph_resources() {
 void Engine::build_render_graph() {
     RenderGraph render_graph;
     const auto& rr = render_resources;
+    const ResourceHandle model_mdb = scene_model->get_mesh_descriptions_buffer();
+
+    const auto draw_model_helper = [](RenderPassContext &ctx, const Model& model, const bool push_mesh_ids = false) {
+        uint32_t index_offset    = 0;
+        int32_t vertex_offset    = 0;
+        uint32_t instance_offset = 0;
+
+        for (uint32_t mesh_id = 0; const auto &mesh: model.get_meshes()) {
+            ctx.bind_vertex_buffers({ model.get_vertex_buffer(), model.get_instance_data_buffer() });
+            ctx.bind_index_buffer(model.get_index_buffer());
+
+            if (push_mesh_ids) {
+                ctx.push_constants(mesh_id++, vk::ShaderStageFlagBits::eFragment);
+            }
+
+            ctx.draw_indexed(
+                static_cast<uint32_t>(mesh.indices.size()),
+                static_cast<uint32_t>(mesh.instances.size()),
+                index_offset,
+                vertex_offset,
+                instance_offset
+            );
+
+            index_offset += static_cast<uint32_t>(mesh.indices.size());
+            vertex_offset += static_cast<int32_t>(mesh.vertices.size());
+            instance_offset += static_cast<uint32_t>(mesh.instances.size());
+        }
+    };
 
     // ================== nodes ==================
 
@@ -323,7 +338,7 @@ void Engine::build_render_graph() {
         .body = [&](RenderPassContext &ctx) {
             ctx.bind_pipeline(rr[Pipe_Shadowmap]);
             ctx.bind_resources({rr[UBO_General]});
-            ctx.draw_model(rr[Model_Scene]);
+            draw_model_helper(ctx, *scene_model);
         },
     });
 
@@ -336,7 +351,7 @@ void Engine::build_render_graph() {
             .body = [&](RenderPassContext &ctx) {
                 ctx.bind_pipeline(rr[Pipe_Prepass]);
                 ctx.bind_resources({rr[UBO_General]});
-                ctx.draw_model(rr[Model_Scene]);
+                draw_model_helper(ctx, *scene_model);
             },
         });
 
@@ -354,13 +369,13 @@ void Engine::build_render_graph() {
 
     render_graph.add_node(RenderNodeGraphics {
         .name = "main",
-        .bound_resources = {rr[UBO_General], rr[Tex_SSAO], rr[Tex_Shadowmap], rr[UBO_Materials], rr[Tex_Skybox]},
+        .bound_resources = {rr[UBO_General], rr[Tex_SSAO], rr[Tex_Shadowmap], rr[Tex_Skybox], model_mdb},
         .color_targets = {rr[Tex_BasePass]},
         .depth_target = FINAL_IMAGE_HANDLE,
-        .body = [&](RenderPassContext &ctx) {
+        .body = [&, model_mdb](RenderPassContext &ctx) {
             ctx.bind_pipeline(rr[Pipe_Main]);
-            ctx.bind_resources({rr[UBO_General], rr[Tex_SSAO], rr[Tex_Shadowmap], rr[UBO_Materials], CURRENT_MATERIAL_HANDLE});
-            ctx.draw_model(rr[Model_Scene]);
+            ctx.bind_resources({rr[UBO_General], model_mdb, rr[Tex_SSAO], rr[Tex_Shadowmap]});
+            draw_model_helper(ctx, *scene_model, true);
 
             ctx.bind_pipeline(rr[Pipe_Skybox]);
             ctx.bind_resources({rr[UBO_General], rr[Tex_Skybox]});
@@ -413,7 +428,7 @@ void Engine::build_render_graph() {
             .body = [&](RenderPassContext &ctx) {
                 if (render_frame_settings.show_debug_quad) {
                     ctx.bind_pipeline(rr[Pipe_SsQuad]);
-                    ctx.bind_resources({rr[UBO_General], rr[Tex_Shadowmap]});
+                    ctx.bind_resources({rr[UBO_General], ResourceHandle::get_unsafe(debug_tex)});
                 } else {
                     ctx.bind_pipeline(rr[Pipe_Final]);
                     ctx.bind_resources({rr[UBO_General], rr[Tex_BasePass]});
@@ -510,25 +525,6 @@ void Engine::update_graphics_uniform_buffer(const Buffer &buffer) const {
     buffer.copy_from_ptr(&graphics_ubo, sizeof(graphics_ubo));
 }
 
-void Engine::update_materials_uniform_buffer(const Buffer &buffer, const ResourceHandle model_handle, const ResourceManager& resource_manager) const {
-    MaterialsUBO materials_ubo {};
-    std::memset(&materials_ubo, 0, sizeof(materials_ubo));
-
-    const auto& material_handles = resource_manager.get_model_material_handles(model_handle);
-
-    for (const auto material_handle : material_handles) {
-        const auto& texture_handles = resource_manager.get_material_tex_handles(material_handle);
-
-        materials_ubo.mats[material_handle] = glsl::Material {
-            .base_color = static_cast<uint32_t>(texture_handles.base_color),
-            .normal     = static_cast<uint32_t>(texture_handles.normal),
-            .orm        = static_cast<uint32_t>(texture_handles.orm),
-        };
-    }
-
-    buffer.copy_from_ptr(&materials_ubo, sizeof(materials_ubo));
-}
-
 void Engine::bind_key_actions() {
     input_manager->bind_callback(glfw::Key::KEY_GRAVE_ACCENT, EActivationType::PRESS_ONCE, [&](const float delta_time) {
         (void) delta_time;
@@ -567,6 +563,26 @@ void Engine::render_gui_section(const float delta_time) {
         ImGui::Text("FPS: %.2f", fps);
 
         ImGui::Checkbox("Debug quad", &render_frame_settings.show_debug_quad);
+
+        if (ImGui::BeginCombo("Debug tex", "")) {
+            const auto& rm = renderer.get_resource_manager();
+            for (const auto& handle: rm.get_all_resource_handles_range()) {
+                bool is_ok_type = false;
+                if (std::holds_alternative<ExternalTextureResourceDesc>(rm.get_desc_variant(handle)))
+                    is_ok_type = true;
+                if (std::holds_alternative<PersistentTextureResourceDesc>(rm.get_desc_variant(handle)))
+                    is_ok_type = true;
+                if (std::holds_alternative<TargetTextureResourceDesc>(rm.get_desc_variant(handle)))
+                    is_ok_type = true;
+                if (!is_ok_type) continue;
+
+                if (ImGui::Selectable(rm.get_name(handle).c_str())) {
+                    debug_tex = static_cast<uint32_t>(handle);
+                }
+            }
+            ImGui::EndCombo();
+        }
+
         ImGui::Separator();
 
         if (ImGui::Button("Reload shaders")) {

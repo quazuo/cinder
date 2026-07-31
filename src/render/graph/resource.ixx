@@ -6,7 +6,6 @@ import std;
 import vulkan;
 
 import Cinder.Render.Vulkan;
-import Cinder.Render.Mesh;
 import Cinder.Globals;
 import Cinder.Utils;
 
@@ -14,8 +13,7 @@ export namespace zrx {
 struct ResourceHandleTag {};
 using ResourceHandle = UniqueHandle<ResourceHandleTag>;
 
-const ResourceHandle FINAL_IMAGE_HANDLE      = ResourceHandle::get_new_special();
-const ResourceHandle CURRENT_MATERIAL_HANDLE = ResourceHandle::get_new_special();
+const ResourceHandle FINAL_IMAGE_HANDLE  = ResourceHandle::get_new_special();
 
 constexpr uint32_t MAX_RESOURCE_COUNT = 1 << 16;
 
@@ -28,9 +26,16 @@ struct VertexBufferResourceDesc {
     const void *data;
 };
 
+struct IndexBufferResourceDesc {
+    string name{};
+    vk::DeviceSize size = 0;
+    const void *data;
+};
+
 struct UniformBufferResourceDesc {
     string name{};
     vk::DeviceSize size = 0;
+    optional<const void *> data;
 };
 
 struct ExternalTextureResourceDesc {
@@ -66,12 +71,6 @@ struct TransientTextureResourceDesc {
     ImageFlags flags{};
 };
 
-struct ModelResourceDesc {
-    string name{};
-    std::filesystem::path path{};
-    bool has_materials = false;
-};
-
 // basically same purpose as std::monostate but with a specific name
 struct FinalImageFormatPlaceholder {};
 constexpr auto FINAL_FORMAT = FinalImageFormatPlaceholder();
@@ -105,6 +104,7 @@ struct ComputePipelineResourceDesc {
 
 #define BUFFER_RESOURCE_DESC_TYPES      \
     VertexBufferResourceDesc,           \
+    IndexBufferResourceDesc,            \
     UniformBufferResourceDesc
 
 #define IMAGE_RESOURCE_DESC_TYPES       \
@@ -113,9 +113,6 @@ struct ComputePipelineResourceDesc {
     PersistentTextureResourceDesc,      \
     TransientTextureResourceDesc
 
-#define MODEL_RESOURCE_DESC_TYPES       \
-    ModelResourceDesc
-
 #define PIPELINE_RESOURCE_DESC_TYPES    \
     GraphicsPipelineResourceDesc,       \
     ComputePipelineResourceDesc
@@ -123,12 +120,10 @@ struct ComputePipelineResourceDesc {
 #define ALL_RESOURCE_DESC_TYPES         \
     BUFFER_RESOURCE_DESC_TYPES,         \
     IMAGE_RESOURCE_DESC_TYPES,          \
-    MODEL_RESOURCE_DESC_TYPES,          \
     PIPELINE_RESOURCE_DESC_TYPES
 
 using BufferResourceDescVariant   = variant<BUFFER_RESOURCE_DESC_TYPES>;
 using TextureResourceDescVariant  = variant<IMAGE_RESOURCE_DESC_TYPES>;
-using ModelResourceDescVariant    = variant<MODEL_RESOURCE_DESC_TYPES>;
 using PipelineResourceDescVariant = variant<PIPELINE_RESOURCE_DESC_TYPES>;
 using ResourceDescVariant         = variant<ALL_RESOURCE_DESC_TYPES>;
 
@@ -139,16 +134,13 @@ template <typename T>
 concept is_image_resource_desc_type = is_one_of<T, IMAGE_RESOURCE_DESC_TYPES>;
 
 template <typename T>
-concept is_model_resource_desc_type = is_one_of<T, MODEL_RESOURCE_DESC_TYPES>;
-
-template <typename T>
 concept is_pipeline_resource_desc_type = is_one_of<T, PIPELINE_RESOURCE_DESC_TYPES>;
 
 template <typename T>
-concept is_resource_desc_type = is_buffer_resource_desc_type<T>
-                                || is_image_resource_desc_type<T>
-                                || is_model_resource_desc_type<T>
-                                || is_pipeline_resource_desc_type<T>;
+concept is_resource_desc_type =
+    is_buffer_resource_desc_type<T>
+    || is_image_resource_desc_type<T>
+    || is_pipeline_resource_desc_type<T>;
 
 template <typename T>
 struct ResourceDescToType;
@@ -163,12 +155,6 @@ template <typename T>
     requires is_image_resource_desc_type<T>
 struct ResourceDescToType<T> {
     using type = Image;
-};
-
-template <typename T>
-    requires is_model_resource_desc_type<T>
-struct ResourceDescToType<T> {
-    using type = Model;
 };
 
 template <>

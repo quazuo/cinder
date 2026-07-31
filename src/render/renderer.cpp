@@ -178,10 +178,7 @@ auto VulkanRenderer::get_required_extensions() -> vector<const char *> {
     const char **glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
 
     vector extensions(glfw_extensions, glfw_extensions + glfw_extension_count);
-
-    if (ENABLE_VALIDATION_LAYERS) {
-        extensions.push_back(vk::EXTDebugUtilsExtensionName);
-    }
+    extensions.push_back(vk::EXTDebugUtilsExtensionName);
 
     return extensions;
 }
@@ -201,7 +198,6 @@ void VulkanRenderer::create_surface() {
 auto VulkanRenderer::pick_physical_device(const vkb::Instance &vkb_instance) -> vkb::PhysicalDevice {
     const vector device_extensions{
         vk::EXTDescriptorIndexingExtensionName,
-        // vk::EXTDebugMarkerExtensionName,
         vk::KHRAccelerationStructureExtensionName,
         vk::KHRDeferredHostOperationsExtensionName,
         vk::KHRDynamicRenderingExtensionName,
@@ -610,8 +606,18 @@ void VulkanRenderer::create_resource(const ResourceHandle handle, const VertexBu
     resource_manager->attach_raw(handle, std::move(buffer));
 }
 
+void VulkanRenderer::create_resource(const ResourceHandle handle, const IndexBufferResourceDesc &description) {
+    Buffer buffer = utils::buf::create_local_buffer(ctx, description.data, description.size, vk::BufferUsageFlagBits::eIndexBuffer);
+    resource_manager->attach_raw(handle, std::move(buffer));
+}
+
 void VulkanRenderer::create_resource(const ResourceHandle handle, const UniformBufferResourceDesc &description) {
-    resource_manager->attach_raw(handle, utils::buf::create_uniform_buffer(ctx, description.size));
+    if (description.data) {
+        Buffer buffer = utils::buf::create_local_buffer(ctx, *description.data, description.size, vk::BufferUsageFlagBits::eUniformBuffer);
+        resource_manager->attach_raw(handle, std::move(buffer));
+    } else {
+        resource_manager->attach_raw(handle, utils::buf::create_uniform_buffer(ctx, description.size));
+    }
 
     const auto bindless_handle = resource_manager->get_bindless_handle(handle);
     auto& buffer = resource_manager->get<Buffer>(handle);
@@ -739,37 +745,6 @@ void VulkanRenderer::create_resource(const ResourceHandle handle, const Transien
     }
 
     resource_manager->attach_builder<ImageBuilder>(ctx, handle, std::move(builder));
-}
-
-void VulkanRenderer::create_resource(const ResourceHandle handle, const ModelResourceDesc &description) {
-    resource_manager->attach_raw(handle, Model { ctx, description.path, description.has_materials });
-
-    const auto& materials = resource_manager->get<Model>(handle).get_materials();
-    const auto& mat_tex_handles = resource_manager->get_model_mat_tex_handles(handle);
-
-    for (size_t i = 0; i < materials.size(); i++) {
-        const Material& material = materials[i];
-        const ResourceManager::MaterialTextureHandles& tex_handles = mat_tex_handles[i];
-
-        if (material.base_color) {
-            bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(
-                *material.base_color,
-                static_cast<uint32_t>(tex_handles.base_color)
-            );
-        }
-        if (material.normal) {
-            bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(
-                *material.normal,
-                static_cast<uint32_t>(tex_handles.normal)
-            );
-        }
-        if (material.orm) {
-            bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(
-                *material.orm,
-                static_cast<uint32_t>(tex_handles.orm)
-            );
-        }
-    }
 }
 
 void VulkanRenderer::create_resource(const ResourceHandle handle, const GraphicsPipelineResourceDesc &description) {
@@ -1006,7 +981,8 @@ void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_h
     const size_t subresource_index = render_infos.size() == 1 ? 0 : swap_chain->get_current_image_index();
     const auto &node_render_info = render_infos[subresource_index];
 
-    // command_buffer.debugMarkerBeginEXT(vk::DebugMarkerMarkerInfoEXT { .pMarkerName = node.name.c_str(), });
+    command_buffer.beginDebugUtilsLabelEXT(vk::DebugUtilsLabelEXT { .pLabelName = node.name.c_str() });
+
     command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eTopOfPipe, *time_query_pool, current_query_idx++);
 
     command_buffer.beginRendering(node_render_info.get(
@@ -1019,7 +995,8 @@ void VulkanRenderer::record_graphics_node_commands(const RenderNodeHandle node_h
     record_regenerate_mipmaps_commands(node_handle);
 
     command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eBottomOfPipe, *time_query_pool, current_query_idx++);
-    // command_buffer.debugMarkerEndEXT();
+
+    command_buffer.endDebugUtilsLabelEXT();
 }
 
 void VulkanRenderer::record_node_rendering_commands(const RenderNodeHandle node_handle) const {
@@ -1290,7 +1267,7 @@ void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_ha
     // const size_t subresource_index = render_infos.size() == 1 ? 0 : current_frame_idx;
     // const auto &node_render_info = render_infos[subresource_index];
 
-    // command_buffer.debugMarkerBeginEXT(vk::DebugMarkerMarkerInfoEXT { .pMarkerName = node.name.c_str(), });
+    command_buffer.beginDebugUtilsLabelEXT(vk::DebugUtilsLabelEXT { .pLabelName = node.name.c_str(), });
 
     command_buffer.writeTimestamp2(vk::PipelineStageFlagBits2::eTopOfPipe, *time_query_pool, current_query_idx++);
 
@@ -1307,7 +1284,7 @@ void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_ha
     // regenerate mipmaps for each target that had them
     // record_regenerate_mipmaps_commands(node_handle);
 
-    // command_buffer.debugMarkerEndEXT();
+    command_buffer.endDebugUtilsLabelEXT();
 }
 
 auto VulkanRenderer::gather_attachment_resources() const -> set<ResourceHandle> {

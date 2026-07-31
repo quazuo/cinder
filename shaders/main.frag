@@ -4,7 +4,7 @@
 
 #include "utils/bindless.glsl"
 #include "utils/ubo.glsl"
-#include "utils/material.glsl"
+#include "utils/model.glsl"
 
 layout (location = 0) in vec3 worldPosition;
 layout (location = 1) in vec2 fragTexCoord;
@@ -15,10 +15,11 @@ layout (location = 0) out vec4 outColor;
 
 layout (push_constant) uniform PushResourceIDs {
     uint general_ubo_id;
+    uint mesh_desc_ubo_id;
     uint ssao_tex_id;
     uint shadowmap_id;
-    uint material_ubo_id;
-    uint material_id;
+
+    uint mesh_id;
 } constants;
 
 layout(set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform GeneralUniforms {
@@ -28,9 +29,9 @@ layout(set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform GeneralUnifor
     MiscData misc;
 } ubos[];
 
-layout(set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform MaterialUniforms {
-    Material mats[MAX_MATERIAL_COUNT];
-} materials[];
+layout(set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform MeshDescriptionUniforms {
+    MeshDescription md[MAX_MODEL_MESH_COUNT];
+} mesh_descriptions[];
 
 vec4 sample_texture_with_fallback(uint tex_id, vec2 tex_coord) {
     if (tex_id == 0xffffffff) {
@@ -41,9 +42,8 @@ vec4 sample_texture_with_fallback(uint tex_id, vec2 tex_coord) {
 }
 
 vec3 get_normal() {
-    const uint mat_ubo_id = constants.material_ubo_id;
-    const uint normal_id  = materials[mat_ubo_id].mats[constants.material_id].normal;
-    vec3 normal = sample_texture_with_fallback(normal_id, fragTexCoord).rgb;
+    const MeshDescription mesh_desc = mesh_descriptions[constants.mesh_desc_ubo_id].md[constants.mesh_id];
+    vec3 normal = sample_texture_with_fallback(mesh_desc.normal_id, fragTexCoord).rgb;
     normal = normalize(normal * 2.0 - 1.0);
     normal = normalize(TBN * normal);
     return normal;
@@ -88,21 +88,17 @@ float calc_shadow(vec2 texel_offset) {
 }
 
 void main() {
-    const uint ubo_id        = constants.general_ubo_id;
-    const uint mat_ubo_id    = constants.material_ubo_id;
-    const uint base_color_id = materials[mat_ubo_id].mats[constants.material_id].base_color;
-    const uint normal_id     = materials[mat_ubo_id].mats[constants.material_id].normal;
-    const uint orm_id        = materials[mat_ubo_id].mats[constants.material_id].orm;
+    const MeshDescription mesh_desc = mesh_descriptions[constants.mesh_desc_ubo_id].md[constants.mesh_id];
+    const uint ubo_id = constants.general_ubo_id;
 
-    vec4 base_color = sample_texture_with_fallback(base_color_id, fragTexCoord);
+    vec4 base_color = sample_texture_with_fallback(mesh_desc.base_color_id, fragTexCoord);
+    // if (base_color.a < 0.1) discard;
 
-    if (base_color.a < 0.1) discard;
-
-    vec3 normal = sample_texture_with_fallback(normal_id, fragTexCoord).rgb;
+    vec3 normal = sample_texture_with_fallback(mesh_desc.normal_id, fragTexCoord).rgb;
     normal = normalize(normal * 2.0 - 1.0);
     normal = normalize(TBN * normal);
 
-    vec3 orm = sample_texture_with_fallback(orm_id, fragTexCoord).rgb;
+    vec3 orm = sample_texture_with_fallback(mesh_desc.orm_id, fragTexCoord).rgb;
     float ao = ubos[ubo_id].misc.use_ssao == 1u ? get_blurred_ssao() : orm.r;
     float roughness = orm.g;
     float metallic = orm.b;

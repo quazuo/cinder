@@ -29,11 +29,7 @@ void RenderPassContext::bind_resources(const std::vector<ResourceHandle> &handle
     bound_resource_ids = {};
 
     for (auto& handle: handles) {
-        if (handle == CURRENT_MATERIAL_HANDLE) {
-            // do nothing, will set this to a valid handle when pushing constants
-            bound_resource_ids.push_back(CURR_MAT_BINDLESS_HANDLE);
-
-        } else if (handle == FINAL_IMAGE_HANDLE) {
+        if (handle == FINAL_IMAGE_HANDLE) {
             Logger::error("Cannot bind final image inside a render pass context");
 
         } else {
@@ -42,74 +38,72 @@ void RenderPassContext::bind_resources(const std::vector<ResourceHandle> &handle
     }
 }
 
-void RenderPassContext::draw_model(const ResourceHandle model_handle) {
+void RenderPassContext::bind_vertex_buffers(const std::vector<ResourceHandle> &vb_handles) {
+    std::vector<vk::Buffer> vertex_buffers;
+    for (const auto& handle: vb_handles) {
+        vertex_buffers.push_back(**resource_manager.get().get<Buffer>(handle));
+    }
+
+    const std::vector<vk::DeviceSize> offsets(vertex_buffers.size(), 0);
+
+    command_buffer.get().bindVertexBuffers(0, vertex_buffers, offsets);
+}
+
+void RenderPassContext::bind_index_buffer(ResourceHandle indices_handle) {
+    const Buffer &index_buffer = resource_manager.get().get<Buffer>(indices_handle);
+    command_buffer.get().bindIndexBuffer(**index_buffer, 0, vk::IndexType::eUint32);
+}
+
+void RenderPassContext::draw(const ResourceHandle vertices_handle, const uint32_t vertex_count, const uint32_t instance_count,
+                             const uint32_t first_vertex, const uint32_t first_instance) {
     if (!last_bound_pipeline) {
         Logger::error("no pipeline bound during draw!");
     }
-
-    uint32_t index_offset    = 0;
-    int32_t vertex_offset    = 0;
-    uint32_t instance_offset = 0;
-
-    const Model &model = resource_manager.get().get<Model>(model_handle);
-    model.bind_buffers(command_buffer);
-
-    for (const auto &mesh: model.get_meshes()) {
-        current_material_id = BindlessHandle::get_unsafe(mesh.material_id);
-        push_constants();
-        current_material_id.reset();
-
-        command_buffer.get().drawIndexed(
-            static_cast<uint32_t>(mesh.indices.size()),
-            static_cast<uint32_t>(mesh.instances.size()),
-            index_offset,
-            vertex_offset,
-            instance_offset
-        );
-
-        index_offset += static_cast<uint32_t>(mesh.indices.size());
-        vertex_offset += static_cast<int32_t>(mesh.vertices.size());
-        instance_offset += static_cast<uint32_t>(mesh.instances.size());
-    }
-}
-
-void RenderPassContext::draw(const ResourceHandle vertices_handle,
-                             const uint32_t vertex_count, const uint32_t instance_count,
-                             const uint32_t first_vertex, const uint32_t first_instance) {
 
     const Buffer &vertex_buffer = resource_manager.get().get<Buffer>(vertices_handle);
     command_buffer.get().bindVertexBuffers(0, **vertex_buffer, {0});
-    push_constants();
+    push_bindless_constants();
     command_buffer.get().draw(vertex_count, instance_count, first_vertex, first_instance);
 }
 
-void RenderPassContext::push_constants() {
+void RenderPassContext::draw(const uint32_t vertex_count, const uint32_t instance_count, const uint32_t first_vertex,
+                             const uint32_t first_instance) {
+    push_bindless_constants();
+    command_buffer.get().draw(vertex_count, instance_count, first_vertex, first_instance);
+}
+
+void RenderPassContext::draw_indexed(const ResourceHandle vertices_handle, const ResourceHandle indices_handle,
+                                     const uint32_t index_count, const uint32_t instance_count, const uint32_t first_index,
+                                     const uint32_t vertex_offset, const uint32_t first_instance) {
     if (!last_bound_pipeline) {
-        Logger::error("no pipeline bound during draw!");
+        Logger::error("no pipeline bound during draw_indexed!");
     }
 
-    vector<BindlessHandle> resource_ids = bound_resource_ids;
+    const Buffer &vertex_buffer = resource_manager.get().get<Buffer>(vertices_handle);
+    const Buffer &index_buffer = resource_manager.get().get<Buffer>(indices_handle);
+    command_buffer.get().bindVertexBuffers(0, **vertex_buffer, {0});
+    command_buffer.get().bindIndexBuffer(**index_buffer, 0, vk::IndexType::eUint32);
+    push_bindless_constants();
+    command_buffer.get().drawIndexed(index_count, instance_count, first_index, vertex_offset, first_instance);
+}
 
-    for (size_t i = 0; i < bound_resource_ids.size(); ++i) {
-        const ResourceHandle& resource_handle = bound_resource_handles[i];
-        BindlessHandle& resource_id = resource_ids[i];
+void RenderPassContext::draw_indexed(const uint32_t index_count, const uint32_t instance_count, const uint32_t first_index,
+                                     const uint32_t vertex_offset, const uint32_t first_instance) {
+    push_bindless_constants();
+    command_buffer.get().drawIndexed(index_count, instance_count, first_index, vertex_offset, first_instance);
+}
 
-        if (resource_handle == CURRENT_MATERIAL_HANDLE) {
-            if (!current_material_id) {
-                Logger::error("No available current material in RenderPassContext::bind_resources. "
-                              "Did you forget to load model materials?");
-            }
-
-            resource_id = *current_material_id;
-        }
+void RenderPassContext::push_bindless_constants() {
+    if (!last_bound_pipeline) {
+        Logger::error("no pipeline bound during push_constants!");
     }
 
-    if (!resource_ids.empty()) {
+    if (!bound_resource_ids.empty()) {
         command_buffer.get().pushConstants<BindlessHandle>(
             *resource_manager.get().get<GraphicsPipeline>(*last_bound_pipeline).get_layout(),
             vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment,
             0,
-            resource_ids
+            bound_resource_ids
         );
     }
 }
@@ -134,6 +128,10 @@ void ComputePassContext::bind_resources(const std::vector<ResourceHandle> &handl
     bound_resource_ids = {};
 
     for (auto& handle: handles) {
+        if (handle == FINAL_IMAGE_HANDLE) {
+            Logger::error("Cannot bind final image inside a compute render pass context");
+        }
+
         bound_resource_ids.push_back(resource_manager.get().get_bindless_handle(handle));
     }
 }
