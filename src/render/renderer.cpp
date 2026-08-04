@@ -304,7 +304,6 @@ void VulkanRenderer::recreate_swap_chain() {
         get_msaa_sample_count()
     );
 
-    const auto compute_accessed_resources = gather_compute_accessed_resources();
     for (const auto& handle: render_graph->get_all_used_resources()) {
         if (handle == FINAL_IMAGE_HANDLE) continue;
         const auto& desc_variant = resource_manager->get_desc_variant(handle);
@@ -598,10 +597,6 @@ void VulkanRenderer::create_render_graph_resources() {
         const bool requires_recreate = compute_accessed_resources.contains(res_handle)
                                        != prev_compute_accessed_resources.contains(res_handle);
 
-        if (requires_recreate) {
-            std::cout << "yoo";
-        }
-
         if (!requires_recreate && resource_manager->has_attached_resource(res_handle)) continue;
 
         std::visit(
@@ -646,7 +641,6 @@ void VulkanRenderer::create_resource(const ResourceHandle handle, const External
         usage_flags |= utils::img::get_format_attachment_type(description.format);
     }
 
-    const auto compute_accessed_resources = gather_compute_accessed_resources(); // todo: optimize this
     const bool is_compute_accessed = compute_accessed_resources.contains(handle);
     if (is_compute_accessed) {
         usage_flags |= vk::ImageUsageFlagBits::eStorage;
@@ -687,7 +681,6 @@ void VulkanRenderer::create_resource(const ResourceHandle handle, const TargetTe
                        | vk::ImageUsageFlagBits::eTransferDst
                        | vk::ImageUsageFlagBits::eSampled;
 
-    const auto compute_accessed_resources = gather_compute_accessed_resources(); // todo: optimize this
     const bool is_compute_accessed = compute_accessed_resources.contains(handle);
     if (is_compute_accessed) {
         usage_flags |= vk::ImageUsageFlagBits::eStorage;
