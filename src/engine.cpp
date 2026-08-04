@@ -318,7 +318,7 @@ void Engine::build_render_graph() {
     if (render_frame_settings.should_capture_skybox) {
         render_graph.add_node(RenderNodeGraphics {
             .name = "cubemap-capture",
-            .bound_resources = {rr[UBO_General], rr[Tex_Envmap]},
+            .bound_resources = {},
             .color_targets = {rr[Tex_Skybox]},
             .body = [&](RenderPassContext &ctx) {
                 ctx.bind_pipeline(rr[Pipe_CubeCapture]);
@@ -333,7 +333,7 @@ void Engine::build_render_graph() {
 
     render_graph.add_node(RenderNodeGraphics {
         .name = "shadowmap",
-        .bound_resources = {rr[UBO_General]},
+        .bound_resources = {},
         .depth_target = rr[Tex_Shadowmap],
         .body = [&](RenderPassContext &ctx) {
             ctx.bind_pipeline(rr[Pipe_Shadowmap]);
@@ -345,7 +345,7 @@ void Engine::build_render_graph() {
     if (render_frame_settings.use_ssao) {
         render_graph.add_node(RenderNodeGraphics {
             .name = "prepass",
-            .bound_resources = {rr[UBO_General]},
+            .bound_resources = {},
             .color_targets = {rr[Tex_GNormal], rr[Tex_GPos]},
             .depth_target = rr[Tex_GDepth],
             .body = [&](RenderPassContext &ctx) {
@@ -357,7 +357,7 @@ void Engine::build_render_graph() {
 
         render_graph.add_node(RenderNodeGraphics {
             .name = "ssao",
-            .bound_resources = {rr[UBO_General], rr[Tex_GDepth], rr[Tex_GNormal], rr[Tex_GPos]},
+            .bound_resources = {rr[Tex_GDepth], rr[Tex_GNormal], rr[Tex_GPos]},
             .color_targets = {rr[Tex_SSAO]},
             .body = [&](RenderPassContext &ctx) {
                 ctx.bind_pipeline(rr[Pipe_SSAO]);
@@ -369,7 +369,7 @@ void Engine::build_render_graph() {
 
     render_graph.add_node(RenderNodeGraphics {
         .name = "main",
-        .bound_resources = {rr[UBO_General], rr[Tex_SSAO], rr[Tex_Shadowmap], rr[Tex_Skybox], model_mdb},
+        .bound_resources = {rr[Tex_SSAO], rr[Tex_Shadowmap], rr[Tex_Skybox]},
         .color_targets = {rr[Tex_BasePass]},
         .depth_target = FINAL_IMAGE_HANDLE,
         .body = [&, model_mdb](RenderPassContext &ctx) {
@@ -383,7 +383,7 @@ void Engine::build_render_graph() {
         },
     });
 
-    optional<RenderNodeHandle> final_handle;
+    optional<RenderNodeHandle> final_node_handle;
 
     if (render_frame_settings.do_blur) {
         const auto post_processing_nodes = render_graph.add_nodes_sequential({
@@ -409,7 +409,7 @@ void Engine::build_render_graph() {
             }
         });
 
-        final_handle = render_graph.add_node(RenderNodeGraphics {
+        final_node_handle = render_graph.add_node(RenderNodeGraphics {
             .name = "final-blurred",
             .bound_resources = {rr[Tex_PostBlurY]},
             .color_targets = {FINAL_IMAGE_HANDLE},
@@ -421,7 +421,7 @@ void Engine::build_render_graph() {
         });
 
     } else {
-        final_handle = render_graph.add_node(RenderNodeGraphics {
+        final_node_handle = render_graph.add_node(RenderNodeGraphics {
             .name = "final-unblurred",
             .bound_resources = {rr[Tex_BasePass]},
             .color_targets = {FINAL_IMAGE_HANDLE},
@@ -448,7 +448,7 @@ void Engine::build_render_graph() {
                 render_gui_section(curr_delta_time);
                 renderer.get_gui_renderer().end_rendering(ctx.get_raw_cmd_buffer());
             },
-            .explicit_dependencies = { *final_handle },
+            .explicit_dependencies = { *final_node_handle },
         });
     }
 

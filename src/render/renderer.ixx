@@ -80,6 +80,9 @@ class VulkanRenderer {
 
     unique_ptr<ResourceManager> resource_manager;
 
+    // resource creation state
+    set<ResourceHandle> compute_accessed_resources;
+
     // command recording state
     set<ResourceHandle> unbarriered_gfx_written_resources;
     set<ResourceHandle> unbarriered_compute_written_resources;

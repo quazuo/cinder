@@ -189,7 +189,7 @@ struct enable_bitmask_operators<ImageFlags> : std::true_type {};
  * might not be implemented, due to them not being needed at the moment.
  */
 class ImageBuilder {
-    ImageOverrides default_config = {
+    static constexpr ImageOverrides default_config = {
         .mag_filter   = vk::Filter::eLinear,
         .min_filter   = vk::Filter::eLinear,
         .mipmap_mode  = vk::SamplerMipmapMode::eLinear,

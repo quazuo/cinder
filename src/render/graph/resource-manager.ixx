@@ -67,7 +67,6 @@ struct BindlessHandleTag {};
 using BindlessHandle = UniqueHandle<BindlessHandleTag>;
 
 const BindlessHandle PLACEHOLDER_BINDLESS_HANDLE = BindlessHandle::get_new_special();
-const BindlessHandle CURR_MAT_BINDLESS_HANDLE = BindlessHandle::get_new_special();
 
 class ResourceManager {
     reference_wrapper<const RendererContext> renderer_ctx;
@@ -106,7 +105,14 @@ public:
     template <typename T>
         requires is_resource_type<T>
     auto attach_raw(const ResourceHandle& handle, T&& resource) {
-        handle_to_kind_mapping.emplace(handle, resource_type_to_kind_v<T>);
+        if (handle_to_kind_mapping.contains(handle)) {
+            if (handle_to_kind_mapping.at(handle) != resource_type_to_kind_v<T>) {
+                Logger::error("Invalid resource type in ResourceManager::attach_raw : "
+                              "resource type doesn't match the type of previously attached resource");
+            }
+        } else {
+            handle_to_kind_mapping.emplace(handle, resource_type_to_kind_v<T>);
+        }
 
         auto& resource_map = get_resource_map<T>();
 
@@ -129,7 +135,14 @@ public:
         requires is_builder_type<T>
     auto attach_builder(const RendererContext& ctx, const ResourceHandle& handle, T&& builder) {
         attach_raw(handle, builder.create(ctx));
-        get_builder_map<T>().emplace(handle, std::move(builder));
+
+        auto& builder_map = get_builder_map<T>();
+        
+        if (builder_map.contains(handle)) {
+            builder_map.erase(handle);
+        }
+
+        builder_map.emplace(handle, std::move(builder));
     }
 
     template <typename T>

@@ -589,9 +589,21 @@ void VulkanRenderer::reload_all_pipelines() {
 }
 
 void VulkanRenderer::create_render_graph_resources() {
+    const set<ResourceHandle> prev_compute_accessed_resources = compute_accessed_resources;
+    compute_accessed_resources = gather_compute_accessed_resources();
+
     for (const auto& res_handle : resource_manager->get_all_resource_handles_range()) {
         if (res_handle == FINAL_IMAGE_HANDLE) continue;
-        if (resource_manager->has_attached_resource(res_handle)) continue;
+
+        const bool requires_recreate = compute_accessed_resources.contains(res_handle)
+                                       != prev_compute_accessed_resources.contains(res_handle);
+
+        if (requires_recreate) {
+            std::cout << "yoo";
+        }
+
+        if (!requires_recreate && resource_manager->has_attached_resource(res_handle)) continue;
+
         std::visit(
             [&](const auto& arg) { create_resource(res_handle, arg); },
             resource_manager->get_desc_variant(res_handle)
@@ -693,7 +705,7 @@ void VulkanRenderer::create_resource(const ResourceHandle handle, const TargetTe
         layout = vk::ImageLayout::eGeneral;
     }
 
-    last_image_layouts.emplace(handle, layout);
+    last_image_layouts.insert_or_assign(handle, layout);
 
     auto builder = ImageBuilder()
             .with_flags(description.flags)

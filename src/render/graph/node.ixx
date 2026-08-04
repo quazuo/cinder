@@ -91,7 +91,7 @@ public:
     void dispatch(uint32_t x, uint32_t y, uint32_t z) const;
 
 private:
-    void push_constants() const;
+    void push_bindless_constants() const;
 };
 
 struct RenderNodeGraphics {

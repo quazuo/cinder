@@ -137,11 +137,11 @@ void ComputePassContext::bind_resources(const std::vector<ResourceHandle> &handl
 }
 
 void ComputePassContext::dispatch(const uint32_t x, const uint32_t y, const uint32_t z) const {
-    push_constants();
+    push_bindless_constants();
     command_buffer.get().dispatch(x, y, z);
 }
 
-void ComputePassContext::push_constants() const {
+void ComputePassContext::push_bindless_constants() const {
     if (!last_bound_pipeline) {
         Logger::error("no pipeline bound during ComputePassContext::push_constants!");
     }
