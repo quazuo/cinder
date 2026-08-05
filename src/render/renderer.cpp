@@ -535,15 +535,17 @@ void VulkanRenderer::render_gui_section() {
             });
         }
 
+        const auto& frame = frame_resources[ctx.current_frame_idx];
+
         vector<GuiRenderer::ProfilerNodeInfo> profiler_frame_infos;
-        const uint32_t timestamp_count = prev_frame_time_query_results.size();
-        const uint64_t frame_start_timestamp = prev_frame_time_query_results.empty() ? 0 : prev_frame_time_query_results[0];
+        const uint32_t timestamp_count = frame.prev_time_query_results.size();
+        const uint64_t frame_start_timestamp = frame.prev_time_query_results.empty() ? 0 : frame.prev_time_query_results[0];
         float last_node_time = 0.0f;
 
         for (uint32_t i = 0; i < timestamp_count; i += 2) {
-            const uint64_t start_timestamp = prev_frame_time_query_results[i];
-            const uint64_t end_timestamp = prev_frame_time_query_results[i + 1];
-            const string& name = prev_frame_node_names[i / 2];
+            const uint64_t start_timestamp = frame.prev_time_query_results[i];
+            const uint64_t end_timestamp = frame.prev_time_query_results[i + 1];
+            const string& name = frame.prev_node_names[i / 2];
 
             ImVec4 color{};
             ImGui::ColorConvertHSVtoRGB(
@@ -556,7 +558,7 @@ void VulkanRenderer::render_gui_section() {
                 static_cast<long long>(timestamp_period * static_cast<float>(start_timestamp - frame_start_timestamp)) };
             const std::chrono::nanoseconds end_ns {
                 static_cast<long long>(timestamp_period * static_cast<float>(end_timestamp - frame_start_timestamp)) };
-            const std::chrono::duration<float, std::milli> node_time = end_ns - start_ns;
+            const std::chrono::duration<float> node_time = end_ns - start_ns;
 
             profiler_frame_infos.emplace_back(GuiRenderer::ProfilerNodeInfo {
                 .start_time = last_node_time,
@@ -903,11 +905,10 @@ auto VulkanRenderer::create_node_render_infos(const RenderNodeHandle node_handle
 }
 
 void VulkanRenderer::run_render_graph() {
-    if (start_frame()) {
-        Logger::debug("starting frame");
+    partitioned_nodes = render_graph->get_partitioned();
 
-        partitioned_nodes = render_graph->get_partitioned();
-        const auto node_count = std::ranges::distance(partitioned_nodes | std::ranges::views::join);
+    if (start_frame()) {
+        Logger::debug("starting frame #{}", ctx.current_frame_idx);
 
         node_resources.clear();
         for (const auto& [node_handle, _]: render_graph->nodes()) {
@@ -920,20 +921,8 @@ void VulkanRenderer::run_render_graph() {
             }
         }
 
-        frame_resources[ctx.current_frame_idx].time_query_pool = make_unique<QueryPool>(
-            ctx,
-            vk::QueryType::eTimestamp,
-            2 * node_count
-        );
-        current_query_idx = 0;
-
         record_graph_commands();
         end_frame();
-
-        prev_frame_node_names.clear();
-        for (const auto& node : partitioned_nodes | std::ranges::views::join) {
-            prev_frame_node_names.emplace_back(render_graph->nodes().at(node).name());
-        }
     }
 }
 
@@ -1396,9 +1385,25 @@ void VulkanRenderer::do_frame_begin_actions() {
 }
 
 bool VulkanRenderer::start_frame() {
-    const auto &sync = frame_resources[ctx.current_frame_idx].sync;
+    auto& frame = frame_resources[ctx.current_frame_idx];
+    const auto &sync = frame.sync;
 
     utils::sync::wait(ctx, *sync.render_finished_timeline_sem);
+
+    // handle timing queries for profiling. these are behind by MAX_FRAMES_IN_FLIGHT frames
+    {
+        if (frame.time_query_pool) {
+            frame.prev_time_query_results = frame.time_query_pool->get_results();
+        }
+
+        const auto node_count = std::ranges::distance(partitioned_nodes | std::ranges::views::join);
+        frame_resources[ctx.current_frame_idx].time_query_pool = make_unique<QueryPool>(
+                ctx,
+                vk::QueryType::eTimestamp,
+                2 * node_count
+            );
+        current_query_idx = 0;
+    }
 
     do_frame_begin_actions();
 
@@ -1419,14 +1424,15 @@ bool VulkanRenderer::start_frame() {
 }
 
 void VulkanRenderer::end_frame() {
-    auto& sync = frame_resources[ctx.current_frame_idx].sync;
+    auto& frame = frame_resources[ctx.current_frame_idx];
+    auto& sync = frame.sync;
 
     ++(*sync.render_finished_timeline_sem);
 
     QueueSubmission submission = QueueSubmissionBuilder()
         .with_wait_semaphores(*sync.image_available_sem)
         .with_signal_semaphores(*sync.render_finished_timeline_sem, *sync.ready_to_present_sem)
-        .with_command_buffers(std::span { &*frame_resources[ctx.current_frame_idx].main_cmd_buffer, 1 })
+        .with_command_buffers(std::span { &*frame.main_cmd_buffer, 1 })
         .create();
     ctx.graphics_queue->submit(std::move(submission));
 
@@ -1442,7 +1448,10 @@ void VulkanRenderer::end_frame() {
         Logger::error("failed to present swap chain image!");
     }
 
-    prev_frame_time_query_results = frame_resources[ctx.current_frame_idx].time_query_pool->get_results();
+    frame.prev_node_names.clear();
+    for (const auto& node : partitioned_nodes | std::ranges::views::join) {
+        frame.prev_node_names.emplace_back(render_graph->nodes().at(node).name());
+    }
 
     ctx.current_frame_idx = (ctx.current_frame_idx + 1) % MAX_FRAMES_IN_FLIGHT;
 }

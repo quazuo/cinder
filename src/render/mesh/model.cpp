@@ -179,7 +179,6 @@ Model::Model(string&& name, const std::filesystem::path &path, const bool load_m
         | aiProcess_FindInstances
         | aiProcess_OptimizeMeshes
         | aiProcess_OptimizeGraph
-        | aiProcess_FixInfacingNormals
         | aiProcess_Triangulate
         | aiProcess_JoinIdenticalVertices
         | aiProcess_CalcTangentSpace

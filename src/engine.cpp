@@ -65,6 +65,9 @@ void Engine::tick() {
     renderer.tick(delta_time);
     camera->tick(delta_time);
 
+    static bool is_first_frame = true;
+    if (!is_first_frame) render_frame_settings.should_capture_skybox = false;
+
     glfwGetWindowSize(window, &window_size.x, &window_size.y);
 
     if (old_render_frame_settings != render_frame_settings) {
@@ -72,7 +75,8 @@ void Engine::tick() {
     }
 
     renderer.run_render_graph();
-    render_frame_settings.should_capture_skybox = false;
+
+    is_first_frame = false;
 }
 
 void Engine::register_render_graph_resources() {
@@ -87,10 +91,6 @@ void Engine::register_render_graph_resources() {
     renderer.add_frame_begin_action([&](const FrameBeginActionContext &fba_ctx) {
         Buffer& buffer = fba_ctx.resource_manager.get().get<Buffer>(scene_model->get_mesh_descriptions_buffer());
         const auto& mds = scene_model->get_mesh_descriptions();
-
-        uint32_t buf_size = buffer.get_size();
-        uint32_t data_size = mds.size() * sizeof(decltype(mds[0]));
-
         buffer.copy_from_ptr(mds.data(), mds.size() * sizeof(decltype(mds[0])));
     });
 
@@ -261,7 +261,7 @@ void Engine::register_render_graph_resources() {
         .vertex_bindings = ModelVertex::get_binding_descriptions(),
         .vertex_attributes = ModelVertex::get_attribute_descriptions(),
         .color_formats = {final_no_gamma_format},
-        .depth_format = FINAL_FORMAT
+        .depth_format = FINAL_FORMAT,
     });
 
     rr[Pipe_BlurX] = resource_manager.add_from_desc(ComputePipelineResourceDesc{

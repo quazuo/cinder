@@ -92,7 +92,7 @@ void main() {
     const uint ubo_id = constants.general_ubo_id;
 
     vec4 base_color = sample_texture_with_fallback(mesh_desc.base_color_id, fragTexCoord);
-    // if (base_color.a < 0.1) discard;
+    if (base_color.a < 0.1) discard;
 
     vec3 normal = sample_texture_with_fallback(mesh_desc.normal_id, fragTexCoord).rgb;
     normal = normalize(normal * 2.0 - 1.0);

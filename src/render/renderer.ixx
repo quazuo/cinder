@@ -99,6 +99,8 @@ class VulkanRenderer {
 
         unique_ptr<vk::raii::CommandBuffer> main_cmd_buffer;
         unique_ptr<QueryPool> time_query_pool;
+        vector<uint64_t> prev_time_query_results;
+        vector<string> prev_node_names;
     };
 
     static constexpr size_t MAX_FRAMES_IN_FLIGHT = 3;
@@ -111,8 +113,6 @@ class VulkanRenderer {
 
     // ================ profiling ================
 
-    vector<string> prev_frame_node_names;
-    vector<uint64_t> prev_frame_time_query_results;
     uint32_t current_query_idx = 0;
     float timestamp_period = 0.0f;
 
