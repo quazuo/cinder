@@ -145,15 +145,19 @@ public:
 
     auto get_gui_renderer() const -> GuiRenderer& { return *gui_renderer; }
 
-    auto get_resource_manager() const -> ResourceManager& { return *resource_manager; }
-
     auto get_msaa_sample_count() const -> vk::SampleCountFlagBits {
         return use_msaa ? msaa_sample_count : vk::SampleCountFlagBits::e1;
     }
 
+    auto get_bindless_handle(const ResourceHandle handle) const -> BindlessHandle { return resource_manager->get_bindless_handle(handle); }
+
     void tick(float delta_time);
 
     void wait_idle() const { ctx.device->waitIdle(); }
+
+    template <typename T>
+        requires is_resource_desc_type<T>
+    auto register_resource(T&& resource_desc) -> ResourceHandle { return resource_manager->add_from_desc(resource_desc); }
 
     void register_render_graph(const RenderGraph &graph);
 

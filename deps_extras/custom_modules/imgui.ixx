@@ -53,6 +53,8 @@ export {
 
     using ::operator==;
     using ::operator!=;
+
+    [[nodiscard]] ImU32 ImCol32(const ImU32 r, const ImU32 g, const ImU32 b, const ImU32 a) { return IM_COL32(r, g, b, a); }
 }
 
 export namespace ImGui {
@@ -96,6 +98,7 @@ export namespace ImGui {
     using ImGui::RadioButton;
     using ImGui::SliderInt;
     using ImGui::ColorConvertHSVtoRGB;
+    using ImGui::ColorConvertU32ToFloat4;
     using ImGui::PushItemWidth;
     using ImGui::PopItemWidth;
 }

@@ -14,7 +14,6 @@ import Cinder.Utils;
 import Cinder.Render.Vulkan;
 import Cinder.Render.Gui;
 import Cinder.Render.Graph;
-import Cinder.Render.Mesh;
 
 namespace zrx {
 // ==================== RenderInfo ====================
@@ -471,17 +470,17 @@ void VulkanRenderer::create_sync_objects() {
 
 void VulkanRenderer::init_imgui() {
     const vector<vk::DescriptorPoolSize> pool_sizes = {
-        {vk::DescriptorType::eSampler, 1000},
+        {vk::DescriptorType::eSampler,              1000},
         {vk::DescriptorType::eCombinedImageSampler, 1000},
-        {vk::DescriptorType::eSampledImage, 1000},
-        {vk::DescriptorType::eStorageImage, 1000},
-        {vk::DescriptorType::eUniformTexelBuffer, 1000},
-        {vk::DescriptorType::eStorageTexelBuffer, 1000},
-        {vk::DescriptorType::eUniformBuffer, 1000},
-        {vk::DescriptorType::eStorageBuffer, 1000},
+        {vk::DescriptorType::eSampledImage,         1000},
+        {vk::DescriptorType::eStorageImage,         1000},
+        {vk::DescriptorType::eUniformTexelBuffer,   1000},
+        {vk::DescriptorType::eStorageTexelBuffer,   1000},
+        {vk::DescriptorType::eUniformBuffer,        1000},
+        {vk::DescriptorType::eStorageBuffer,        1000},
         {vk::DescriptorType::eUniformBufferDynamic, 1000},
         {vk::DescriptorType::eStorageBufferDynamic, 1000},
-        {vk::DescriptorType::eInputAttachment, 1000}
+        {vk::DescriptorType::eInputAttachment,      1000}
     };
 
     const vk::DescriptorPoolCreateInfo pool_info = {
@@ -537,22 +536,25 @@ void VulkanRenderer::render_gui_section() {
 
         const auto& frame = frame_resources[ctx.current_frame_idx];
 
+        const std::array colors {
+            ImCol32(0xFF, 0x59, 0x5E, 0xFF),
+            ImCol32(0xFF, 0xCA, 0x3A, 0xFF),
+            ImCol32(0x8A, 0xC9, 0x26, 0xFF),
+            ImCol32(0x19, 0x82, 0xC4, 0xFF),
+            ImCol32(0x6A, 0x4C, 0x93, 0xFF),
+        };
+
         vector<GuiRenderer::ProfilerNodeInfo> profiler_frame_infos;
-        const uint32_t timestamp_count = frame.prev_time_query_results.size();
         const uint64_t frame_start_timestamp = frame.prev_time_query_results.empty() ? 0 : frame.prev_time_query_results[0];
         float last_node_time = 0.0f;
 
-        for (uint32_t i = 0; i < timestamp_count; i += 2) {
-            const uint64_t start_timestamp = frame.prev_time_query_results[i];
-            const uint64_t end_timestamp = frame.prev_time_query_results[i + 1];
-            const string& name = frame.prev_node_names[i / 2];
+        const auto node_timings_range = std::views::zip(
+            frame.prev_time_query_results | std::views::adjacent<2> | std::views::stride(2),
+            frame.prev_node_names
+        );
 
-            ImVec4 color{};
-            ImGui::ColorConvertHSVtoRGB(
-                static_cast<float>(i % 24) / 24.0f, 1.0f, 0.7f,
-                color.x, color.y, color.z
-            );
-            color.w = 1.0f;
+        for (uint32_t i = 0; const auto& [timestamps, name] : node_timings_range) {
+            const auto& [start_timestamp, end_timestamp] = timestamps;
 
             const std::chrono::nanoseconds start_ns {
                 static_cast<long long>(timestamp_period * static_cast<float>(start_timestamp - frame_start_timestamp)) };
@@ -564,7 +566,7 @@ void VulkanRenderer::render_gui_section() {
                 .start_time = last_node_time,
                 .end_time = last_node_time + node_time.count(),
                 .name = name,
-                .color = color
+                .color = ImGui::ColorConvertU32ToFloat4(colors[i++ % colors.size()])
             });
 
             last_node_time += node_time.count();
@@ -911,10 +913,8 @@ void VulkanRenderer::run_render_graph() {
         Logger::debug("starting frame #{}", ctx.current_frame_idx);
 
         node_resources.clear();
-        for (const auto& [node_handle, _]: render_graph->nodes()) {
-            const auto& node = render_graph->nodes().at(node_handle);
-
-            if (node.is_graphics()) {
+        for (const auto& [node_handle, node_info]: render_graph->nodes()) {
+            if (node_info.is_graphics()) {
                 node_resources.emplace(node_handle, RenderNodeResources{
                     .render_infos = create_node_render_infos(node_handle),
                 });
@@ -933,9 +933,7 @@ void VulkanRenderer::record_graph_commands() {
 
     swap_chain->transition_to_attachment_layout(command_buffer);
 
-    for (size_t i = 0; i < partitioned_nodes.size(); i++) {
-        const auto& curr_partition = partitioned_nodes[i];
-
+    for (const auto& curr_partition: partitioned_nodes) {
         record_pre_partition_commands(curr_partition);
 
         for (const auto &node_handle: curr_partition) {
@@ -1284,7 +1282,7 @@ void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_ha
 auto VulkanRenderer::gather_attachment_resources() const -> set<ResourceHandle> {
     set<ResourceHandle> result;
 
-    for (const auto& [node_handle, node_info] : render_graph->nodes()) {
+    for (const auto &node_info: render_graph->nodes() | std::views::values) {
         if (!node_info.is_graphics()) continue;
 
         const auto& node_gfx = node_info.get_graphics();
@@ -1317,13 +1315,9 @@ auto VulkanRenderer::has_swapchain_target(const RenderNodeHandle node_handle) co
 auto VulkanRenderer::is_first_node_targetting_final_image(const RenderNodeHandle node_handle) const -> bool {
     if (!has_swapchain_target(node_handle)) return false;
 
-    const auto flattened = std::ranges::join_view(partitioned_nodes);
-
-    auto first_it = std::ranges::find_if(flattened, [&](const RenderNodeHandle &handle) {
-        return has_swapchain_target(handle);
-    });
-
-    return first_it == flattened.end() || *first_it == node_handle;
+    auto r = std::ranges::join_view(partitioned_nodes)
+             | std::views::filter(std::bind_front(&VulkanRenderer::has_swapchain_target, this));
+    return std::ranges::empty(r) || *std::ranges::begin(r) == node_handle;
 }
 
 auto VulkanRenderer::get_node_target_extent(const RenderNodeHandle node_handle) const -> vk::Extent2D {
@@ -1425,7 +1419,7 @@ bool VulkanRenderer::start_frame() {
 
 void VulkanRenderer::end_frame() {
     auto& frame = frame_resources[ctx.current_frame_idx];
-    auto& sync = frame.sync;
+    const auto& sync = frame.sync;
 
     ++(*sync.render_finished_timeline_sem);
 

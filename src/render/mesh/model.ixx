@@ -8,6 +8,7 @@ import glm;
 
 import Cinder.Render.Vulkan;
 import Cinder.Render.Graph;
+import Cinder.Render;
 import Cinder.Globals;
 import :Vertex;
 
@@ -71,7 +72,7 @@ public:
 
     // auto get_blas() const -> const AccelerationStructure& { return *blas; }
 
-    void register_render_graph_resources(ResourceManager& resource_manager);
+    void register_render_graph_resources(const VulkanRenderer& renderer);
 
 private:
     auto get_vertices() const -> vector<ModelVertex>;

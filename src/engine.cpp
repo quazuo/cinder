@@ -80,13 +80,12 @@ void Engine::tick() {
 }
 
 void Engine::register_render_graph_resources() {
-    auto& resource_manager = renderer.get_resource_manager();
     auto& rr = render_resources;
 
     // ================== models and vertex buffers ==================
 
     scene_model = Model { "sponza", "../assets/example models/Sponza/Sponza.gltf", true };
-    scene_model->register_render_graph_resources(resource_manager);
+    scene_model->register_render_graph_resources(renderer);
 
     renderer.add_frame_begin_action([&](const FrameBeginActionContext &fba_ctx) {
         Buffer& buffer = fba_ctx.resource_manager.get().get<Buffer>(scene_model->get_mesh_descriptions_buffer());
@@ -94,13 +93,13 @@ void Engine::register_render_graph_resources() {
         buffer.copy_from_ptr(mds.data(), mds.size() * sizeof(decltype(mds[0])));
     });
 
-    rr[VB_Skybox] = resource_manager.add_from_desc(VertexBufferResourceDesc{
+    rr[VB_Skybox] = renderer.register_resource(VertexBufferResourceDesc{
         .name = "skybox-vb",
         .size = skybox_vertices.size() * sizeof(SkyboxVertex),
         .data = skybox_vertices.data()
     });
 
-    rr[VB_ScreenSpaceQuad] = resource_manager.add_from_desc(VertexBufferResourceDesc{
+    rr[VB_ScreenSpaceQuad] = renderer.register_resource(VertexBufferResourceDesc{
         .name = "ss-quad-vb",
         .size = screen_space_quad_vertices.size() * sizeof(ScreenSpaceQuadVertex),
         .data = screen_space_quad_vertices.data()
@@ -108,7 +107,7 @@ void Engine::register_render_graph_resources() {
 
     // ================== uniform buffers ==================
 
-    rr[UBO_General] = resource_manager.add_from_desc(UniformBufferResourceDesc{
+    rr[UBO_General] = renderer.register_resource(UniformBufferResourceDesc{
         .name = "general-ubo",
         .size = sizeof(GraphicsUBO)
     });
@@ -120,7 +119,7 @@ void Engine::register_render_graph_resources() {
 
     // ================== external textures ==================
 
-    rr[Tex_Envmap] = resource_manager.add_from_desc(ExternalTextureResourceDesc{
+    rr[Tex_Envmap] = renderer.register_resource(ExternalTextureResourceDesc{
         .name = "envmap-texture",
         .paths = {"../assets/envmaps/vienna.hdr"},
         .format = vk::Format::eR32G32B32A32Sfloat,
@@ -130,7 +129,7 @@ void Engine::register_render_graph_resources() {
     // ================== render target textures ==================
 
     constexpr auto skybox_tex_format = vk::Format::eR8G8B8A8Srgb;
-    rr[Tex_Skybox] = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_Skybox] = renderer.register_resource(TargetTextureResourceDesc{
         .name = "skybox-texture",
         .format = skybox_tex_format,
         .extent = {2048, 2048},
@@ -138,31 +137,31 @@ void Engine::register_render_graph_resources() {
     });
 
     constexpr auto g_buffer_color_format = vk::Format::eR16G16B16A16Sfloat;
-    rr[Tex_GNormal] = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_GNormal] = renderer.register_resource(TargetTextureResourceDesc{
         .name = "g-buffer-normal",
         .format = g_buffer_color_format,
     });
 
-    rr[Tex_GPos] = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_GPos] = renderer.register_resource(TargetTextureResourceDesc{
         .name = "g-buffer-pos",
         .format = g_buffer_color_format,
     });
 
     constexpr auto g_buffer_depth_format = vk::Format::eD32Sfloat;
-    rr[Tex_GDepth] = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_GDepth] = renderer.register_resource(TargetTextureResourceDesc{
         .name = "g-buffer-depth",
         .format = g_buffer_depth_format,
         .flags = ImageFlags::NO_MIPMAPS,
     });
 
     constexpr auto ssao_tex_format = vk::Format::eR8G8B8A8Unorm;
-    rr[Tex_SSAO] = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_SSAO] = renderer.register_resource(TargetTextureResourceDesc{
         .name = "ssao-texture",
         .format = ssao_tex_format,
     });
 
     constexpr auto shadowmap_tex_format = vk::Format::eD32Sfloat;
-    rr[Tex_Shadowmap] = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_Shadowmap] = renderer.register_resource(TargetTextureResourceDesc{
         .name = "shadowmap-texture",
         .format = shadowmap_tex_format,
         .extent = {2048, 2048},
@@ -174,22 +173,22 @@ void Engine::register_render_graph_resources() {
     });
 
     constexpr auto final_no_gamma_format = vk::Format::eR8G8B8A8Unorm;
-    rr[Tex_BasePass] = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_BasePass] = renderer.register_resource(TargetTextureResourceDesc{
         .name = "base-pass-texture",
         .format = final_no_gamma_format,
         .flags = ImageFlags::NO_MIPMAPS
     });
-    rr[Tex_PostBlurX] = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_PostBlurX] = renderer.register_resource(TargetTextureResourceDesc{
         .name = "post-blur-x-texture",
         .format = final_no_gamma_format,
         .flags = ImageFlags::NO_MIPMAPS
     });
-    rr[Tex_PostBlurY] = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_PostBlurY] = renderer.register_resource(TargetTextureResourceDesc{
         .name = "post-blur-y-texture",
         .format = final_no_gamma_format,
         .flags = ImageFlags::NO_MIPMAPS
     });
-    rr[Tex_PostGui] = resource_manager.add_from_desc(TargetTextureResourceDesc{
+    rr[Tex_PostGui] = renderer.register_resource(TargetTextureResourceDesc{
         .name = "post-gui-texture",
         .format = final_no_gamma_format,
         .flags = ImageFlags::NO_MIPMAPS
@@ -199,7 +198,7 @@ void Engine::register_render_graph_resources() {
 
     renderer.set_shader_base_path("../shaders/obj/");
 
-    rr[Pipe_SsQuad] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
+    rr[Pipe_SsQuad] = renderer.register_resource(GraphicsPipelineResourceDesc{
         .vertex_path = "ss-quad-depth-vert.spv",
         .fragment_path = "ss-quad-depth-frag.spv",
         .vertex_bindings = ScreenSpaceQuadVertex::get_binding_descriptions(),
@@ -207,7 +206,7 @@ void Engine::register_render_graph_resources() {
         .color_formats = { FINAL_FORMAT },
     });
 
-    rr[Pipe_CubeCapture] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
+    rr[Pipe_CubeCapture] = renderer.register_resource(GraphicsPipelineResourceDesc{
         .vertex_path = "sphere-cube-vert.spv",
         .fragment_path = "sphere-cube-frag.spv",
         .vertex_bindings = SkyboxVertex::get_binding_descriptions(),
@@ -218,7 +217,7 @@ void Engine::register_render_graph_resources() {
         }
     });
 
-    rr[Pipe_Shadowmap] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
+    rr[Pipe_Shadowmap] = renderer.register_resource(GraphicsPipelineResourceDesc{
         .vertex_path = "shadowmap-vert.spv",
         .fragment_path = "shadowmap-frag.spv",
         .vertex_bindings = ModelVertex::get_binding_descriptions(),
@@ -226,7 +225,7 @@ void Engine::register_render_graph_resources() {
         .depth_format = shadowmap_tex_format
     });
 
-    rr[Pipe_Prepass] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
+    rr[Pipe_Prepass] = renderer.register_resource(GraphicsPipelineResourceDesc{
         .vertex_path = "prepass-vert.spv",
         .fragment_path = "prepass-frag.spv",
         .vertex_bindings = ModelVertex::get_binding_descriptions(),
@@ -235,7 +234,7 @@ void Engine::register_render_graph_resources() {
         .depth_format = g_buffer_depth_format
     });
 
-    rr[Pipe_SSAO] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
+    rr[Pipe_SSAO] = renderer.register_resource(GraphicsPipelineResourceDesc{
         .vertex_path = "ssao-vert.spv",
         .fragment_path = "ssao-frag.spv",
         .vertex_bindings = ScreenSpaceQuadVertex::get_binding_descriptions(),
@@ -243,7 +242,7 @@ void Engine::register_render_graph_resources() {
         .color_formats = {ssao_tex_format}
     });
 
-    rr[Pipe_Skybox] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
+    rr[Pipe_Skybox] = renderer.register_resource(GraphicsPipelineResourceDesc{
         .vertex_path = "skybox-vert.spv",
         .fragment_path = "skybox-frag.spv",
         .vertex_bindings = SkyboxVertex::get_binding_descriptions(),
@@ -255,7 +254,7 @@ void Engine::register_render_graph_resources() {
         }
     });
 
-    rr[Pipe_Main] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
+    rr[Pipe_Main] = renderer.register_resource(GraphicsPipelineResourceDesc{
         .vertex_path = "main-vert.spv",
         .fragment_path = "main-frag.spv",
         .vertex_bindings = ModelVertex::get_binding_descriptions(),
@@ -264,15 +263,15 @@ void Engine::register_render_graph_resources() {
         .depth_format = FINAL_FORMAT,
     });
 
-    rr[Pipe_BlurX] = resource_manager.add_from_desc(ComputePipelineResourceDesc{
+    rr[Pipe_BlurX] = renderer.register_resource(ComputePipelineResourceDesc{
         .path = "blur-x-comp.spv",
     });
 
-    rr[Pipe_BlurY] = resource_manager.add_from_desc(ComputePipelineResourceDesc{
+    rr[Pipe_BlurY] = renderer.register_resource(ComputePipelineResourceDesc{
         .path = "blur-y-comp.spv",
     });
 
-    rr[Pipe_Final] = resource_manager.add_from_desc(GraphicsPipelineResourceDesc{
+    rr[Pipe_Final] = renderer.register_resource(GraphicsPipelineResourceDesc{
         .vertex_path = "ss-quad-vert.spv",
         .fragment_path = "ss-quad-frag.spv",
         .vertex_bindings = ScreenSpaceQuadVertex::get_binding_descriptions(),

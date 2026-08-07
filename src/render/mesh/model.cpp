@@ -288,26 +288,28 @@ vector<glm::mat4> Model::get_instance_transforms() const {
     return result;
 }
 
-void Model::register_render_graph_resources(ResourceManager &resource_manager) {
-    vertex_buffer = resource_manager.add_from_desc(VertexBufferResourceDesc{
+void Model::register_render_graph_resources(const VulkanRenderer& renderer) {
+    const auto& register_resource = renderer.get_resource_registration_callback();
+
+    vertex_buffer = register_resource(VertexBufferResourceDesc{
         .name = std::format("model-vb@{}", name),
         .size = vertices.size() * sizeof(decltype(vertices[0])),
         .data = vertices.data(),
     });
 
-    instance_data_buffer = resource_manager.add_from_desc(VertexBufferResourceDesc{
+    instance_data_buffer = register_resource(VertexBufferResourceDesc{
         .name = std::format("model-idb@{}", name),
         .size = instance_transforms.size() * sizeof(decltype(instance_transforms[0])),
         .data = instance_transforms.data(),
     });
 
-    index_buffer = resource_manager.add_from_desc(IndexBufferResourceDesc{
+    index_buffer = register_resource(IndexBufferResourceDesc{
         .name = std::format("model-ib@{}", name),
         .size = indices.size() * sizeof(decltype(indices[0])),
         .data = indices.data(),
     });
 
-    mesh_descriptions_buffer = resource_manager.add_from_desc(UniformBufferResourceDesc{
+    mesh_descriptions_buffer = register_resource(UniformBufferResourceDesc{
         .name = std::format("model-md@{}", name),
         .size = mesh_descriptions.size() * sizeof(decltype(mesh_descriptions[0])),
     });
@@ -316,15 +318,15 @@ void Model::register_render_graph_resources(ResourceManager &resource_manager) {
         const MaterialDescPack& mdp = material_desc_packs[mesh.material_id];
 
         if (mdp.base_color) {
-            mesh_desc.base_color_id = resource_manager.get_bindless_handle(resource_manager.add_from_desc(*mdp.base_color));
+            mesh_desc.base_color_id = renderer.get_bindless_handle(register_resource(*mdp.base_color));
         }
 
         if (mdp.normal) {
-            mesh_desc.normal_id = resource_manager.get_bindless_handle(resource_manager.add_from_desc(*mdp.normal));
+            mesh_desc.normal_id = renderer.get_bindless_handle(register_resource(*mdp.normal));
         }
 
         if (mdp.orm) {
-            mesh_desc.orm_id = resource_manager.get_bindless_handle(resource_manager.add_from_desc(*mdp.orm));
+            mesh_desc.orm_id = renderer.get_bindless_handle(register_resource(*mdp.orm));
         }
     }
 }
