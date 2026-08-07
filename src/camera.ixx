@@ -14,6 +14,10 @@ class Rotator {
     glm::vec2 rot = {0, 0};
 
 public:
+    Rotator() = default;
+
+    Rotator(glm::vec2&& rot) : rot(rot) {}
+
     auto operator*() const -> glm::vec2 { return rot; }
 
     auto operator=(glm::vec2 other)  -> Rotator&;
@@ -37,17 +41,17 @@ class Camera {
     float z_near = 0.01f;
     float z_far = 500.0f;
 
-    glm::vec3 pos = {0.0f, 0.0f, -2.0f};
-    Rotator rotator;
+    glm::vec3 pos = {0.0f, 0.5f, 0.0f};
+    Rotator rotator {{ -glm::gtc::pi<float>() / 2, 0 }};
     glm::vec3 front{}, right{}, up{};
 
     bool is_locked_cursor = false;
-    bool is_locked_cam = true;
+    bool is_locked_cam = false;
     float locked_radius = 20.0f;
     Rotator locked_rotator;
 
     float rotation_speed = 2.5f;
-    float movement_speed = 5.0f;
+    float movement_speed = 0.5f;
 
     unique_ptr<InputManager> input_manager;
 

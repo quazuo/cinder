@@ -53,7 +53,7 @@ class Engine {
         float bottom = -10.0f;
         float top    = 10.0f;
         float z_near = 0.01f;
-        float z_far  = 100.0f;
+        float z_far  = 70.0f;
         float bias_weight_1 = 0.0f;
         float bias_weight_2 = 0.0008f;
     } shadow_map_config;
