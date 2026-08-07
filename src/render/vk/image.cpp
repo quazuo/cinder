@@ -969,32 +969,38 @@ void ImageBuilder::perform_swizzle(uint8_t *data, const size_t size) const {
         const uint8_t a = data[COMPONENT_COUNT * i + 3];
 
         for (size_t comp = 0; comp < COMPONENT_COUNT; comp++) {
+            uint8_t result {};
+
             switch ((*swizzle)[comp]) {
                 case SwizzleComponent::R:
-                    data[COMPONENT_COUNT * i + comp] = r;
+                    result = r;
                     break;
                 case SwizzleComponent::G:
-                    data[COMPONENT_COUNT * i + comp] = g;
+                    result = g;
                     break;
                 case SwizzleComponent::B:
-                    data[COMPONENT_COUNT * i + comp] = b;
+                    result = b;
                     break;
                 case SwizzleComponent::A:
-                    data[COMPONENT_COUNT * i + comp] = a;
+                    result = a;
                     break;
                 case SwizzleComponent::ZERO:
-                    data[COMPONENT_COUNT * i + comp] = 0;
+                    result = 0;
                     break;
                 case SwizzleComponent::ONE:
-                    data[COMPONENT_COUNT * i + comp] = 1;
+                    result = 1;
                     break;
                 case SwizzleComponent::MAX:
-                    data[COMPONENT_COUNT * i + comp] = numeric_limits<uint8_t>::max();
+                    result = numeric_limits<uint8_t>::max();
                     break;
                 case SwizzleComponent::HALF_MAX:
-                    data[COMPONENT_COUNT * i + comp] = numeric_limits<uint8_t>::max() / 2;
+                    result = numeric_limits<uint8_t>::max() / 2;
                     break;
+                default:
+                    Logger::error("unhandled swizzle component");
             }
+
+            data[COMPONENT_COUNT * i + comp] = result;
         }
     }
 }

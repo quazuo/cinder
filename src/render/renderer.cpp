@@ -546,12 +546,13 @@ void VulkanRenderer::render_gui_section() {
         float last_node_time = 0.0f;
 
         const auto node_timings_range = std::views::zip(
-            frame.prev_time_query_results | std::views::adjacent<2> | std::views::stride(2),
+            frame.prev_time_query_results | std::views::chunk(2),
             frame.prev_node_names
         );
 
         for (uint32_t i = 0; const auto& [timestamps, name] : node_timings_range) {
-            const auto& [start_timestamp, end_timestamp] = timestamps;
+            const uint64_t start_timestamp = timestamps[0];
+            const uint64_t end_timestamp = timestamps[1];
 
             const std::chrono::nanoseconds start_ns {
                 static_cast<long long>(timestamp_period * static_cast<float>(start_timestamp - frame_start_timestamp)) };
