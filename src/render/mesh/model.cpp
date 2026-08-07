@@ -72,8 +72,6 @@ Mesh::Mesh(const aiMesh *assimp_mesh) : material_id(assimp_mesh->mMaterialIndex)
             indices.push_back(face.mIndices[i]);
         }
     }
-
-    instances.push_back(glm::gtc::identity<glm::mat4>());
 }
 
 MaterialDescPack::MaterialDescPack(const aiMaterial *assimp_material, const std::filesystem::path &base_path) {
