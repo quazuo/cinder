@@ -27,7 +27,7 @@ import Cinder.Globals;
 export namespace zrx {
 class Engine {
     GLFWwindow *window = nullptr;
-    VulkanRenderer renderer;
+    VulkanRenderer renderer { 1600, 1200 };
     unique_ptr<InputManager> input_manager;
 
     unique_ptr<Camera> camera;

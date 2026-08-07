@@ -168,7 +168,7 @@ struct ResourceDescToType<ComputePipelineResourceDesc> {
 };
 
 template <typename T>
-using resource_desc_to_type_t = ResourceDescToType<T>::type;
+using resource_desc_to_type_t = ResourceDescToType<std::remove_cvref_t<T>>::type;
 
 enum class ShaderBindingType {
     Empty,

@@ -564,7 +564,7 @@ void Engine::render_gui_section(const float delta_time) {
         ImGui::Checkbox("Debug quad", &render_frame_settings.show_debug_quad);
 
         if (ImGui::BeginCombo("Debug tex", "")) {
-            const auto& rm = renderer.get_resource_manager();
+            const auto& rm = renderer.UNSAFE_get_resource_manager();
             for (const auto& handle: rm.get_all_resource_handles_range()) {
                 bool is_ok_type = false;
                 if (std::holds_alternative<ExternalTextureResourceDesc>(rm.get_desc_variant(handle)))

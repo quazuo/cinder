@@ -55,12 +55,9 @@ void RenderInfo::make_attachment_infos() {
 
 // ==================== VulkanRenderer ====================
 
-VulkanRenderer::VulkanRenderer() {
-    constexpr int INIT_WINDOW_WIDTH = 1600;
-    constexpr int INIT_WINDOW_HEIGHT = 1200;
-
+VulkanRenderer::VulkanRenderer(const int window_width, const int window_height) {
     glfwWindowHint(glfw::CLIENT_API, glfw::NO_API);
-    ctx.window = glfwCreateWindow(INIT_WINDOW_WIDTH, INIT_WINDOW_HEIGHT, "Cinder", nullptr, nullptr);
+    ctx.window = glfwCreateWindow(window_width, window_height, "Cinder", nullptr, nullptr);
 
     init_glfw_user_pointer(ctx.window);
     auto *user_data = static_cast<GlfwStaticUserData *>(glfwGetWindowUserPointer(ctx.window));
