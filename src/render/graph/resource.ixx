@@ -51,6 +51,7 @@ struct TargetTextureResourceDesc {
     string name{};
     vk::Format format{};
     vk::Extent2D extent = {0, 0}; // {0, 0} means we're using the swapchain image's extent
+    uint32_t layer_count = 0; // if != 0, must have ImageFlags::NO_MIPMAPS and can't have ImageFlags::CUBEMAP
     ImageOverrides overrides{};
     ImageFlags flags{};
 };
@@ -91,6 +92,7 @@ struct GraphicsPipelineResourceDesc {
         bool disable_depth_write       = false;
         vk::CompareOp depth_compare_op = vk::CompareOp::eLess;
         vk::CullModeFlagBits cull_mode = vk::CullModeFlagBits::eBack;
+        vk::PolygonMode polygon_mode   = vk::PolygonMode::eFill;
         uint32_t multiview_count       = 1;
     } custom_properties;
 };

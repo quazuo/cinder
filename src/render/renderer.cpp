@@ -716,6 +716,10 @@ void VulkanRenderer::create_resource(const ResourceHandle handle, const TargetTe
         builder.with_extent({description.extent.width, description.extent.height, 1u});
     }
 
+    if (description.layer_count) {
+        builder.with_layers(description.layer_count);
+    }
+
     resource_manager->attach_builder<ImageBuilder>(ctx, handle, std::move(builder));
     const auto bindless_handle = resource_manager->get_bindless_handle(handle);
     auto& texture = resource_manager->get<Image>(handle);
@@ -774,7 +778,7 @@ void VulkanRenderer::create_resource(const ResourceHandle handle, const Graphics
                 description.vertex_attributes
             )
             .with_rasterizer({
-                .polygonMode = vk::PolygonMode::eFill,
+                .polygonMode = description.custom_properties.polygon_mode,
                 .cullMode = description.custom_properties.cull_mode,
                 .frontFace = vk::FrontFace::eCounterClockwise,
                 .lineWidth = 1.0f,
@@ -890,7 +894,7 @@ auto VulkanRenderer::create_node_render_infos(const RenderNodeHandle node_handle
 
         if (node_info.depth_target) {
             const auto &target_texture = resource_manager->get<Image>(*node_info.depth_target);
-            depth_target = RenderTarget(target_texture.get_layer_mip_view(ctx, 0, 0),
+            depth_target = RenderTarget(target_texture.get_mip_view(ctx, 0),
                                         target_texture.get_format());
         }
 
@@ -1100,7 +1104,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
                 .baseMipLevel = 0,
                 .levelCount = texture.get_mip_levels(),
                 .baseArrayLayer = 0,
-                .layerCount = 1,
+                .layerCount = texture.get_layer_count(),
             }
         });
 
@@ -1156,7 +1160,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
                 .baseMipLevel = 0,
                 .levelCount = texture.get_mip_levels(),
                 .baseArrayLayer = 0,
-                .layerCount = 1,
+                .layerCount = texture.get_layer_count(),
             }
         });
 
@@ -1196,7 +1200,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
                 .baseMipLevel = 0,
                 .levelCount = texture.get_mip_levels(),
                 .baseArrayLayer = 0,
-                .layerCount = 1,
+                .layerCount = texture.get_layer_count(),
             }
         });
 
@@ -1231,7 +1235,7 @@ void VulkanRenderer::record_pre_partition_commands(const vector<RenderNodeHandle
                 .baseMipLevel = 0,
                 .levelCount = texture.get_mip_levels(),
                 .baseArrayLayer = 0,
-                .layerCount = 1,
+                .layerCount = texture.get_layer_count(),
             }
         });
 

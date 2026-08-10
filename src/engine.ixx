@@ -58,12 +58,14 @@ class Engine {
         float bias_weight_2 = 0.0008f;
     } shadow_map_config;
 
-    float debug_number = 0;
+    float debug_number = 1.0f;
     int debug_tex = 0;
+
+    static constexpr uint32_t SHADOWMAP_CASCADE_COUNT = 4;
 
     struct RenderFrameSettings {
         bool is_gui_enabled        = true;
-        bool show_debug_quad       = false;
+        bool show_debug_quad       = true;
         bool use_ssao              = false;
         bool should_capture_skybox = true;
         bool do_blur               = false;
@@ -74,6 +76,7 @@ class Engine {
     enum RenderingResource {
         VB_Skybox,
         VB_ScreenSpaceQuad,
+        VB_ModelAABB,
         UBO_General,
         Tex_Envmap,
         Tex_Skybox,
@@ -87,6 +90,8 @@ class Engine {
         Tex_PostBlurY,
         Tex_PostGui,
         Pipe_SsQuad,
+        Pipe_SsQuadDepth,
+        Pipe_Cube,
         Pipe_CubeCapture,
         Pipe_Shadowmap,
         Pipe_Prepass,
@@ -95,7 +100,6 @@ class Engine {
         Pipe_Main,
         Pipe_BlurX,
         Pipe_BlurY,
-        Pipe_Final,
         Count
     };
 
@@ -114,7 +118,9 @@ private:
 
     void build_render_graph();
 
-    void update_graphics_uniform_buffer(const Buffer &buffer) const;
+    void update_graphics_uniform_buffer(const Buffer &buffer);
+
+    auto get_light_pxv_matrix(const glm::mat4& model_mat, float z_near, float z_far) -> glm::mat4;
 
     void bind_key_actions();
 

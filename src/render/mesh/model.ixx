@@ -51,6 +51,8 @@ class Model {
     optional<ResourceHandle> index_buffer;
     optional<ResourceHandle> mesh_descriptions_buffer;
 
+    optional<pair<glm::vec3, glm::vec3>> cached_aabb;
+
     // unique_ptr<AccelerationStructure> blas;
 
 public:
@@ -71,6 +73,8 @@ public:
     auto get_mesh_descriptions_buffer() const -> ResourceHandle { return *mesh_descriptions_buffer; }
 
     // auto get_blas() const -> const AccelerationStructure& { return *blas; }
+
+    auto get_aabb() -> pair<glm::vec3, glm::vec3>; // { min, max }
 
     void register_render_graph_resources(const VulkanRenderer& renderer);
 

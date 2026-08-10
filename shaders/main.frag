@@ -6,10 +6,9 @@
 #include "utils/ubo.glsl"
 #include "utils/model.glsl"
 
-layout (location = 0) in vec3 worldPosition;
+layout (location = 0) in vec4 worldPosition;
 layout (location = 1) in vec2 fragTexCoord;
-layout (location = 2) in vec4 lightSpacePosition;
-layout (location = 3) in mat3 TBN;
+layout (location = 2) in mat3 TBN;
 
 layout (location = 0) out vec4 outColor;
 
@@ -41,6 +40,14 @@ vec4 sample_texture_with_fallback(uint tex_id, vec2 tex_coord) {
     return texture(bindless_samplers[tex_id], tex_coord);
 }
 
+vec4 sample_texture_layer_with_fallback(uint tex_id, vec2 tex_coord, uint layer) {
+    if (tex_id == 0xffffffff) {
+        return vec4(1, 1, 1, 1);
+    }
+
+    return texture(bindless_samplers_2d_array[tex_id], vec3(tex_coord, float(layer)));
+}
+
 vec3 get_normal() {
     const MeshDescription mesh_desc = mesh_descriptions[constants.mesh_desc_ubo_id].md[constants.mesh_id];
     vec3 normal = sample_texture_with_fallback(mesh_desc.normal_id, fragTexCoord).rgb;
@@ -67,20 +74,37 @@ float get_blurred_ssao() {
 }
 
 float calc_shadow(vec2 texel_offset) {
+    const uint ubo_id = constants.general_ubo_id;
+
     vec2 shadowmap_texel_size = 1.0 / textureSize(bindless_samplers[constants.shadowmap_id], 0);
     vec2 tex_coord_offset = texel_offset * shadowmap_texel_size;
 
-    vec3 proj_coords = lightSpacePosition.xyz / lightSpacePosition.w;
+    // select cascade
+    vec4 frag_pos_view_space = ubos[ubo_id].matrices.view * vec4(worldPosition.xyz, 1.0);
+    float depth = abs(frag_pos_view_space.z);
+
+    const uint CASCADE_COUNT = 4;
+    uint layer = 0;
+
+    for (uint i = 0; i < CASCADE_COUNT; i++) {
+        if (depth < ubos[ubo_id].light.cascade_z_fars[i].v) {
+            layer = i;
+            break;
+        }
+    }
+
+    vec4 light_space_pos = ubos[ubo_id].light.cascade_pxv_mats[layer] * worldPosition;
+    vec3 proj_coords = light_space_pos.xyz / light_space_pos.w;
     proj_coords.xy = proj_coords.xy * 0.5 + 0.5;
     proj_coords.y = 1.0f - proj_coords.y;
 
     vec3 normal = get_normal();
-    vec3 light_direction = ubos[constants.general_ubo_id].light.direction;
-    float bias_weight_1  = ubos[constants.general_ubo_id].misc.bias_weight_1;
-    float bias_weight_2  = ubos[constants.general_ubo_id].misc.bias_weight_2;
+    vec3 light_direction = ubos[ubo_id].light.direction;
+    float bias_weight_1  = ubos[ubo_id].misc.bias_weight_1;
+    float bias_weight_2  = ubos[ubo_id].misc.bias_weight_2;
     float bias = max(bias_weight_1 * (1.0 - dot(normal, light_direction)), bias_weight_2);
 
-    float closest_depth = sample_texture_with_fallback(constants.shadowmap_id, proj_coords.xy + tex_coord_offset).r;
+    float closest_depth = sample_texture_layer_with_fallback(constants.shadowmap_id, proj_coords.xy + tex_coord_offset, layer).r;
     float current_depth = proj_coords.z;
     float shadow = current_depth - bias > closest_depth ? 1.0 : 0.0;
 
@@ -108,7 +132,7 @@ void main() {
     vec3 light_color = ubos[ubo_id].light.intensity * ubos[ubo_id].light.color;
 
     // utility vectors
-    vec3 view = normalize(ubos[ubo_id].misc.camera_pos - worldPosition);
+    vec3 view = normalize(ubos[ubo_id].misc.camera_pos - worldPosition.xyz);
     vec3 halfway = normalize(view + light_dir);
 
     vec3 ambient = /* vec3(0.03) * */ base_color.rgb * ao;

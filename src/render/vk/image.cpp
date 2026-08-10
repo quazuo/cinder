@@ -205,11 +205,22 @@ auto Image::get_cached_view(const RendererContext &ctx, ImageViewParams params) 
         return cached_views.at(params);
     }
 
-    const auto &[base_mip, mip_count, base_layer, layer_count] = params;
+    const auto [base_mip, mip_count, base_layer, layer_count] = params;
+
+    vk::ImageViewType view_type;
+    if (layer_count == 1) {
+        view_type = vk::ImageViewType::e2D;
+    } else {
+        if (is_cubemap && layer_count == 6) {
+            view_type = vk::ImageViewType::eCube;
+        } else {
+            view_type = vk::ImageViewType::e2DArray;
+        }
+    }
 
     const vk::ImageViewCreateInfo create_info{
         .image = image,
-        .viewType = is_cubemap && layer_count == 6 ? vk::ImageViewType::eCube : vk::ImageViewType::e2D,
+        .viewType = view_type,
         .format = format,
         .subresourceRange = {
             .aspectMask = aspect_mask,
@@ -487,6 +498,12 @@ auto ImageBuilder::with_window_size() -> ImageBuilder& {
     return *this;
 }
 
+auto ImageBuilder::with_layers(uint32_t layers) -> ImageBuilder & {
+    check_if_locked();
+    desired_layer_count = layers;
+    return *this;
+}
+
 auto ImageBuilder::with_swizzle(const SwizzleDesc &sw) -> ImageBuilder& {
     check_if_locked();
     swizzle = sw;
@@ -683,14 +700,22 @@ void ImageBuilder::check_params() const {
         if (paths.size() != 6 && !is_uninitialized) {
             params_error("invalid layer count for cubemap texture");
         }
+
+        if (desired_layer_count && *desired_layer_count != 6) {
+            params_error("invalid explicit layer count for cubemap texture");
+        }
     } else {
         // non-cubemap
         if (is_separate_channels) {
-            if (paths.size() != 3) {
-                params_error("unsupported channel count for separate-channelled non-cubemap texture");
+            if (paths.size() != *desired_layer_count * 3) { // todo: change this 3 to be dependent on the format
+                params_error("mismatch between number of source paths and number of desired layers: "
+                             "if loading into separate channels, it must be that `n_channels * n_layers == n_paths`");
             }
-        } else if (!memory_source && !is_from_swizzle_fill && !is_uninitialized && paths.size() != 1) {
-            params_error("invalid layer count for non-cubemap texture");
+        } else {
+            const uint32_t expected_layer_count = desired_layer_count ? *desired_layer_count : 1;
+            if (!paths.empty() && paths.size() != expected_layer_count) {
+                params_error("invalid layer count for non-cubemap texture");
+            }
         }
     }
 
@@ -747,11 +772,15 @@ void ImageBuilder::check_if_locked() const {
 }
 
 uint32_t ImageBuilder::get_layer_count() const {
+    if (desired_layer_count) return *desired_layer_count;
+
     if (memory_source || is_from_swizzle_fill) return 1;
 
     const uint32_t sources_count = is_uninitialized
-                                       ? (!!(tex_flags & ImageFlags::CUBEMAP) ? 6 : 1)
-                                       : paths.size();
+                                   ? (!!(tex_flags & ImageFlags::CUBEMAP) ? 6 : 1)
+                                   : paths.size();
+
+    // todo - change this 3 to be format dependent
     return is_separate_channels ? sources_count / 3 : sources_count;
 }
 

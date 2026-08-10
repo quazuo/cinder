@@ -11,12 +11,12 @@ import Cinder.Utils;
 import Cinder.Render.Gui;
 
 namespace zrx {
-Rotator &Rotator::operator=(const glm::vec2 other) {
+auto Rotator::operator=(const glm::vec2 other) -> Rotator& {
     rot = other;
     return *this;
 }
 
-Rotator &Rotator::operator+=(const glm::vec2 other) {
+auto Rotator::operator+=(const glm::vec2 other) -> Rotator& {
     static constexpr float y_angle_limit = glm::gtc::pi<float>() / 2 - 0.1f;
 
     rot.x += other.x;
@@ -29,12 +29,12 @@ Rotator &Rotator::operator+=(const glm::vec2 other) {
     return *this;
 }
 
-Rotator &Rotator::operator-=(const glm::vec2 other) {
+auto Rotator::operator-=(const glm::vec2 other) -> Rotator& {
     *this += -other;
     return *this;
 }
 
-Rotator::ViewVectors Rotator::get_view_vectors() const {
+auto Rotator::get_view_vectors() const -> ViewVectors {
     const glm::vec3 front = {
         std::cos(rot.y) * std::sin(rot.x),
         std::sin(rot.y),
@@ -87,15 +87,15 @@ void Camera::tick(const float delta_time) {
     update_vecs();
 }
 
-glm::mat4 Camera::get_view_matrix() const {
+auto Camera::get_view_matrix() const -> glm::mat4 {
     return glm::gtc::lookAt(pos, pos + front, glm::vec3(0, 1, 0));
 }
 
-glm::mat4 Camera::get_static_view_matrix() const {
+auto Camera::get_static_view_matrix() const -> glm::mat4 {
     return glm::gtc::lookAt(glm::vec3(0), front, glm::vec3(0, 1, 0));
 }
 
-glm::mat4 Camera::get_projection_matrix() const {
+auto Camera::get_projection_matrix() const -> glm::mat4 {
     return glm::gtc::perspective(glm::radians(field_of_view), aspect_ratio, z_near, z_far);
 }
 

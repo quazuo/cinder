@@ -8,6 +8,13 @@
 #define GLSL_ALIGN16
 #endif
 
+struct PaddedFloat {
+    float v;
+    float _pad0;
+    float _pad1;
+    float _pad2;
+};
+
 struct WindowRes {
     GLSL_ALIGN4 uint width;
     GLSL_ALIGN4 uint height;
@@ -29,7 +36,8 @@ struct LightData {
     GLSL_ALIGN16 vec3 direction;
     GLSL_ALIGN16 vec3 color;
     GLSL_ALIGN4  float intensity;
-    GLSL_ALIGN16 mat4 proj_x_view;
+    GLSL_ALIGN16 mat4 cascade_pxv_mats[4];
+    GLSL_ALIGN16 PaddedFloat cascade_z_fars[4];
 };
 
 struct MiscData {

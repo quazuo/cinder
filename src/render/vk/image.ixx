@@ -215,6 +215,8 @@ class ImageBuilder {
 
     optional<vk::Extent3D> desired_extent;
 
+    optional<uint32_t> desired_layer_count;
+
     vector<std::filesystem::path> paths;
     void *memory_source = nullptr;
     bool is_from_swizzle_fill = false;
@@ -248,6 +250,7 @@ public:
     auto as_uninitialized()                                     -> ImageBuilder&;
     auto with_extent(vk::Extent3D extent)                       -> ImageBuilder&;
     auto with_window_size()                                     -> ImageBuilder&;
+    auto with_layers(uint32_t layers)                           -> ImageBuilder&;
     auto with_swizzle(const SwizzleDesc &sw)                    -> ImageBuilder&;
     auto with_name(const char *n)                               -> ImageBuilder&;
     auto with_allocation(shared_ptr<vma::raii::Allocation> a)   -> ImageBuilder&;

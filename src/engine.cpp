@@ -165,6 +165,7 @@ void Engine::register_render_graph_resources() {
         .name = "shadowmap-texture",
         .format = shadowmap_tex_format,
         .extent = {2048, 2048},
+        .layer_count = SHADOWMAP_CASCADE_COUNT,
         .overrides = {
             .mag_filter = vk::Filter::eNearest,
             .min_filter = vk::Filter::eNearest,
@@ -198,12 +199,28 @@ void Engine::register_render_graph_resources() {
 
     renderer.set_shader_base_path("../shaders/obj/");
 
-    rr[Pipe_SsQuad] = renderer.register_resource(GraphicsPipelineResourceDesc{
+    rr[Pipe_SsQuadDepth] = renderer.register_resource(GraphicsPipelineResourceDesc{
         .vertex_path = "ss-quad-depth-vert.spv",
         .fragment_path = "ss-quad-depth-frag.spv",
         .vertex_bindings = ScreenSpaceQuadVertex::get_binding_descriptions(),
         .vertex_attributes = ScreenSpaceQuadVertex::get_attribute_descriptions(),
         .color_formats = { FINAL_FORMAT },
+        .custom_properties = GraphicsPipelineResourceDesc::CustomProperties{
+            .disable_depth_test = true,
+        },
+    });
+
+    rr[Pipe_Cube] = renderer.register_resource(GraphicsPipelineResourceDesc{
+        .vertex_path = "cube-vert.spv",
+        .fragment_path = "cube-frag.spv",
+        .vertex_bindings = SkyboxVertex::get_binding_descriptions(),
+        .vertex_attributes = SkyboxVertex::get_attribute_descriptions(),
+        .color_formats = {final_no_gamma_format},
+        .depth_format = FINAL_FORMAT,
+        .custom_properties = {
+            .cull_mode = vk::CullModeFlagBits::eNone,
+            .polygon_mode = vk::PolygonMode::eLine,
+        },
     });
 
     rr[Pipe_CubeCapture] = renderer.register_resource(GraphicsPipelineResourceDesc{
@@ -214,7 +231,7 @@ void Engine::register_render_graph_resources() {
         .color_formats = {skybox_tex_format},
         .custom_properties = {
             .multiview_count = 6
-        }
+        },
     });
 
     rr[Pipe_Shadowmap] = renderer.register_resource(GraphicsPipelineResourceDesc{
@@ -222,7 +239,11 @@ void Engine::register_render_graph_resources() {
         .fragment_path = "shadowmap-frag.spv",
         .vertex_bindings = ModelVertex::get_binding_descriptions(),
         .vertex_attributes = ModelVertex::get_attribute_descriptions(),
-        .depth_format = shadowmap_tex_format
+        .depth_format = shadowmap_tex_format,
+        .custom_properties = {
+            .cull_mode = vk::CullModeFlagBits::eNone,
+            .multiview_count = SHADOWMAP_CASCADE_COUNT,
+        },
     });
 
     rr[Pipe_Prepass] = renderer.register_resource(GraphicsPipelineResourceDesc{
@@ -231,7 +252,7 @@ void Engine::register_render_graph_resources() {
         .vertex_bindings = ModelVertex::get_binding_descriptions(),
         .vertex_attributes = ModelVertex::get_attribute_descriptions(),
         .color_formats = {g_buffer_color_format, g_buffer_color_format},
-        .depth_format = g_buffer_depth_format
+        .depth_format = g_buffer_depth_format,
     });
 
     rr[Pipe_SSAO] = renderer.register_resource(GraphicsPipelineResourceDesc{
@@ -239,7 +260,7 @@ void Engine::register_render_graph_resources() {
         .fragment_path = "ssao-frag.spv",
         .vertex_bindings = ScreenSpaceQuadVertex::get_binding_descriptions(),
         .vertex_attributes = ScreenSpaceQuadVertex::get_attribute_descriptions(),
-        .color_formats = {ssao_tex_format}
+        .color_formats = {ssao_tex_format},
     });
 
     rr[Pipe_Skybox] = renderer.register_resource(GraphicsPipelineResourceDesc{
@@ -251,7 +272,7 @@ void Engine::register_render_graph_resources() {
         .depth_format = FINAL_FORMAT,
         .custom_properties = {
             .depth_compare_op = vk::CompareOp::eLessOrEqual,
-        }
+        },
     });
 
     rr[Pipe_Main] = renderer.register_resource(GraphicsPipelineResourceDesc{
@@ -271,12 +292,15 @@ void Engine::register_render_graph_resources() {
         .path = "blur-y-comp.spv",
     });
 
-    rr[Pipe_Final] = renderer.register_resource(GraphicsPipelineResourceDesc{
+    rr[Pipe_SsQuad] = renderer.register_resource(GraphicsPipelineResourceDesc{
         .vertex_path = "ss-quad-vert.spv",
         .fragment_path = "ss-quad-frag.spv",
         .vertex_bindings = ScreenSpaceQuadVertex::get_binding_descriptions(),
         .vertex_attributes = ScreenSpaceQuadVertex::get_attribute_descriptions(),
         .color_formats = {FINAL_FORMAT},
+        .custom_properties = GraphicsPipelineResourceDesc::CustomProperties{
+            .disable_depth_test = true,
+        },
     });
 }
 
@@ -339,6 +363,9 @@ void Engine::build_render_graph() {
             ctx.bind_resources({rr[UBO_General]});
             draw_model_helper(ctx, *scene_model);
         },
+        .custom_properties = RenderNodeGraphics::CustomProperties {
+            .multiview_count = SHADOWMAP_CASCADE_COUNT
+        }
     });
 
     if (render_frame_settings.use_ssao) {
@@ -375,6 +402,19 @@ void Engine::build_render_graph() {
             ctx.bind_pipeline(rr[Pipe_Main]);
             ctx.bind_resources({rr[UBO_General], model_mdb, rr[Tex_SSAO], rr[Tex_Shadowmap]});
             draw_model_helper(ctx, *scene_model, true);
+
+            ctx.bind_pipeline(rr[Pipe_Cube]);
+            ctx.bind_resources({rr[UBO_General]});
+
+            const auto [aabb_min, aabb_max] = scene_model->get_aabb();
+            struct ABC {
+                uint32_t pad0, pad1, pad2;
+                glm::vec4 min;
+                glm::vec4 max;
+            };
+            const ABC consts { .min = glm::vec4(aabb_min, 0.0), .max = glm::vec4(aabb_max, 0.0) };
+            ctx.push_constants<ABC>(consts, vk::ShaderStageFlagBits::eVertex);
+            ctx.draw(rr[VB_Skybox], skybox_vertices.size(), 1, 0, 0);
 
             ctx.bind_pipeline(rr[Pipe_Skybox]);
             ctx.bind_resources({rr[UBO_General], rr[Tex_Skybox]});
@@ -413,8 +453,9 @@ void Engine::build_render_graph() {
             .bound_resources = {rr[Tex_PostBlurY]},
             .color_targets = {FINAL_IMAGE_HANDLE},
             .body = [&](RenderPassContext &ctx) {
-                ctx.bind_pipeline(rr[Pipe_Final]);
+                ctx.bind_pipeline(rr[Pipe_SsQuad]);
                 ctx.bind_resources({rr[UBO_General], rr[Tex_PostBlurY]});
+                ctx.push_constants(array<float, 4> { -1, 1, -1, 1 }, vk::ShaderStageFlagBits::eVertex);
                 ctx.draw(rr[VB_ScreenSpaceQuad], screen_space_quad_vertices.size(), 1, 0, 0);
             },
         });
@@ -425,14 +466,29 @@ void Engine::build_render_graph() {
             .bound_resources = {rr[Tex_BasePass]},
             .color_targets = {FINAL_IMAGE_HANDLE},
             .body = [&](RenderPassContext &ctx) {
-                if (render_frame_settings.show_debug_quad) {
-                    ctx.bind_pipeline(rr[Pipe_SsQuad]);
-                    ctx.bind_resources({rr[UBO_General], ResourceHandle::get_unsafe(debug_tex)});
-                } else {
-                    ctx.bind_pipeline(rr[Pipe_Final]);
-                    ctx.bind_resources({rr[UBO_General], rr[Tex_BasePass]});
-                }
+                ctx.bind_pipeline(rr[Pipe_SsQuad]);
+                ctx.bind_resources({rr[UBO_General], rr[Tex_BasePass]});
+                ctx.push_constants(array<float, 4> { -1, 1, -1, 1 }, vk::ShaderStageFlagBits::eVertex);
                 ctx.draw(rr[VB_ScreenSpaceQuad], screen_space_quad_vertices.size(), 1, 0, 0);
+
+                if (render_frame_settings.show_debug_quad) {
+                    ctx.bind_pipeline(rr[Pipe_SsQuadDepth]);
+                    ctx.bind_resources({rr[UBO_General], rr[Tex_Shadowmap]});
+
+                    constexpr vk::ShaderStageFlags stages = vk::ShaderStageFlagBits::eVertex | vk::ShaderStageFlagBits::eFragment;
+
+                    ctx.push_constants(array<float, 5> { 0, 0.5, 0.5, 1, 0 }, stages);
+                    ctx.draw(rr[VB_ScreenSpaceQuad], screen_space_quad_vertices.size(), 1, 0, 0);
+
+                    ctx.push_constants(array<float, 5> { 0.5, 1, 0.5, 1, 1 }, stages);
+                    ctx.draw(rr[VB_ScreenSpaceQuad], screen_space_quad_vertices.size(), 1, 0, 0);
+
+                    ctx.push_constants(array<float, 5> { 0, 0.5, 0, 0.5, 2 }, stages);
+                    ctx.draw(rr[VB_ScreenSpaceQuad], screen_space_quad_vertices.size(), 1, 0, 0);
+
+                    ctx.push_constants(array<float, 5> { 0.5, 1, 0, 0.5, 3 }, stages);
+                    ctx.draw(rr[VB_ScreenSpaceQuad], screen_space_quad_vertices.size(), 1, 0, 0);
+                }
             },
         });
     }
@@ -454,7 +510,85 @@ void Engine::build_render_graph() {
     renderer.register_render_graph(render_graph);
 }
 
-void Engine::update_graphics_uniform_buffer(const Buffer &buffer) const {
+static auto get_frustum_corners_world_space(const glm::mat4& view, const glm::mat4& proj) -> array<glm::vec4, 8>  {
+    const glm::mat4 pxv_inverse = glm::inverse(proj * view);
+
+    array<glm::vec4, 8> corners;
+    constexpr auto r = std::views::iota(0, 2);
+
+    for (uint32_t i = 0; const auto& [x, y, z] : std::views::cartesian_product(r, r, r)) {
+        const glm::vec4 corner = pxv_inverse * glm::vec4 {
+            2.0f * x - 1.0f,
+            2.0f * y - 1.0f,
+            static_cast<float>(z),
+            1.0f
+        };
+        corners[i++] = corner / corner.w;
+    }
+
+    return corners;
+}
+
+auto Engine::get_light_pxv_matrix(const glm::mat4& model_mat, const float z_near, const float z_far) -> glm::mat4 {
+    const glm::mat4 view = camera->get_view_matrix();
+    const glm::mat4 proj = glm::gtc::perspective(glm::radians(camera->get_fov()), camera->get_aspect_ratio(), z_near, z_far);
+
+    const auto camera_frustum_corners = get_frustum_corners_world_space(view, proj);
+    glm::vec3 center = glm::vec3(std::ranges::fold_left(camera_frustum_corners, glm::vec4 { 0, 0, 0, 0 }, std::plus<glm::vec4>()));
+    center /= camera_frustum_corners.size();
+
+    const auto light_direction_vec = glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(1)) * 50.0f;
+    const auto light_view = glm::gtc::lookAt(center + light_direction_vec, center, glm::vec3(0, 1, 0));
+
+    float min_x = std::numeric_limits<float>::max();
+    float max_x = std::numeric_limits<float>::lowest();
+    float min_y = std::numeric_limits<float>::max();
+    float max_y = std::numeric_limits<float>::lowest();
+    float min_z = std::numeric_limits<float>::max();
+    float max_z = std::numeric_limits<float>::lowest();
+
+    for (const auto& corner : camera_frustum_corners) {
+        const auto v = light_view * corner;
+        min_x = std::min(min_x, v.x);
+        max_x = std::max(max_x, v.x);
+        min_y = std::min(min_y, v.y);
+        max_y = std::max(max_y, v.y);
+        min_z = std::min(min_z, std::abs(v.z));
+        max_z = std::max(max_z, std::abs(v.z));
+    }
+
+    if (scene_model) {
+        const auto [aabb_min, aabb_max] = scene_model->get_aabb();
+
+        constexpr auto r = std::views::iota(0, 2);
+        for (const auto& [x, y, z] : std::views::cartesian_product(r, r, r)) {
+            const glm::vec4 aabb_vertex = {
+                x == 0 ? aabb_min.x : aabb_max.x,
+                y == 0 ? aabb_min.y : aabb_max.y,
+                z == 0 ? aabb_min.z : aabb_max.z,
+                1.0f
+            };
+            const auto v = light_view * model_mat * aabb_vertex;
+
+            min_z = std::min(min_z, v.z);
+            max_z = std::max(max_z, v.z);
+        }
+    }
+
+    const float z_mult = debug_number;
+
+    if (min_z < 0) min_z *= z_mult;
+    else min_z /= z_mult;
+
+    if (max_z < 0) max_z /= z_mult;
+    else max_z *= z_mult;
+
+    const auto light_proj = glm::gtc::ortho(min_x, max_x, min_y, max_y, 0.01f, -min_z);
+
+    return light_proj * light_view;
+}
+
+void Engine::update_graphics_uniform_buffer(const Buffer &buffer) {
     const glm::mat4 model = glm::gtc::translate(glm::gtc::identity<glm::mat4>(), model_translate)
                             * glm::gtc::mat4_cast(model_rotation)
                             * glm::gtc::scale(glm::gtc::identity<glm::mat4>(), glm::vec3(model_scale));
@@ -468,13 +602,7 @@ void Engine::update_graphics_uniform_buffer(const Buffer &buffer) const {
 
     static const glm::mat4 cubemap_face_projection = glm::gtc::perspective(glm::radians(90.0f), 1.0f, 0.1f, 10.0f);
 
-    const auto light_direction_vec = glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(1)) * 30.0f;
-    const auto light_view = glm::gtc::lookAt(light_direction_vec, glm::vec3(0), glm::vec3(0, 1, 0));
-    const auto light_proj = glm::gtc::ortho(
-        shadow_map_config.left, shadow_map_config.right,
-        shadow_map_config.bottom, shadow_map_config.top,
-        shadow_map_config.z_near, shadow_map_config.z_far
-    );
+    const glm::vec3 light_direction_vec = glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(1)) * 50.0f;
 
     GraphicsUBO graphics_ubo{
         .window = {
@@ -495,7 +623,6 @@ void Engine::update_graphics_uniform_buffer(const Buffer &buffer) const {
             .direction = light_direction_vec,
             .color = light_color,
             .intensity = light_intensity,
-            .proj_x_view = light_proj * light_view,
         },
         .misc = {
             .debug_number = debug_number,
@@ -507,6 +634,31 @@ void Engine::update_graphics_uniform_buffer(const Buffer &buffer) const {
             .bias_weight_2 = shadow_map_config.bias_weight_2,
         }
     };
+
+    constexpr std::array<float, SHADOWMAP_CASCADE_COUNT> cascade_sizes = [] {
+        std::array<float, SHADOWMAP_CASCADE_COUNT> result;
+        constexpr float two_pow_casc_count = static_cast<float>(1 << SHADOWMAP_CASCADE_COUNT);
+
+        for (uint32_t i = 0; i < SHADOWMAP_CASCADE_COUNT; i++) {
+            result[i] = i == 0
+                ? 2.0f / two_pow_casc_count
+                : static_cast<float>(1 << i) / two_pow_casc_count;
+        }
+
+        return result;
+    }();
+
+    const float full_clip_size = z_far - z_near;
+    float curr_z_near = z_near;
+
+    for (uint32_t i = 0; i < SHADOWMAP_CASCADE_COUNT; i++) {
+        const float curr_z_far = curr_z_near + cascade_sizes[i] * full_clip_size;
+
+        graphics_ubo.light.cascade_pxv_mats[i] = get_light_pxv_matrix(model, curr_z_near, curr_z_far);
+        graphics_ubo.light.cascade_z_fars[i].v = curr_z_far;
+
+        curr_z_near += cascade_sizes[i] * full_clip_size;
+    }
 
     static const array cubemap_face_views{
         glm::gtc::lookAt(glm::vec3(0), glm::vec3(-1, 0, 0), glm::vec3(0, 1, 0)),

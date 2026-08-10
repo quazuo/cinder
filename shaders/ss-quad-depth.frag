@@ -17,6 +17,14 @@ layout (set = BINDLESS_SET, binding = BINDLESS_UBO_BINDING) uniform UniformBuffe
 layout (push_constant) uniform PushResourceIDs {
     uint general_ubo_id;
     uint sampled_tex_id;
+
+    // these are used in the vertex shader, not here
+    float bottom;
+    float top;
+    float left;
+    float right;
+
+    float layer;
 } constants;
 
 float linearize_depth(float d) {
@@ -27,7 +35,7 @@ float linearize_depth(float d) {
 }
 
 void main() {
-    float depth = texture(bindless_samplers[constants.sampled_tex_id], tex_coords).r;
+    float depth = texture(bindless_samplers_2d_array[constants.sampled_tex_id], vec3(tex_coords, float(constants.layer))).r;
     float linearized = linearize_depth(depth);
     out_color = vec4(depth); // vec4(depth == 1.0 ? 1.0 : 0.0);
 }

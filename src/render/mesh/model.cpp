@@ -215,7 +215,7 @@ Model::Model(string&& name, const std::filesystem::path &path, const bool load_m
     }
 
     add_instances(scene->mRootNode, glm::gtc::identity<glm::mat4>());
-    normalize_scale();
+    // normalize_scale();
     // create_blas(ctx);
 
     vertices = get_vertices();
@@ -429,12 +429,41 @@ void Model::normalize_scale() {
     }
 }
 
+auto Model::get_aabb() -> pair<glm::vec3, glm::vec3> {
+    if (cached_aabb) return *cached_aabb;
+
+    constexpr float MIN_FLOAT = std::numeric_limits<float>::lowest();
+    constexpr float MAX_FLOAT = std::numeric_limits<float>::max();
+    glm::vec3 min = { MAX_FLOAT, MAX_FLOAT, MAX_FLOAT };
+    glm::vec3 max = { MIN_FLOAT, MIN_FLOAT, MIN_FLOAT };
+
+    for (const auto& mesh: meshes) {
+        for (const auto& vertex: mesh.vertices) {
+            for (const auto& transform: mesh.instances) {
+                const auto pos = glm::vec3(transform * glm::vec4(vertex.pos, 1.0));
+
+                if (pos.x < min.x) min.x = pos.x;
+                if (pos.x > max.x) max.x = pos.x;
+
+                if (pos.y < min.y) min.y = pos.y;
+                if (pos.y > max.y) max.y = pos.y;
+
+                if (pos.z < min.z) min.z = pos.z;
+                if (pos.z > max.z) max.z = pos.z;
+            }
+        }
+    }
+
+    cached_aabb = { min, max };
+    return *cached_aabb;
+}
+
 float Model::get_max_vertex_distance() const {
     float largest_distance = 0.0;
 
-    for (const auto &mesh: meshes) {
-        for (const auto &vertex: mesh.vertices) {
-            for (const auto &transform: mesh.instances) {
+    for (const auto& mesh: meshes) {
+        for (const auto& vertex: mesh.vertices) {
+            for (const auto& transform: mesh.instances) {
                 largest_distance = std::max(
                     largest_distance,
                     glm::length(glm::vec3(transform * glm::vec4(vertex.pos, 1.0)))
