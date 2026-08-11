@@ -164,7 +164,7 @@ void Engine::register_render_graph_resources() {
     rr[Tex_Shadowmap] = renderer.register_resource(TargetTextureResourceDesc{
         .name = "shadowmap-texture",
         .format = shadowmap_tex_format,
-        .extent = {2048, 2048},
+        .extent = {SHADOWMAP_RESOLUTION, SHADOWMAP_RESOLUTION},
         .layer_count = SHADOWMAP_CASCADE_COUNT,
         .overrides = {
             .mag_filter = vk::Filter::eNearest,
@@ -518,18 +518,20 @@ static auto get_frustum_corners_world_space(const glm::mat4& view, const glm::ma
 }
 
 auto Engine::get_light_pxv_matrix(const glm::mat4& model_mat, const float z_near, const float z_far) -> glm::mat4 {
-    const glm::mat4 view = camera->get_view_matrix();
-    const glm::mat4 proj = glm::gtc::perspective(glm::radians(camera->get_fov()), camera->get_aspect_ratio(), z_near, z_far);
-
-    const auto camera_frustum_corners = get_frustum_corners_world_space(view, proj);
+    const auto camera_frustum_corners = get_frustum_corners_world_space(
+        camera->get_view_matrix(),
+        glm::gtc::perspective(glm::radians(camera->get_fov()), camera->get_aspect_ratio(), z_near, z_far)
+    );
 
     const auto sum_points = [](const auto& r) -> glm::vec3 {
         return ranges::fold_left(r, glm::vec3 { 0, 0, 0 }, std::plus<glm::vec3>());
     };
 
+    // compute the camera frustum's circumcircle
+
     const glm::vec3 near_plane_center = (1.0f / 4) * sum_points(camera_frustum_corners | views::take(4));
     const glm::vec3 far_plane_center  = (1.0f / 4) * sum_points(camera_frustum_corners | views::reverse | views::take(4));
-    const glm::vec3 frustum_direction = glm::normalize(far_plane_center - near_plane_center);
+    const glm::vec3 frustum_direction = glm::normalize(far_plane_center - near_plane_center); // actually equal to camera->front but whatever
 
     const float near_plane_radius = glm::length(camera_frustum_corners[0] - near_plane_center);
     const float far_plane_radius = glm::length(camera_frustum_corners[4] - far_plane_center);
@@ -540,12 +542,31 @@ auto Engine::get_light_pxv_matrix(const glm::mat4& model_mat, const float z_near
     const glm::vec3 circumcenter = near_plane_center + frustum_direction * circumcenter_dist;
     const float circumcircle_radius = glm::length(camera_frustum_corners[0] - circumcenter);
 
-    const auto light_direction_vec = glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(1, 0, 0, 0)) * 50.0f;
-    const auto light_view = glm::gtc::lookAt(circumcenter + light_direction_vec, circumcenter, glm::vec3(0, 1, 0));
+    // get the light view matrix (NOT texel snapped yet)
+
+    const glm::vec3 light_direction_vec = glm::gtc::mat4_cast(light_direction) * glm::vec4(1, 0, 0, 0);
+    const glm::mat4 light_view = glm::gtc::lookAt(circumcenter + light_direction_vec * 50.0f, circumcenter, glm::vec3(0, 1, 0));
+
+    // compute the radius of the circumcircle in the light's viewspace
 
     const glm::vec3 circumcenter_lvspace = light_view * glm::vec4(circumcenter, 1.0f);
     const glm::vec3 boundary_point_lvspace = light_view * glm::vec4(circumcenter + glm::vec3(circumcircle_radius, 0.0f, 0.0f), 1.0f);
     const float circumcircle_radius_lvspace = glm::length(circumcenter_lvspace - boundary_point_lvspace);
+
+    // compute texel snapped light view matrix
+
+    const float texels_per_unit = static_cast<float>(SHADOWMAP_RESOLUTION) / (circumcircle_radius_lvspace * 2.0f);
+    const glm::mat4 scalar_mat = glm::gtc::scale(glm::vec3(texels_per_unit));
+
+    glm::vec3 frustum_center = scalar_mat * light_view * glm::vec4(circumcenter, 1.0f);
+    frustum_center.x = glm::floor(frustum_center.x);
+    frustum_center.y = glm::floor(frustum_center.y);
+    frustum_center = glm::inverse(scalar_mat * light_view) * glm::vec4(frustum_center, 1.0f);
+
+    const glm::vec3 eye = frustum_center + light_direction_vec * 50.0f; // - (light_direction * circumcircle_radius_lvspace * 2.0f);
+    const glm::mat4 light_view_texel_snapped = glm::gtc::lookAt(eye, frustum_center, glm::vec3(0, 1, 0));
+
+    // fit ortho projection matrix bbox (just the min/max z) to the scene's aabb
 
     float min_z = numeric_limits<float>::max();
     float max_z = numeric_limits<float>::lowest();
@@ -576,14 +597,15 @@ auto Engine::get_light_pxv_matrix(const glm::mat4& model_mat, const float z_near
     // if (max_z < 0) max_z /= z_mult;
     // else max_z *= z_mult;
 
-    const float extent = circumcircle_radius_lvspace;
+    // ...and finally compute the projection matrix
+
     const auto light_proj = glm::gtc::ortho(
-        -extent, extent,
-        -extent, extent,
+        -circumcircle_radius_lvspace, circumcircle_radius_lvspace,
+        -circumcircle_radius_lvspace, circumcircle_radius_lvspace,
         -max_z, -min_z
     );
 
-    return light_proj * light_view;
+    return light_proj * light_view_texel_snapped;
 }
 
 void Engine::update_graphics_uniform_buffer(const Buffer &buffer) {

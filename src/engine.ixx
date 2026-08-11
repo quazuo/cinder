@@ -62,6 +62,7 @@ class Engine {
     int debug_tex = 0;
 
     static constexpr uint32_t SHADOWMAP_CASCADE_COUNT = 4;
+    static constexpr uint32_t SHADOWMAP_RESOLUTION = 2048;
 
     struct RenderFrameSettings {
         bool is_gui_enabled        = true;
