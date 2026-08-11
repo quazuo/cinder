@@ -540,38 +540,15 @@ auto Engine::get_light_pxv_matrix(const glm::mat4& model_mat, const float z_near
     const glm::vec3 circumcenter = near_plane_center + frustum_direction * circumcenter_dist;
     const float circumcircle_radius = glm::length(camera_frustum_corners[0] - circumcenter);
 
-    const glm::vec3 sphere_aabb_min = circumcenter - glm::vec3(circumcircle_radius);
-    const glm::vec3 sphere_aabb_max = circumcenter + glm::vec3(circumcircle_radius);
-
     const auto light_direction_vec = glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(1, 0, 0, 0)) * 50.0f;
     const auto light_view = glm::gtc::lookAt(circumcenter + light_direction_vec, circumcenter, glm::vec3(0, 1, 0));
 
-    float min_x = numeric_limits<float>::max();
-    float max_x = numeric_limits<float>::lowest();
-    float min_y = numeric_limits<float>::max();
-    float max_y = numeric_limits<float>::lowest();
+    const glm::vec3 circumcenter_lvspace = light_view * glm::vec4(circumcenter, 1.0f);
+    const glm::vec3 boundary_point_lvspace = light_view * glm::vec4(circumcenter + glm::vec3(circumcircle_radius, 0.0f, 0.0f), 1.0f);
+    const float circumcircle_radius_lvspace = glm::length(circumcenter_lvspace - boundary_point_lvspace);
+
     float min_z = numeric_limits<float>::max();
     float max_z = numeric_limits<float>::lowest();
-
-    constexpr auto r = views::iota(0, 2);
-    for (const auto& [x, y, z] : views::cartesian_product(r, r, r)) {
-        const glm::vec4 sphere_aabb_vertex = {
-            x == 0 ? sphere_aabb_min.x : sphere_aabb_max.x,
-            y == 0 ? sphere_aabb_min.y : sphere_aabb_max.y,
-            z == 0 ? sphere_aabb_min.z : sphere_aabb_max.z,
-            1.0f
-        };
-        const auto v = light_view * sphere_aabb_vertex;
-
-        min_x = std::min(min_x, v.x);
-        max_x = std::max(max_x, v.x);
-        min_y = std::min(min_y, v.y);
-        max_y = std::max(max_y, v.y);
-
-        // careful here..
-        min_z = std::min(min_z, v.z);
-        max_z = std::max(max_z, v.z);
-    }
 
     if (scene_model) {
         const auto [aabb_min, aabb_max] = scene_model->get_aabb();
@@ -599,7 +576,12 @@ auto Engine::get_light_pxv_matrix(const glm::mat4& model_mat, const float z_near
     // if (max_z < 0) max_z /= z_mult;
     // else max_z *= z_mult;
 
-    const auto light_proj = glm::gtc::ortho(min_x, max_x, min_y, max_y, -max_z, -min_z);
+    const float extent = circumcircle_radius_lvspace;
+    const auto light_proj = glm::gtc::ortho(
+        -extent, extent,
+        -extent, extent,
+        -max_z, -min_z
+    );
 
     return light_proj * light_view;
 }
