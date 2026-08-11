@@ -403,19 +403,6 @@ void Engine::build_render_graph() {
             ctx.bind_resources({rr[UBO_General], model_mdb, rr[Tex_SSAO], rr[Tex_Shadowmap]});
             draw_model_helper(ctx, *scene_model, true);
 
-            ctx.bind_pipeline(rr[Pipe_Cube]);
-            ctx.bind_resources({rr[UBO_General]});
-
-            const auto [aabb_min, aabb_max] = scene_model->get_aabb();
-            struct ABC {
-                uint32_t pad0, pad1, pad2;
-                glm::vec4 min;
-                glm::vec4 max;
-            };
-            const ABC consts { .min = glm::vec4(aabb_min, 0.0), .max = glm::vec4(aabb_max, 0.0) };
-            ctx.push_constants<ABC>(consts, vk::ShaderStageFlagBits::eVertex);
-            ctx.draw(rr[VB_Skybox], skybox_vertices.size(), 1, 0, 0);
-
             ctx.bind_pipeline(rr[Pipe_Skybox]);
             ctx.bind_resources({rr[UBO_General], rr[Tex_Skybox]});
             ctx.draw(rr[VB_Skybox], skybox_vertices.size(), 1, 0, 0);
@@ -510,20 +497,21 @@ void Engine::build_render_graph() {
     renderer.register_render_graph(render_graph);
 }
 
-static auto get_frustum_corners_world_space(const glm::mat4& view, const glm::mat4& proj) -> array<glm::vec4, 8>  {
+static auto get_frustum_corners_world_space(const glm::mat4& view, const glm::mat4& proj) -> array<glm::vec3, 8> {
     const glm::mat4 pxv_inverse = glm::inverse(proj * view);
 
-    array<glm::vec4, 8> corners;
-    constexpr auto r = std::views::iota(0, 2);
+    array<glm::vec3, 8> corners;
+    constexpr auto r = views::iota(0, 2);
 
-    for (uint32_t i = 0; const auto& [x, y, z] : std::views::cartesian_product(r, r, r)) {
+    // looping through [z,y,x] instead of [x,y,z] so that first 4 elements of `corners` are the near plane corners
+    for (uint32_t i = 0; const auto& [z, y, x] : views::cartesian_product(r, r, r)) {
         const glm::vec4 corner = pxv_inverse * glm::vec4 {
             2.0f * x - 1.0f,
             2.0f * y - 1.0f,
             static_cast<float>(z),
             1.0f
         };
-        corners[i++] = corner / corner.w;
+        corners[i++] = glm::vec3(corner / corner.w);
     }
 
     return corners;
@@ -534,34 +522,62 @@ auto Engine::get_light_pxv_matrix(const glm::mat4& model_mat, const float z_near
     const glm::mat4 proj = glm::gtc::perspective(glm::radians(camera->get_fov()), camera->get_aspect_ratio(), z_near, z_far);
 
     const auto camera_frustum_corners = get_frustum_corners_world_space(view, proj);
-    glm::vec3 center = glm::vec3(std::ranges::fold_left(camera_frustum_corners, glm::vec4 { 0, 0, 0, 0 }, std::plus<glm::vec4>()));
-    center /= camera_frustum_corners.size();
 
-    const auto light_direction_vec = glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(1)) * 50.0f;
-    const auto light_view = glm::gtc::lookAt(center + light_direction_vec, center, glm::vec3(0, 1, 0));
+    const auto sum_points = [](const auto& r) -> glm::vec3 {
+        return ranges::fold_left(r, glm::vec3 { 0, 0, 0 }, std::plus<glm::vec3>());
+    };
 
-    float min_x = std::numeric_limits<float>::max();
-    float max_x = std::numeric_limits<float>::lowest();
-    float min_y = std::numeric_limits<float>::max();
-    float max_y = std::numeric_limits<float>::lowest();
-    float min_z = std::numeric_limits<float>::max();
-    float max_z = std::numeric_limits<float>::lowest();
+    const glm::vec3 near_plane_center = (1.0f / 4) * sum_points(camera_frustum_corners | views::take(4));
+    const glm::vec3 far_plane_center  = (1.0f / 4) * sum_points(camera_frustum_corners | views::reverse | views::take(4));
+    const glm::vec3 frustum_direction = glm::normalize(far_plane_center - near_plane_center);
 
-    for (const auto& corner : camera_frustum_corners) {
-        const auto v = light_view * corner;
+    const float near_plane_radius = glm::length(camera_frustum_corners[0] - near_plane_center);
+    const float far_plane_radius = glm::length(camera_frustum_corners[4] - far_plane_center);
+    const float frustum_depth = glm::length(far_plane_center - near_plane_center);
+    constexpr auto sq = [](const float a) -> float { return a * a; };
+
+    const float circumcenter_dist = (sq(frustum_depth) + sq(far_plane_radius) - sq(near_plane_radius)) / (2 * frustum_depth);
+    const glm::vec3 circumcenter = near_plane_center + frustum_direction * circumcenter_dist;
+    const float circumcircle_radius = glm::length(camera_frustum_corners[0] - circumcenter);
+
+    const glm::vec3 sphere_aabb_min = circumcenter - glm::vec3(circumcircle_radius);
+    const glm::vec3 sphere_aabb_max = circumcenter + glm::vec3(circumcircle_radius);
+
+    const auto light_direction_vec = glm::vec3(glm::gtc::mat4_cast(light_direction) * glm::vec4(1, 0, 0, 0)) * 50.0f;
+    const auto light_view = glm::gtc::lookAt(circumcenter + light_direction_vec, circumcenter, glm::vec3(0, 1, 0));
+
+    float min_x = numeric_limits<float>::max();
+    float max_x = numeric_limits<float>::lowest();
+    float min_y = numeric_limits<float>::max();
+    float max_y = numeric_limits<float>::lowest();
+    float min_z = numeric_limits<float>::max();
+    float max_z = numeric_limits<float>::lowest();
+
+    constexpr auto r = views::iota(0, 2);
+    for (const auto& [x, y, z] : views::cartesian_product(r, r, r)) {
+        const glm::vec4 sphere_aabb_vertex = {
+            x == 0 ? sphere_aabb_min.x : sphere_aabb_max.x,
+            y == 0 ? sphere_aabb_min.y : sphere_aabb_max.y,
+            z == 0 ? sphere_aabb_min.z : sphere_aabb_max.z,
+            1.0f
+        };
+        const auto v = light_view * sphere_aabb_vertex;
+
         min_x = std::min(min_x, v.x);
         max_x = std::max(max_x, v.x);
         min_y = std::min(min_y, v.y);
         max_y = std::max(max_y, v.y);
-        min_z = std::min(min_z, std::abs(v.z));
-        max_z = std::max(max_z, std::abs(v.z));
+
+        // careful here..
+        min_z = std::min(min_z, v.z);
+        max_z = std::max(max_z, v.z);
     }
 
     if (scene_model) {
         const auto [aabb_min, aabb_max] = scene_model->get_aabb();
 
-        constexpr auto r = std::views::iota(0, 2);
-        for (const auto& [x, y, z] : std::views::cartesian_product(r, r, r)) {
+        constexpr auto r = views::iota(0, 2);
+        for (const auto& [x, y, z] : views::cartesian_product(r, r, r)) {
             const glm::vec4 aabb_vertex = {
                 x == 0 ? aabb_min.x : aabb_max.x,
                 y == 0 ? aabb_min.y : aabb_max.y,
@@ -575,15 +591,15 @@ auto Engine::get_light_pxv_matrix(const glm::mat4& model_mat, const float z_near
         }
     }
 
-    const float z_mult = debug_number;
+    // const float z_mult = 1.0f;
+    //
+    // if (min_z < 0) min_z *= z_mult;
+    // else min_z /= z_mult;
+    //
+    // if (max_z < 0) max_z /= z_mult;
+    // else max_z *= z_mult;
 
-    if (min_z < 0) min_z *= z_mult;
-    else min_z /= z_mult;
-
-    if (max_z < 0) max_z /= z_mult;
-    else max_z *= z_mult;
-
-    const auto light_proj = glm::gtc::ortho(min_x, max_x, min_y, max_y, 0.01f, -min_z);
+    const auto light_proj = glm::gtc::ortho(min_x, max_x, min_y, max_y, -max_z, -min_z);
 
     return light_proj * light_view;
 }
@@ -635,29 +651,16 @@ void Engine::update_graphics_uniform_buffer(const Buffer &buffer) {
         }
     };
 
-    constexpr std::array<float, SHADOWMAP_CASCADE_COUNT> cascade_sizes = [] {
-        std::array<float, SHADOWMAP_CASCADE_COUNT> result;
-        constexpr float two_pow_casc_count = static_cast<float>(1 << SHADOWMAP_CASCADE_COUNT);
-
-        for (uint32_t i = 0; i < SHADOWMAP_CASCADE_COUNT; i++) {
-            result[i] = i == 0
-                ? 2.0f / two_pow_casc_count
-                : static_cast<float>(1 << i) / two_pow_casc_count;
-        }
-
-        return result;
-    }();
-
-    const float full_clip_size = z_far - z_near;
+    constexpr array cascade_z_fars { 10.0f, 40.0f, 100.0f, 500.0f };
     float curr_z_near = z_near;
 
     for (uint32_t i = 0; i < SHADOWMAP_CASCADE_COUNT; i++) {
-        const float curr_z_far = curr_z_near + cascade_sizes[i] * full_clip_size;
+        const float curr_z_far = cascade_z_fars[i];
 
         graphics_ubo.light.cascade_pxv_mats[i] = get_light_pxv_matrix(model, curr_z_near, curr_z_far);
         graphics_ubo.light.cascade_z_fars[i].v = curr_z_far;
 
-        curr_z_near += cascade_sizes[i] * full_clip_size;
+        curr_z_near = curr_z_far;
     }
 
     static const array cubemap_face_views{

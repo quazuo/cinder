@@ -7,6 +7,9 @@ export module Cinder.Globals;
 import std;
 
 export {
+    namespace ranges = std::ranges;
+    namespace views = std::views;
+
     using std::unique_ptr;
     using std::make_unique;
     using std::shared_ptr;

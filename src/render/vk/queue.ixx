@@ -62,8 +62,8 @@ public:
 
     auto with_command_buffers(const std::span<vk::raii::CommandBuffer>& command_buffers) -> QueueSubmissionBuilder& {
         submission.command_buffers = command_buffers
-            | std::ranges::views::transform([](const vk::raii::CommandBuffer& cb) { return *cb; })
-            | std::ranges::to<vector<vk::CommandBuffer>>();
+            | ranges::views::transform([](const vk::raii::CommandBuffer& cb) { return *cb; })
+            | ranges::to<vector<vk::CommandBuffer>>();
         return *this;
     }
 

@@ -138,9 +138,12 @@ FetchContent_MakeAvailable(spirv-reflect)
 
 # ========================= glm =========================
 
-set(GLM_ENABLE_CXX_20           ON)
-set(GLM_FORCE_DEPTH_ZERO_TO_ONE ON)
-set(GLM_ENABLE_EXPERIMENTAL     ON)
+add_compile_definitions(
+        GLM_FORCE_DEPTH_ZERO_TO_ONE
+        GLM_ENABLE_CXX_20
+        GLM_ENABLE_EXPERIMENTAL
+        GLM_FORCE_RADIANS
+)
 
 FetchContent_Declare(
         glm

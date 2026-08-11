@@ -310,7 +310,7 @@ void Model::register_render_graph_resources(const VulkanRenderer& renderer) {
         .size = mesh_descriptions.size() * sizeof(decltype(mesh_descriptions[0])),
     });
 
-    for (const auto &[mesh, mesh_desc] : std::views::zip(meshes, mesh_descriptions)) {
+    for (const auto &[mesh, mesh_desc] : views::zip(meshes, mesh_descriptions)) {
         const MaterialDescPack& mdp = material_desc_packs[mesh.material_id];
 
         if (mdp.base_color) {

@@ -39,7 +39,7 @@ class Camera {
     float aspect_ratio = 4.0f / 3.0f;
     float field_of_view = 80.0f;
     float z_near = 0.01f;
-    float z_far = 50.0f; // 500.0f;
+    float z_far = 500.0f;
 
     glm::vec3 pos = {0.0f, 0.5f, 0.0f};
     Rotator rotator {{ -glm::gtc::pi<float>() / 2, 0 }};

@@ -545,8 +545,8 @@ void VulkanRenderer::render_gui_section() {
         const uint64_t frame_start_timestamp = frame.prev_time_query_results.empty() ? 0 : frame.prev_time_query_results[0];
         float last_node_time = 0.0f;
 
-        const auto node_timings_range = std::views::zip(
-            frame.prev_time_query_results | std::views::chunk(2),
+        const auto node_timings_range = views::zip(
+            frame.prev_time_query_results | views::chunk(2),
             frame.prev_node_names
         );
 
@@ -1284,7 +1284,7 @@ void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_ha
 auto VulkanRenderer::gather_attachment_resources() const -> set<ResourceHandle> {
     set<ResourceHandle> result;
 
-    for (const auto &node_info: render_graph->nodes() | std::views::values) {
+    for (const auto &node_info: render_graph->nodes() | views::values) {
         if (!node_info.is_graphics()) continue;
 
         const auto& node_gfx = node_info.get_graphics();
@@ -1317,9 +1317,9 @@ auto VulkanRenderer::has_swapchain_target(const RenderNodeHandle node_handle) co
 auto VulkanRenderer::is_first_node_targetting_final_image(const RenderNodeHandle node_handle) const -> bool {
     if (!has_swapchain_target(node_handle)) return false;
 
-    auto r = std::ranges::join_view(partitioned_nodes)
-             | std::views::filter(std::bind_front(&VulkanRenderer::has_swapchain_target, this));
-    return std::ranges::empty(r) || *std::ranges::begin(r) == node_handle;
+    auto r = ranges::join_view(partitioned_nodes)
+             | views::filter(std::bind_front(&VulkanRenderer::has_swapchain_target, this));
+    return ranges::empty(r) || *ranges::begin(r) == node_handle;
 }
 
 auto VulkanRenderer::get_node_target_extent(const RenderNodeHandle node_handle) const -> vk::Extent2D {
@@ -1392,7 +1392,7 @@ bool VulkanRenderer::start_frame() {
             frame.prev_time_query_results = frame.time_query_pool->get_results();
         }
 
-        const auto node_count = std::ranges::distance(partitioned_nodes | std::ranges::views::join);
+        const auto node_count = ranges::distance(partitioned_nodes | ranges::views::join);
         frame_resources[ctx.current_frame_idx].time_query_pool = make_unique<QueryPool>(
                 ctx,
                 vk::QueryType::eTimestamp,
@@ -1445,7 +1445,7 @@ void VulkanRenderer::end_frame() {
     }
 
     frame.prev_node_names.clear();
-    for (const auto& node : partitioned_nodes | std::ranges::views::join) {
+    for (const auto& node : partitioned_nodes | ranges::views::join) {
         frame.prev_node_names.emplace_back(render_graph->nodes().at(node).name());
     }
 

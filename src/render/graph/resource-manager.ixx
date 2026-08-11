@@ -193,7 +193,7 @@ public:
         requires is_builder_type<T>
     auto get(const ResourceHandle handle) -> T& { return get_builder_map<T>().at(handle); }
 
-    auto get_all_resource_handles_range() const { return handle_to_kind_mapping | std::views::keys; }
+    auto get_all_resource_handles_range() const { return handle_to_kind_mapping | views::keys; }
 
     template <typename T>
         requires is_resource_type<T>

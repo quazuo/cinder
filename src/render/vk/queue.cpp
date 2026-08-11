@@ -51,8 +51,8 @@ PresentQueue::PresentQueue(const RendererContext& ctx, const vk::raii::SurfaceKH
 
 auto PresentQueue::present(const SwapChain& swap_chain, const std::span<const BinarySemaphore>& wait_semaphores) const -> vk::Result {
     const vector<vk::Semaphore> wait_semaphores_raw = wait_semaphores
-        | std::ranges::views::transform([](const BinarySemaphore& sem) -> vk::Semaphore { return **sem; })
-        | std::ranges::to<vector<vk::Semaphore>>();
+        | ranges::views::transform([](const BinarySemaphore& sem) -> vk::Semaphore { return **sem; })
+        | ranges::to<vector<vk::Semaphore>>();
     return _present(swap_chain, std::span { wait_semaphores_raw });
 }
 

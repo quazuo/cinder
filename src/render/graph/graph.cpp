@@ -11,8 +11,8 @@ import Cinder.Globals;
 
 namespace detail {
 template<typename T>
-bool empty_intersection(const set<T> &a, std::ranges::forward_range auto b) {
-    return std::ranges::all_of(b, [&](const T &elem) {
+bool empty_intersection(const set<T> &a, ranges::forward_range auto b) {
+    return ranges::all_of(b, [&](const T &elem) {
         return !a.contains(elem);
     });
 }
@@ -30,7 +30,7 @@ vector<RenderNodeHandle> RenderGraph::get_topo_sorted() const {
 
     while (!remaining.empty()) {
         for (const auto &handle: remaining) {
-            if (std::ranges::all_of(dependency_graph.at(handle), [&](const RenderNodeHandle &dep) {
+            if (ranges::all_of(dependency_graph.at(handle), [&](const RenderNodeHandle &dep) {
                 return !remaining.contains(dep);
             })) {
                 result.push_back(handle);
@@ -57,7 +57,7 @@ vector<vector<RenderNodeHandle>> RenderGraph::get_partitioned() const {
         vector<RenderNodeHandle> next_partition;
 
         for (const auto &handle: remaining) {
-            if (std::ranges::all_of(dependency_graph.at(handle), [&](const RenderNodeHandle &dep) {
+            if (ranges::all_of(dependency_graph.at(handle), [&](const RenderNodeHandle &dep) {
                 return processed.contains(dep);
             })) {
                 next_partition.emplace_back(handle);
@@ -78,7 +78,7 @@ vector<vector<RenderNodeHandle>> RenderGraph::get_partitioned() const {
 auto RenderGraph::get_all_used_resources() const -> vector<ResourceHandle> {
     set<ResourceHandle> result;
 
-    for (const auto &node: nodes_ | std::views::values) {
+    for (const auto &node: nodes_ | views::values) {
         if (node.is_graphics()) {
             const auto& gfx_node = node.get_graphics();
             result.insert_range(gfx_node.bound_resources);
