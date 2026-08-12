@@ -45,7 +45,7 @@ vec4 sample_texture_layer_with_fallback(uint tex_id, vec2 tex_coord, uint layer)
         return vec4(1, 1, 1, 1);
     }
 
-    return texture(bindless_samplers_2d_array[tex_id], vec3(tex_coord, float(layer)));
+    return textureLod(bindless_samplers_2d_array[tex_id], vec3(tex_coord, float(layer)), 0);
 }
 
 vec3 get_normal() {
@@ -73,25 +73,11 @@ float get_blurred_ssao() {
     return result / (4.0 * 4.0);
 }
 
-float calc_shadow(vec2 texel_offset) {
+float calc_shadow(vec2 texel_offset, uint layer) {
     const uint ubo_id = constants.general_ubo_id;
 
-    vec2 shadowmap_texel_size = 1.0 / textureSize(bindless_samplers[constants.shadowmap_id], 0);
+    vec2 shadowmap_texel_size = vec2(1.0f / 2048.0f); // textureSize(bindless_samplers[constants.shadowmap_id], 0).xy;
     vec2 tex_coord_offset = texel_offset * shadowmap_texel_size;
-
-    // select cascade
-    vec4 frag_pos_view_space = ubos[ubo_id].matrices.view * vec4(worldPosition.xyz, 1.0);
-    float depth = abs(frag_pos_view_space.z);
-
-    const uint CASCADE_COUNT = 4;
-    uint layer = 0;
-
-    for (uint i = 0; i < CASCADE_COUNT; i++) {
-        if (depth < ubos[ubo_id].light.cascade_z_fars[i].v) {
-            layer = i;
-            break;
-        }
-    }
 
     vec4 light_space_pos = ubos[ubo_id].light.cascade_pxv_mats[layer] * worldPosition;
     vec3 proj_coords = light_space_pos.xyz / light_space_pos.w;
@@ -145,6 +131,18 @@ void main() {
     // apply gamma correction
     color = pow(color, vec3(1 / 2.2));
 
+    // select CSM cascade
+    const uint CASCADE_COUNT = 4;
+    vec4 frag_pos_view_space = ubos[ubo_id].matrices.view * vec4(worldPosition.xyz, 1.0);
+    float depth = abs(frag_pos_view_space.z);
+    uint layer = 0;
+    for (uint i = 0; i < CASCADE_COUNT; i++) {
+        if (depth < ubos[ubo_id].light.cascade_z_fars[i].v) {
+            layer = i;
+            break;
+        }
+    }
+
     // apply shadows
     const float shadow_factor = 0.3f;
     const int pcf_radius = 1;
@@ -152,7 +150,7 @@ void main() {
 
     for (int off_x = -pcf_radius; off_x <= pcf_radius; off_x++) {
         for (int off_y = -pcf_radius; off_y <= pcf_radius; off_y++) {
-            if (calc_shadow(vec2(off_x, off_y)) == 1.0f) {
+            if (calc_shadow(vec2(off_x, off_y), layer) == 1.0f) {
                 shadow_amount += 1.0f;
             }
         }

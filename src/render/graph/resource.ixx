@@ -20,6 +20,13 @@ constexpr uint32_t MAX_RESOURCE_COUNT = 1 << 16;
 const string FINAL_IMAGE_NAME = "final-image";
 constexpr std::monostate EMPTY_DESCRIPTOR_SET_BINDING = {};
 
+enum class UniformBufferFlags : uint32_t {
+    IS_NEVER_UPDATED = 1 << 0,
+};
+
+template <>
+struct enable_bitmask_operators<UniformBufferFlags> : std::true_type {};
+
 struct VertexBufferResourceDesc {
     string name{};
     vk::DeviceSize size = 0;
@@ -36,6 +43,7 @@ struct UniformBufferResourceDesc {
     string name{};
     vk::DeviceSize size = 0;
     optional<const void *> data;
+    const UniformBufferFlags flags{};
 };
 
 struct ExternalTextureResourceDesc {

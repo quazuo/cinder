@@ -151,8 +151,9 @@ Image::Image(const RendererContext &ctx, const vk::ImageCreateInfo &image_info,
       format(image_info.format),
       mip_level_count(image_info.mipLevels),
       layer_count(image_info.arrayLayers),
+      aspect_mask(aspect),
       is_cubemap(image_info.flags & vk::ImageCreateFlagBits::eCubeCompatible),
-      aspect_mask(aspect)
+      is_storage_(image_info.usage & vk::ImageUsageFlagBits::eStorage)
 {
     allocation->bindImage(*image);
 }
@@ -164,8 +165,9 @@ Image::Image(const RendererContext &ctx, const vk::ImageCreateInfo &image_info,
       format(image_info.format),
       mip_level_count(image_info.mipLevels),
       layer_count(image_info.arrayLayers),
+      aspect_mask(aspect),
       is_cubemap(image_info.flags & vk::ImageCreateFlagBits::eCubeCompatible),
-      aspect_mask(aspect)
+      is_storage_(image_info.usage & vk::ImageUsageFlagBits::eStorage)
 {
     vma::AllocationCreateFlags flags {};
     if (!(properties & vk::MemoryPropertyFlagBits::eDeviceLocal)) {

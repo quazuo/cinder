@@ -52,14 +52,98 @@ void Buffer::copy_from_ptr(const void *ptr, const vk::DeviceSize size, const vk:
     allocation->copyFromMemory(ptr, dst_offset, size);
 }
 
-namespace utils::buf {
-    auto create_uniform_buffer(const RendererContext &ctx, const vk::DeviceSize size) -> Buffer {
-        return Buffer {
+auto BufferBuilder::as_staging(const vk::DeviceSize size) -> const BufferBuilder& {
+    this->size = size;
+    usage |= vk::BufferUsageFlagBits::eTransferSrc;
+    memory_properties |= vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent;
+    return *this;
+}
+
+auto BufferBuilder::as_local(const void *data, const vk::DeviceSize size) -> const BufferBuilder& {
+    this->data = data;
+    this->size = size;
+    usage |= vk::BufferUsageFlagBits::eTransferDst;
+    memory_properties |= vk::MemoryPropertyFlagBits::eDeviceLocal;
+    return *this;
+}
+
+auto BufferBuilder::as_uniform(const vk::DeviceSize size) -> const BufferBuilder& {
+    this->size = size;
+    usage |= vk::BufferUsageFlagBits::eUniformBuffer;
+    memory_properties |= vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent;
+    return *this;
+}
+
+auto BufferBuilder::as_uniform(const void *data, const vk::DeviceSize size) -> const BufferBuilder& {
+    this->data = data;
+    this->size = size;
+    usage |= vk::BufferUsageFlagBits::eUniformBuffer;
+    memory_properties |= vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent;
+    return *this;
+}
+
+auto BufferBuilder::as_uninitialized(const vk::DeviceSize size) -> const BufferBuilder& {
+    this->size = size;
+    return *this;
+}
+
+auto BufferBuilder::from_data(const void *data, const vk::DeviceSize size) -> const BufferBuilder& {
+    if (this->size) {
+        if (this->data) {
+            Logger::error("cannot specify buffer data source: data already specified");
+        } else {
+            Logger::error("cannot specify buffer data source: buffer already specified as uninitialized");
+        }
+    }
+
+    this->data = data;
+    this->size = size;
+    usage |= vk::BufferUsageFlagBits::eTransferDst;
+    return *this;
+}
+
+auto BufferBuilder::with_usage(const vk::BufferUsageFlags u) -> BufferBuilder& {
+    usage |= u;
+    return *this;
+}
+
+auto BufferBuilder::with_memory_properties(const vk::MemoryPropertyFlags mp) -> BufferBuilder& {
+    memory_properties |= mp;
+    return *this;
+}
+
+Buffer BufferBuilder::create(const RendererContext &ctx) const {
+    validate();
+
+    Buffer result_buffer {
+        ctx,
+        size,
+        usage,
+        memory_properties
+    };
+
+    if (data) {
+        const Buffer staging_buffer{
             ctx,
             size,
-            vk::BufferUsageFlagBits::eUniformBuffer,
+            vk::BufferUsageFlagBits::eTransferSrc,
             vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
         };
+
+        staging_buffer.copy_from_ptr(*data, size);
+        result_buffer.copy_from_buffer(ctx, staging_buffer, size);
+    }
+
+    return result_buffer;
+}
+
+void BufferBuilder::validate() const {
+    if (!usage) {
+        Logger::error("cannot create buffer: no preset or explicit usage specified");
+    }
+
+    if (!memory_properties) {
+        Logger::error("cannot create buffer: no preset or explicit memory properties specified");
     }
 }
 } // zrx

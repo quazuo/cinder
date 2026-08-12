@@ -63,6 +63,7 @@ class Image {
     uint32_t layer_count;
     vk::ImageAspectFlags aspect_mask;
     bool is_cubemap;
+    bool is_storage_;
 
     mutable std::unordered_map<ImageViewParams, shared_ptr<vk::raii::ImageView> > cached_views;
 
@@ -114,6 +115,8 @@ public:
     auto has_sampler() const -> bool { return sampler.has_value(); }
 
     auto get_sampler() const -> const vk::raii::Sampler & { return *sampler; }
+
+    auto is_storage() const -> bool { return is_storage_; }
 
     void attach_sampler(vk::raii::Sampler&& s) { sampler = std::move(s); }
 

@@ -19,7 +19,7 @@ void RenderPassContext::bind_pipeline(const ResourceHandle pipeline_handle) {
     const auto& bind_point = vk::PipelineBindPoint::eGraphics;
 
     command_buffer.get().bindPipeline(bind_point, **pipeline);
-    command_buffer.get().bindDescriptorSets(bind_point, layout, 0, *bindless_set.get(), nullptr);
+    command_buffer.get().bindDescriptorSets(bind_point, layout, 0, *resource_manager.get().get_bindless_descriptor_set(), nullptr);
 
     last_bound_pipeline = pipeline_handle;
 }
@@ -118,7 +118,7 @@ void ComputePassContext::bind_pipeline(ResourceHandle pipeline_handle) {
     const auto& bind_point = vk::PipelineBindPoint::eCompute;
 
     command_buffer.get().bindPipeline(bind_point, **pipeline);
-    command_buffer.get().bindDescriptorSets(bind_point, layout, 0, *bindless_set.get(), nullptr);
+    command_buffer.get().bindDescriptorSets(bind_point, layout, 0, *resource_manager.get().get_bindless_descriptor_set(), nullptr);
 
     last_bound_pipeline = pipeline_handle;
 }

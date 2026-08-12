@@ -88,7 +88,7 @@ VulkanRenderer::VulkanRenderer(const int window_width, const int window_height) 
         ctx.allocator = make_unique<vma::raii::Allocator>(*instance, *ctx.device, allocator_create_info);
     }
 
-    resource_manager = make_unique<ResourceManager>(ctx, BINDLESS_ARRAY_SIZE, MAX_FRAMES_IN_FLIGHT);
+    resource_manager = make_unique<ResourceManager>(ctx, MAX_FRAMES_IN_FLIGHT);
     repeated_frame_begin_actions.emplace_back([&](const FrameBeginActionContext& fba_ctx) {
         resource_manager->clear_removal_queue();
     });
@@ -103,11 +103,7 @@ VulkanRenderer::VulkanRenderer(const int window_width, const int window_height) 
         get_msaa_sample_count()
     );
 
-    create_descriptor_pool();
-
     create_sync_objects();
-
-    create_bindless_resources();
 
     init_imgui();
 }
@@ -219,6 +215,7 @@ auto VulkanRenderer::pick_physical_device(const vkb::Instance &vkb_instance) -> 
                 .shaderUniformBufferArrayNonUniformIndexing = vk::True,
                 .shaderSampledImageArrayNonUniformIndexing = vk::True,
                 .shaderStorageBufferArrayNonUniformIndexing = vk::True,
+                .shaderUniformTexelBufferArrayNonUniformIndexing = vk::True,
                 .descriptorBindingUniformBufferUpdateAfterBind = vk::True,
                 .descriptorBindingSampledImageUpdateAfterBind = vk::True,
                 .descriptorBindingStorageImageUpdateAfterBind = vk::True,
@@ -318,18 +315,6 @@ void VulkanRenderer::recreate_swap_chain() {
         image_builder.invalidate_loaded_texture_data();
         image_builder.with_layout(last_image_layouts.at(handle));
         resource_manager->recreate(handle);
-
-        // update bindless handles
-
-        const bool is_compute_accessed = compute_accessed_resources.contains(handle);
-        const auto& image = resource_manager->get<Image>(handle);
-        const auto bindless_handle = resource_manager->get_bindless_handle(handle);
-
-        bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(image, static_cast<uint32_t>(bindless_handle));
-
-        if (is_compute_accessed) {
-            bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(image, static_cast<uint32_t>(bindless_handle));
-        }
     }
 
     for (auto& [handle, resources]: node_resources) {
@@ -337,71 +322,6 @@ void VulkanRenderer::recreate_swap_chain() {
             resources.render_infos = create_node_render_infos(handle);
         }
     }
-}
-
-// ==================== descriptors ====================
-
-void VulkanRenderer::create_descriptor_pool() {
-    const vector<vk::DescriptorPoolSize> pool_sizes = {
-        {
-            .type = vk::DescriptorType::eUniformBuffer,
-            .descriptorCount = BINDLESS_ARRAY_SIZE,
-        },
-        {
-            .type = vk::DescriptorType::eCombinedImageSampler,
-            .descriptorCount = 2 * BINDLESS_ARRAY_SIZE,
-        },
-        {
-            .type = vk::DescriptorType::eStorageImage,
-            .descriptorCount = BINDLESS_ARRAY_SIZE,
-        },
-        {
-            .type = vk::DescriptorType::eStorageBuffer,
-            .descriptorCount = BINDLESS_ARRAY_SIZE,
-        },
-        {
-            .type = vk::DescriptorType::eAccelerationStructureKHR,
-            .descriptorCount = BINDLESS_ARRAY_SIZE,
-        },
-    };
-
-    const vk::DescriptorPoolCreateInfo pool_info{
-        .flags = vk::DescriptorPoolCreateFlagBits::eFreeDescriptorSet
-                 | vk::DescriptorPoolCreateFlagBits::eUpdateAfterBind,
-        .maxSets = static_cast<uint32_t>(MAX_FRAMES_IN_FLIGHT) * 6 + 5,
-        .poolSizeCount = static_cast<uint32_t>(pool_sizes.size()),
-        .pPoolSizes = pool_sizes.data(),
-    };
-
-    descriptor_pool = make_unique<vk::raii::DescriptorPool>(*ctx.device, pool_info);
-}
-
-void VulkanRenderer::create_bindless_resources() {
-    constexpr vk::DescriptorBindingFlags binding_flags = vk::DescriptorBindingFlagBits::ePartiallyBound
-                                                         | vk::DescriptorBindingFlagBits::eUpdateAfterBind;
-
-    bindless_descriptor_set = make_unique<BindlessDescriptorSet>(
-        ctx,
-        *descriptor_pool,
-        ResourcePack<Image> {
-            BINDLESS_ARRAY_SIZE,
-            vk::ShaderStageFlagBits::eAllGraphics,
-            vk::DescriptorType::eCombinedImageSampler,
-            binding_flags
-        },
-        ResourcePack<Image> {
-            BINDLESS_ARRAY_SIZE,
-            vk::ShaderStageFlagBits::eCompute,
-            vk::DescriptorType::eStorageImage,
-            binding_flags
-        },
-        ResourcePack<Buffer> {
-            BINDLESS_ARRAY_SIZE,
-            vk::ShaderStageFlagBits::eAll,
-            vk::DescriptorType::eUniformBuffer,
-            binding_flags
-        }
-    );
 }
 
 // ==================== multisampling ====================
@@ -577,6 +497,8 @@ void VulkanRenderer::render_gui_section() {
 // ==================== render graph ====================
 
 void VulkanRenderer::register_render_graph(const RenderGraph &graph) {
+    wait_idle();
+
     render_graph = make_unique<RenderGraph>(graph);
     create_render_graph_resources();
 }
@@ -607,30 +529,33 @@ void VulkanRenderer::create_render_graph_resources() {
         );
     }
 
-    bindless_descriptor_set->commit_updates();
+    resource_manager->commit_bindless_descriptor_updates();
 }
 
 void VulkanRenderer::create_resource(const ResourceHandle handle, const VertexBufferResourceDesc &description) {
-    Buffer buffer = utils::buf::create_local_buffer(ctx, description.data, description.size, vk::BufferUsageFlagBits::eVertexBuffer);
-    resource_manager->attach_raw(handle, std::move(buffer));
+    auto builder = BufferBuilder()
+        .with_usage(vk::BufferUsageFlagBits::eVertexBuffer)
+        .as_local(description.data, description.size);
+    resource_manager->attach_builder(ctx, handle, std::move(builder));
 }
 
 void VulkanRenderer::create_resource(const ResourceHandle handle, const IndexBufferResourceDesc &description) {
-    Buffer buffer = utils::buf::create_local_buffer(ctx, description.data, description.size, vk::BufferUsageFlagBits::eIndexBuffer);
-    resource_manager->attach_raw(handle, std::move(buffer));
+    auto builder = BufferBuilder()
+        .with_usage(vk::BufferUsageFlagBits::eIndexBuffer)
+        .as_local(description.data, description.size);
+    resource_manager->attach_builder(ctx, handle, std::move(builder));
 }
 
 void VulkanRenderer::create_resource(const ResourceHandle handle, const UniformBufferResourceDesc &description) {
+    auto builder = BufferBuilder();
+
     if (description.data) {
-        Buffer buffer = utils::buf::create_local_buffer(ctx, *description.data, description.size, vk::BufferUsageFlagBits::eUniformBuffer);
-        resource_manager->attach_raw(handle, std::move(buffer));
+        builder.as_uniform(*description.data, description.size);
     } else {
-        resource_manager->attach_raw(handle, utils::buf::create_uniform_buffer(ctx, description.size));
+        builder.as_uniform(description.size);
     }
 
-    const auto bindless_handle = resource_manager->get_bindless_handle(handle);
-    auto& buffer = resource_manager->get<Buffer>(handle);
-    bindless_descriptor_set->queue_update<BINDLESS_UBO_BINDING>(buffer, static_cast<uint32_t>(bindless_handle));
+    resource_manager->attach_builder(ctx, handle, std::move(builder));
 }
 
 void VulkanRenderer::create_resource(const ResourceHandle handle, const ExternalTextureResourceDesc &description) {
@@ -665,15 +590,6 @@ void VulkanRenderer::create_resource(const ResourceHandle handle, const External
         builder.with_swizzle(*description.swizzle);
 
     resource_manager->attach_builder(ctx, handle, std::move(builder));
-
-    const auto bindless_handle = resource_manager->get_bindless_handle(handle);
-    auto& image = resource_manager->get<Image>(handle);
-
-    bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(image, static_cast<uint32_t>(bindless_handle));
-
-    if (is_compute_accessed) {
-        bindless_descriptor_set->queue_update<BINDLESS_STORAGE_TEXTURE_BINDING>(image, static_cast<uint32_t>(bindless_handle));
-    }
 }
 
 void VulkanRenderer::create_resource(const ResourceHandle handle, const TargetTextureResourceDesc &description) {
@@ -721,14 +637,6 @@ void VulkanRenderer::create_resource(const ResourceHandle handle, const TargetTe
     }
 
     resource_manager->attach_builder<ImageBuilder>(ctx, handle, std::move(builder));
-    const auto bindless_handle = resource_manager->get_bindless_handle(handle);
-    auto& texture = resource_manager->get<Image>(handle);
-
-    bindless_descriptor_set->queue_update<BINDLESS_SAMPLER_BINDING>(texture, static_cast<uint32_t>(bindless_handle));
-
-    if (is_compute_accessed) {
-        bindless_descriptor_set->queue_update<BINDLESS_STORAGE_TEXTURE_BINDING>(texture, static_cast<uint32_t>(bindless_handle));
-    }
 }
 
 void VulkanRenderer::create_resource(const ResourceHandle handle, const PersistentTextureResourceDesc &description) {
@@ -767,9 +675,6 @@ void VulkanRenderer::create_resource(const ResourceHandle handle, const Graphics
         color_formats.push_back(format);
     }
 
-    vector<vk::DescriptorSetLayout> descriptor_set_layouts;
-    descriptor_set_layouts.push_back(*bindless_descriptor_set->get_layout());
-
     auto builder = GraphicsPipelineBuilder()
             .with_vertex_shader(shader_base_path / description.vertex_path)
             .with_fragment_shader(shader_base_path / description.fragment_path)
@@ -794,7 +699,6 @@ void VulkanRenderer::create_resource(const ResourceHandle handle, const Graphics
                                         : vk::SampleCountFlagBits::e1,
                 .minSampleShading = 1.0f,
             })
-            .with_descriptor_layouts(descriptor_set_layouts)
             .with_color_formats(color_formats);
 
     if (description.depth_format) {
@@ -817,18 +721,14 @@ void VulkanRenderer::create_resource(const ResourceHandle handle, const Graphics
 }
 
 void VulkanRenderer::create_resource(const ResourceHandle handle, const ComputePipelineResourceDesc &description) {
-    vector<vk::DescriptorSetLayout> descriptor_set_layouts;
-    descriptor_set_layouts.push_back(*bindless_descriptor_set->get_layout());
-
     auto builder = ComputePipelineBuilder()
-            .with_shader(shader_base_path / description.path)
-            .with_descriptor_layouts(descriptor_set_layouts);
+            .with_shader(shader_base_path / description.path);
 
     resource_manager->attach_builder(ctx, handle, std::move(builder));
 }
 
 void VulkanRenderer::queue_set_update_with_handle(DescriptorSet &descriptor_set, const ResourceHandle res_handle,
-                                                  const uint32_t binding, const uint32_t array_element) const {
+                                                  const uint32_t binding, const uint32_t array_element) {
     if (resource_manager->contains<Buffer>(res_handle)) {
         const auto &buffer = resource_manager->get<Buffer>(res_handle);
         descriptor_set.queue_update(
@@ -840,7 +740,7 @@ void VulkanRenderer::queue_set_update_with_handle(DescriptorSet &descriptor_set,
             array_element
         );
     } else if (resource_manager->contains<Image>(res_handle)) {
-        auto &texture = resource_manager->get<Image>(res_handle);
+        auto& texture = resource_manager->get<Image>(res_handle);
         descriptor_set.queue_update(
             ctx,
             binding,
@@ -1002,7 +902,6 @@ void VulkanRenderer::record_node_rendering_commands(const RenderNodeHandle node_
     RenderPassContext ctx{
         command_buffer,
         *resource_manager,
-        **bindless_descriptor_set
     };
     node_info.body(ctx);
 }
@@ -1268,7 +1167,6 @@ void VulkanRenderer::record_compute_node_commands(const RenderNodeHandle node_ha
     ComputePassContext ctx{
         command_buffer,
         *resource_manager,
-        **bindless_descriptor_set
     };
     node.body(ctx);
 
@@ -1445,7 +1343,7 @@ void VulkanRenderer::end_frame() {
     }
 
     frame.prev_node_names.clear();
-    for (const auto& node : partitioned_nodes | ranges::views::join) {
+    for (const auto& node : partitioned_nodes | views::join) {
         frame.prev_node_names.emplace_back(render_graph->nodes().at(node).name());
     }
 

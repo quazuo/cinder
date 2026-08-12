@@ -17,16 +17,14 @@ using RenderNodeHandle = zrx::UniqueHandle<RenderNodeHandleTag>;
 class RenderPassContext {
     reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
     reference_wrapper<const ResourceManager> resource_manager;
-    reference_wrapper<const vk::raii::DescriptorSet> bindless_set;
 
     optional<ResourceHandle> last_bound_pipeline;
     std::vector<ResourceHandle> bound_resource_handles;
     std::vector<BindlessHandle> bound_resource_ids;
 
 public:
-    explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, const ResourceManager &resource_manager,
-                               const vk::raii::DescriptorSet &bindless_set)
-        : command_buffer(cmd_buf), resource_manager(resource_manager), bindless_set(bindless_set) {
+    explicit RenderPassContext(const vk::raii::CommandBuffer &cmd_buf, const ResourceManager &resource_manager)
+        : command_buffer(cmd_buf), resource_manager(resource_manager) {
     }
 
     auto get_raw_cmd_buffer() const -> const vk::raii::CommandBuffer& { return command_buffer.get(); }
@@ -70,16 +68,14 @@ private:
 class ComputePassContext {
     reference_wrapper<const vk::raii::CommandBuffer> command_buffer;
     reference_wrapper<const ResourceManager> resource_manager;
-    reference_wrapper<const vk::raii::DescriptorSet> bindless_set;
 
     optional<ResourceHandle> last_bound_pipeline;
     std::vector<ResourceHandle> bound_resource_handles;
     std::vector<BindlessHandle> bound_resource_ids;
 
 public:
-    explicit ComputePassContext(const vk::raii::CommandBuffer &cmd_buf, const ResourceManager &resource_manager,
-                                const vk::raii::DescriptorSet &bindless_set)
-        : command_buffer(cmd_buf), resource_manager(resource_manager), bindless_set(bindless_set) {
+    explicit ComputePassContext(const vk::raii::CommandBuffer &cmd_buf, const ResourceManager &resource_manager)
+        : command_buffer(cmd_buf), resource_manager(resource_manager) {
     }
 
     auto get_raw_cmd_buffer() const -> const vk::raii::CommandBuffer& { return command_buffer.get(); }

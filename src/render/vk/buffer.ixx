@@ -12,6 +12,8 @@ import :Context;
 import Cinder.Globals;
 
 export namespace zrx {
+class BufferBuilder;
+
 /**
  * Abstraction over a Vulkan buffer, making it easier to manage by hiding all the Vulkan API calls.
  * These buffers are allocated using VMA and are currently suited mostly for two scenarios: first,
@@ -76,56 +78,30 @@ struct BufferSlice {
     auto operator*() const -> const Buffer&{ return buffer.get(); }
 };
 
-namespace utils::buf {
-    template<typename ElemType>
-    auto create_local_buffer(const RendererContext &ctx, const vector<ElemType> &contents,
-                             const vk::BufferUsageFlags usage) -> Buffer {
-        const vk::DeviceSize buffer_size = sizeof(contents[0]) * contents.size();
+class BufferBuilder {
+    optional<const void*> data;
+    vk::DeviceSize size = 0;
+    vk::BufferUsageFlags usage;
+    vk::MemoryPropertyFlags memory_properties;
 
-        const Buffer staging_buffer{
-            ctx,
-            buffer_size,
-            vk::BufferUsageFlagBits::eTransferSrc,
-            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-        };
+public:
+    // presets
 
-        staging_buffer.copy_from_ptr(contents.data(), buffer_size);
+    auto as_staging(vk::DeviceSize size)                    -> const BufferBuilder&;
+    auto as_local(const void *data, vk::DeviceSize size)    -> const BufferBuilder&;
+    auto as_uniform(vk::DeviceSize size)                    -> const BufferBuilder&;
+    auto as_uniform(const void *data, vk::DeviceSize size)  -> const BufferBuilder&;
 
-        Buffer result_buffer {
-            ctx,
-            buffer_size,
-            vk::BufferUsageFlagBits::eTransferDst | usage,
-            vk::MemoryPropertyFlagBits::eDeviceLocal
-        };
+    // manual modifiers
 
-        result_buffer.copy_from_buffer(ctx, staging_buffer, buffer_size);
+    auto as_uninitialized(vk::DeviceSize size)              -> const BufferBuilder&;
+    auto from_data(const void *data, vk::DeviceSize size)   -> const BufferBuilder&;
+    auto with_usage(vk::BufferUsageFlags u)                 -> BufferBuilder&;
+    auto with_memory_properties(vk::MemoryPropertyFlags mp) -> BufferBuilder&;
 
-        return result_buffer;
-    }
+    Buffer create(const RendererContext& ctx) const;
 
-    auto create_local_buffer(const RendererContext &ctx, const void *data, const vk::DeviceSize size,
-                             const vk::BufferUsageFlags usage) -> Buffer {
-        const Buffer staging_buffer{
-            ctx,
-            size,
-            vk::BufferUsageFlagBits::eTransferSrc,
-            vk::MemoryPropertyFlagBits::eHostVisible | vk::MemoryPropertyFlagBits::eHostCoherent
-        };
-
-        staging_buffer.copy_from_ptr(data, size);
-
-        Buffer result_buffer {
-            ctx,
-            size,
-            vk::BufferUsageFlagBits::eTransferDst | usage,
-            vk::MemoryPropertyFlagBits::eDeviceLocal
-        };
-
-        result_buffer.copy_from_buffer(ctx, staging_buffer, size);
-
-        return result_buffer;
-    }
-
-    auto create_uniform_buffer(const RendererContext &ctx, vk::DeviceSize size) -> Buffer;
-} // utils::buf
+private:
+    void validate() const;
+};
 } // zrx

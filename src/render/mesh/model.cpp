@@ -308,6 +308,7 @@ void Model::register_render_graph_resources(const VulkanRenderer& renderer) {
     mesh_descriptions_buffer = renderer.register_resource(UniformBufferResourceDesc{
         .name = std::format("model-md@{}", name),
         .size = mesh_descriptions.size() * sizeof(decltype(mesh_descriptions[0])),
+        .flags = UniformBufferFlags::IS_NEVER_UPDATED
     });
 
     for (const auto &[mesh, mesh_desc] : views::zip(meshes, mesh_descriptions)) {

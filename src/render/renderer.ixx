@@ -55,19 +55,6 @@ class VulkanRenderer {
 
     unique_ptr<SwapChain> swap_chain;
 
-    unique_ptr<vk::raii::DescriptorPool> descriptor_pool;
-
-    // bindless resources
-
-    using BindlessDescriptorSet = FixedDescriptorSet<Image, Image, Buffer>;
-    unique_ptr<BindlessDescriptorSet> bindless_descriptor_set;
-
-    static constexpr uint32_t BINDLESS_ARRAY_SIZE = 256;
-
-    static constexpr uint32_t BINDLESS_SAMPLER_BINDING         = 0;
-    static constexpr uint32_t BINDLESS_STORAGE_TEXTURE_BINDING = 1;
-    static constexpr uint32_t BINDLESS_UBO_BINDING             = 2;
-
     // ================ render graph stuff ================
 
     struct RenderNodeResources {
@@ -189,12 +176,6 @@ private:
 
     void recreate_swap_chain();
 
-    // ==================== descriptors ====================
-
-    void create_descriptor_pool();
-
-    void create_bindless_resources();
-
     // ==================== multisampling ====================
 
     auto get_max_usable_sample_count() const -> vk::SampleCountFlagBits;
@@ -232,7 +213,7 @@ private:
     void create_resource(ResourceHandle handle, const ComputePipelineResourceDesc& description);
 
     void queue_set_update_with_handle(DescriptorSet &descriptor_set, ResourceHandle res_handle,
-                                      uint32_t binding, uint32_t array_element = 0) const;
+                                      uint32_t binding, uint32_t array_element = 0);
 
     auto create_node_render_infos(RenderNodeHandle node_handle) const -> vector<RenderInfo>;
 

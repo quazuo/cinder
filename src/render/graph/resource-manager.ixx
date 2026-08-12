@@ -70,6 +70,7 @@ const BindlessHandle PLACEHOLDER_BINDLESS_HANDLE = BindlessHandle::get_new_speci
 
 class ResourceManager {
     reference_wrapper<const RendererContext> renderer_ctx;
+    uint32_t frames_in_flight;
 
     // todo - put everything into one map, big struct in value type
 
@@ -83,6 +84,7 @@ class ResourceManager {
     map<ResourceHandle, GraphicsPipeline> graphics_pipelines;
     map<ResourceHandle, ComputePipeline> compute_pipelines;
 
+    map<ResourceHandle, BufferBuilder> buffer_builders;
     map<ResourceHandle, ImageBuilder> image_builders;
     map<ResourceHandle, GraphicsPipelineBuilder> graphics_pipeline_builders;
     map<ResourceHandle, ComputePipelineBuilder> compute_pipeline_builders;
@@ -90,24 +92,39 @@ class ResourceManager {
     template <typename HandleType>
     using HandlePrioQueue = std::priority_queue<HandleType, std::vector<HandleType>, std::greater<>>;
 
-    map<ResourceHandle, BindlessHandle> bindless_handle_mapping;
-    HandlePrioQueue<BindlessHandle> free_bindless_handles;
-
     HandlePrioQueue<ResourceHandle> free_resource_handles;
 
     map<ResourceHandle, std::string> resource_names;
 
+    map<ResourceHandle, std::vector<ResourceHandle>> duplicated_resource_proxy_map;
+    map<ResourceHandle, ResourceHandle> parent_proxy_handles; // todo: this REALLY sucks..
+
     vector<vector<ResourceVariant>> queued_for_removal_resources; // one queue for each frame in flight
 
+    // bindless resources
+
+    using BindlessDescriptorSet = FixedDescriptorSet<Image, Image, Buffer>;
+    unique_ptr<vk::raii::DescriptorPool> descriptor_pool;
+    unique_ptr<BindlessDescriptorSet> bindless_descriptor_set;
+
+    map<ResourceHandle, BindlessHandle> bindless_handle_mapping;
+    HandlePrioQueue<BindlessHandle> free_bindless_handles;
+
+    static constexpr uint32_t BINDLESS_ARRAY_SIZE = 256;
+
+    static constexpr uint32_t BINDLESS_SAMPLER_BINDING         = 0;
+    static constexpr uint32_t BINDLESS_STORAGE_TEXTURE_BINDING = 1;
+    static constexpr uint32_t BINDLESS_UBO_BINDING             = 2;
+
 public:
-    explicit ResourceManager(const RendererContext& ctx, uint32_t max_bindless_handles, uint32_t frames_in_flight);
+    explicit ResourceManager(const RendererContext& ctx, uint32_t frames_in_flight);
 
     template <typename T>
         requires is_resource_type<T>
     auto attach_raw(const ResourceHandle& handle, T&& resource) {
         if (handle_to_kind_mapping.contains(handle)) {
             if (handle_to_kind_mapping.at(handle) != resource_type_to_kind_v<T>) {
-                Logger::error("Invalid resource type in ResourceManager::attach_raw : "
+                Logger::error("Invalid resource type in ResourceManager::attach_raw: "
                               "resource type doesn't match the type of previously attached resource");
             }
         } else {
@@ -122,6 +139,7 @@ public:
         }
 
         resource_map.emplace(handle, std::move(resource));
+        const T& created_resource = resource_map.at(handle);
 
         if constexpr (std::is_same_v<T, Image> || std::is_same_v<T, Buffer>) {
             if (!bindless_handle_mapping.contains(handle)) {
@@ -129,12 +147,45 @@ public:
                 bindless_handle_mapping.emplace(handle, bindless_handle);
             }
         }
+
+        if constexpr (std::is_same_v<T, Image>) {
+            const auto bindless_handle = bindless_handle_mapping.at(handle);
+            bindless_descriptor_set->update_binding<BINDLESS_SAMPLER_BINDING>(created_resource, static_cast<uint32_t>(bindless_handle));
+
+            if (created_resource.is_storage()) {
+                bindless_descriptor_set->update_binding<BINDLESS_STORAGE_TEXTURE_BINDING>(created_resource, static_cast<uint32_t>(bindless_handle));
+            }
+        }
+
+        if constexpr (std::is_same_v<T, Buffer>) {
+            // todo: YIKES this sucks i need to rewrite this some time...
+            const bool is_ubo = std::holds_alternative<UniformBufferResourceDesc>(descriptions.at(
+                parent_proxy_handles.contains(handle) ? parent_proxy_handles.at(handle) : handle
+            ));
+
+            if (is_ubo) {
+                const auto bindless_handle = bindless_handle_mapping.at(handle);
+                bindless_descriptor_set->update_binding<BINDLESS_UBO_BINDING>(created_resource, static_cast<uint32_t>(bindless_handle));
+            }
+        }
     }
 
     template <typename T>
         requires is_builder_type<T>
     auto attach_builder(const RendererContext& ctx, const ResourceHandle& handle, T&& builder) {
-        attach_raw(handle, builder.create(ctx));
+        if constexpr (std::is_same_v<T, GraphicsPipelineBuilder> || std::is_same_v<T, ComputePipelineBuilder>) {
+            vector<vk::DescriptorSetLayout> descriptor_set_layouts;
+            descriptor_set_layouts.push_back(*bindless_descriptor_set->get_layout());
+            builder.with_descriptor_layouts(descriptor_set_layouts);
+        }
+
+        if (duplicated_resource_proxy_map.contains(handle)) {
+            for (const auto& sub_handle : duplicated_resource_proxy_map.at(handle)) {
+                attach_raw(sub_handle, builder.create(ctx));
+            }
+        } else {
+            attach_raw(handle, builder.create(ctx));
+        }
 
         auto& builder_map = get_builder_map<T>();
         
@@ -157,13 +208,34 @@ public:
             resource_names.emplace(handle, desc.name);
         }
 
+        const bool duplicated = needs_duplication(desc);
+
+        if (duplicated) {
+            duplicated_resource_proxy_map[handle] = {};
+
+            for (uint32_t i = 0; i < frames_in_flight; i++) {
+                const ResourceHandle sub_handle = get_new_handle(free_resource_handles);
+                duplicated_resource_proxy_map.at(handle).push_back(sub_handle);
+                parent_proxy_handles.emplace(sub_handle, handle);
+            }
+        }
+
         if constexpr (is_image_resource_desc_type<T> || is_buffer_resource_desc_type<T>) {
-            const auto bindless_handle = get_new_handle(free_bindless_handles);
-            bindless_handle_mapping.emplace(handle, bindless_handle);
+            if (duplicated) {
+                for (uint32_t i = 0; i < frames_in_flight; i++) {
+                    const auto bindless_handle = get_new_handle(free_bindless_handles);
+                    bindless_handle_mapping.emplace(duplicated_resource_proxy_map.at(handle)[i], bindless_handle);
+                }
+            } else {
+                const auto bindless_handle = get_new_handle(free_bindless_handles);
+                bindless_handle_mapping.emplace(handle, bindless_handle);
+            }
         }
 
         return handle;
     }
+
+    void commit_bindless_descriptor_updates() const { bindless_descriptor_set->commit_updates(); }
 
     void recreate(ResourceHandle handle);
 
@@ -172,26 +244,35 @@ public:
     void clear_removal_queue();
 
     auto get_name(ResourceHandle handle) const -> const std::string&;
+
+    auto get_bindless_descriptor_set() const -> const vk::raii::DescriptorSet& { return **bindless_descriptor_set; }
     
-    auto get_bindless_handle(const ResourceHandle handle) const -> BindlessHandle { return bindless_handle_mapping.at(handle); }
+    auto get_bindless_handle(const ResourceHandle handle) const -> BindlessHandle {
+        if (duplicated_resource_proxy_map.contains(handle)) {
+            return bindless_handle_mapping.at(get_duplicated_resource_handle(handle));
+        }
+        return bindless_handle_mapping.at(handle);
+    }
 
     auto get_desc_variant(const ResourceHandle handle) const -> const ResourceDescVariant& { return descriptions.at(handle); }
 
-    template <typename T>
+    template <typename T, typename Self>
         requires is_resource_type<T>
-    auto get(const ResourceHandle handle) const -> const T& { return get_resource_map<T>().at(handle); }
+    auto get(this Self&& self, const ResourceHandle handle) -> decltype(auto) {
+        decltype(auto) resource_map = std::forward<Self>(self).template get_resource_map<T>();
 
-    template <typename T>
-        requires is_resource_type<T>
-    auto get(const ResourceHandle handle) -> T& { return get_resource_map<T>().at(handle); }
+        if (self.duplicated_resource_proxy_map.contains(handle)) {
+            return resource_map.at(self.get_duplicated_resource_handle(handle));
+        }
 
-    template <typename T>
+        return resource_map.at(handle);
+    }
+
+    template <typename T, typename Self>
         requires is_builder_type<T>
-    auto get(const ResourceHandle handle) const -> const T& { return get_builder_map<T>().at(handle); }
-
-    template <typename T>
-        requires is_builder_type<T>
-    auto get(const ResourceHandle handle) -> T& { return get_builder_map<T>().at(handle); }
+    auto get(this Self&& self, const ResourceHandle handle) -> decltype(auto) {
+        return std::forward<Self>(self).template get_builder_map<T>().at(handle);
+    }
 
     auto get_all_resource_handles_range() const { return handle_to_kind_mapping | views::keys; }
 
@@ -219,55 +300,53 @@ public:
         }
     }
 
-private:
     template <typename T>
+        requires is_resource_desc_type<T>
+    static auto needs_duplication(const T& desc) -> bool {
+        (void) desc;
+        return false;
+    }
+
+    static auto needs_duplication(const UniformBufferResourceDesc& desc) -> bool {
+        return !(desc.flags & UniformBufferFlags::IS_NEVER_UPDATED);
+    }
+
+private:
+    auto get_duplicated_resource_handle(const ResourceHandle handle) const -> ResourceHandle {
+        return duplicated_resource_proxy_map.at(handle)[renderer_ctx.get().current_frame_idx];
+    }
+
+    template <typename T, typename Self>
         requires is_resource_type<T>
-    auto get_resource_map() const -> const map<ResourceHandle, T>& {
+    auto get_resource_map(this Self&& self) -> decltype(auto) {
         if constexpr (std::is_same_v<T, Buffer>) {
-            return buffers;
+            return (std::forward<Self>(self).buffers);
         } else if constexpr (std::is_same_v<T, Image>) {
-            return images;
+            return (std::forward<Self>(self).images);
         } else if constexpr (std::is_same_v<T, GraphicsPipeline>) {
-            return graphics_pipelines;
+            return (std::forward<Self>(self).graphics_pipelines);
         } else if constexpr (std::is_same_v<T, ComputePipeline>) {
-            return compute_pipelines;
+            return (std::forward<Self>(self).compute_pipelines);
         } else {
             static_assert(false, "invalid type in ResourceManager::get_resource_map");
-            return {};
         }
     }
 
-    // non-const version of the above fn
-    template <typename T>
-        requires is_resource_type<T>
-    auto get_resource_map() -> map<ResourceHandle, T>& {
-        return const_cast<map<ResourceHandle, T> &>(
-            static_cast<const ResourceManager *>(this)->get_resource_map<T>()
-        );
-    }
-
-    template <typename T>
+    template <typename T, typename Self>
         requires is_builder_type<T>
-    auto get_builder_map() const -> const map<ResourceHandle, T>& {
-        if constexpr (std::is_same_v<T, ImageBuilder>) {
-            return image_builders;
+    auto get_builder_map(this Self&& self) -> decltype(auto) {
+        if constexpr (std::is_same_v<T, BufferBuilder>) {
+            return (std::forward<Self>(self).buffer_builders);
+        } else if constexpr (std::is_same_v<T, ImageBuilder>) {
+            return (std::forward<Self>(self).image_builders);
         } else if constexpr (std::is_same_v<T, GraphicsPipelineBuilder>) {
-            return graphics_pipeline_builders;
+            return (std::forward<Self>(self).graphics_pipeline_builders);
         } else if constexpr (std::is_same_v<T, ComputePipelineBuilder>) {
-            return compute_pipeline_builders;
+            return (std::forward<Self>(self).compute_pipeline_builders);
         } else {
             static_assert(false, "invalid type in ResourceManager::get_builder_map");
             return {};
         }
-    }
-
-    // non-const version of the above fn
-    template <typename T>
-        requires is_builder_type<T>
-    auto get_builder_map() -> map<ResourceHandle, T>& {
-        return const_cast<map<ResourceHandle, T> &>(
-            static_cast<const ResourceManager *>(this)->get_builder_map<T>()
-        );
     }
 
     template <typename HandleType>
