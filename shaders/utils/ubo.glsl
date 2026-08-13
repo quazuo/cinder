@@ -36,6 +36,7 @@ struct LightData {
     GLSL_ALIGN16 vec3 direction;
     GLSL_ALIGN16 vec3 color;
     GLSL_ALIGN4  float intensity;
+    GLSL_ALIGN4  float cascade_blend_threshold;
     GLSL_ALIGN16 mat4 cascade_pxv_mats[4];
     GLSL_ALIGN16 PaddedFloat cascade_z_fars[4];
 };

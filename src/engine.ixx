@@ -48,17 +48,12 @@ class Engine {
     float light_intensity     = 20.0f;
 
     struct ShadowMapConfig {
-        float left   = -10.0f;
-        float right  = 10.0f;
-        float bottom = -10.0f;
-        float top    = 10.0f;
-        float z_near = 0.01f;
-        float z_far  = 70.0f;
+        float cascade_blend_threshold = 0.05f;
         float bias_weight_1 = 0.0f;
         float bias_weight_2 = 0.0008f;
     } shadow_map_config;
 
-    float debug_number = 1.0f;
+    float debug_number = 0.1f;
     int debug_tex = 0;
 
     static constexpr uint32_t SHADOWMAP_CASCADE_COUNT = 4;

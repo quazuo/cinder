@@ -97,6 +97,22 @@ float calc_shadow(vec2 texel_offset, uint layer) {
     return shadow;
 }
 
+float calc_shadow_with_pcf(uint layer) {
+    const int pcf_radius = 1;
+    float shadow_amount = 0.0f;
+
+    for (int off_x = -pcf_radius; off_x <= pcf_radius; off_x++) {
+        for (int off_y = -pcf_radius; off_y <= pcf_radius; off_y++) {
+            if (calc_shadow(vec2(off_x, off_y), layer) == 1.0f) {
+                shadow_amount += 1.0f;
+            }
+        }
+    }
+
+    shadow_amount /= (2.0f * pcf_radius + 1.0f) * (2.0f * pcf_radius + 1.0f);
+    return shadow_amount;
+}
+
 void main() {
     const MeshDescription mesh_desc = mesh_descriptions[constants.mesh_desc_ubo_id].md[constants.mesh_id];
     const uint ubo_id = constants.general_ubo_id;
@@ -136,28 +152,46 @@ void main() {
     vec4 frag_pos_view_space = ubos[ubo_id].matrices.view * vec4(worldPosition.xyz, 1.0);
     float depth = abs(frag_pos_view_space.z);
     uint layer = 0;
+    float lerp_alpha_with_lower = 0.0f;
+    float lerp_alpha_with_upper = 0.0f;
+
     for (uint i = 0; i < CASCADE_COUNT; i++) {
-        if (depth < ubos[ubo_id].light.cascade_z_fars[i].v) {
+        const float lower_cascade_z_far = ubos[ubo_id].light.cascade_z_fars[i - 1].v;
+        const float cascade_z_far = ubos[ubo_id].light.cascade_z_fars[i].v;
+        const float blend_threshold = ubos[ubo_id].light.cascade_blend_threshold;
+
+        if (depth < cascade_z_far) {
             layer = i;
+
+            const float lower_blend_threshold = lower_cascade_z_far + cascade_z_far * blend_threshold * 0.3f;
+            const float upper_blend_threshold = cascade_z_far * (1.0f - blend_threshold);
+
+            if (layer > 0 && depth < lower_blend_threshold) {
+                lerp_alpha_with_lower = 0.5f * (depth - lower_blend_threshold) / (lower_cascade_z_far - lower_blend_threshold);
+
+            } else if (layer < CASCADE_COUNT - 1 && depth > upper_blend_threshold) {
+                lerp_alpha_with_upper = 0.5f * (depth - upper_blend_threshold) / (cascade_z_far - upper_blend_threshold);
+            }
+
             break;
         }
     }
 
     // apply shadows
     const float shadow_factor = 0.3f;
-    const int pcf_radius = 1;
-    float shadow_amount = 0.0f;
 
-    for (int off_x = -pcf_radius; off_x <= pcf_radius; off_x++) {
-        for (int off_y = -pcf_radius; off_y <= pcf_radius; off_y++) {
-            if (calc_shadow(vec2(off_x, off_y), layer) == 1.0f) {
-                shadow_amount += 1.0f;
-            }
-        }
+    float pcf_shadow_amount = calc_shadow_with_pcf(layer);
+
+    if (lerp_alpha_with_lower != 0.0f) {
+        float lower_layer_shadow_amount = calc_shadow_with_pcf(layer - 1);
+        pcf_shadow_amount = mix(pcf_shadow_amount, lower_layer_shadow_amount, lerp_alpha_with_lower);
+
+    } else if (lerp_alpha_with_upper != 0.0f) {
+        float upper_layer_shadow_amount = calc_shadow_with_pcf(layer + 1);
+        pcf_shadow_amount = mix(pcf_shadow_amount, upper_layer_shadow_amount, lerp_alpha_with_upper);
     }
 
-    shadow_amount /= (2 * pcf_radius + 1) * (2 * pcf_radius + 1);
-    color = mix(color, color * shadow_factor, shadow_amount);
+    color = mix(color, color * shadow_factor, pcf_shadow_amount);
 
     outColor = vec4(color, 1.0);
 }

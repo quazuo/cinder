@@ -637,12 +637,13 @@ void Engine::update_graphics_uniform_buffer(const Buffer &buffer) {
             .proj_inverse = glm::inverse(proj),
             .vp_inverse = glm::inverse(proj * view),
             .static_view = camera->get_static_view_matrix(),
-            .cubemap_capture_proj = cubemap_face_projection
+            .cubemap_capture_proj = cubemap_face_projection,
         },
         .light = {
             .direction = light_direction_vec,
             .color = light_color,
             .intensity = light_intensity,
+            .cascade_blend_threshold = shadow_map_config.cascade_blend_threshold,
         },
         .misc = {
             .debug_number = debug_number,
@@ -655,7 +656,7 @@ void Engine::update_graphics_uniform_buffer(const Buffer &buffer) {
         }
     };
 
-    constexpr array cascade_z_fars { 10.0f, 40.0f, 100.0f, 500.0f };
+    constexpr array cascade_z_fars { 5.0f, 20.0f, 80.0f, 500.0f };
     float curr_z_near = z_near;
 
     for (uint32_t i = 0; i < SHADOWMAP_CASCADE_COUNT; i++) {
@@ -784,18 +785,8 @@ void Engine::render_gui_section(const float delta_time) {
     if (ImGui::CollapsingHeader("Shadowmap ", section_flags)) {
         ImGui::PushItemWidth(300.0f);
 
-        ImGui::SliderFloat("left",   &shadow_map_config.left,   -100.0f, 100.0f, "%.2f");
+        ImGui::SliderFloat("cascade_blend_threshold", &shadow_map_config.cascade_blend_threshold, 0.0f, 0.5f, "%.5f");
         ImGui::SameLine();
-        ImGui::SliderFloat("right",  &shadow_map_config.right,  -100.0f, 100.0f, "%.2f");
-
-        ImGui::SliderFloat("bottom", &shadow_map_config.bottom, -100.0f, 100.0f, "%.2f");
-        ImGui::SameLine();
-        ImGui::SliderFloat("top",    &shadow_map_config.top,    -100.0f, 100.0f, "%.2f");
-
-        ImGui::SliderFloat("z_near", &shadow_map_config.z_near,    0.0f, 100.0f, "%.2f");
-        ImGui::SameLine();
-        ImGui::SliderFloat("z_far",  &shadow_map_config.z_far,     0.0f, 100.0f, "%.2f");
-
         ImGui::SliderFloat("bias_weight_1", &shadow_map_config.bias_weight_1, 0.0f, 0.01f, "%.5f");
         ImGui::SameLine();
         ImGui::SliderFloat("bias_weight_2", &shadow_map_config.bias_weight_2, 0.0f, 0.01f, "%.5f");
