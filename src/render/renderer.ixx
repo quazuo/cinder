@@ -141,8 +141,6 @@ public:
     // never use this, this is just a workaround for now to allow debug gui
     auto UNSAFE_get_resource_manager() const -> ResourceManager& { return *resource_manager; }
 
-    void tick(float delta_time);
-
     void wait_idle() const { ctx.device->waitIdle(); }
 
     template <typename T>

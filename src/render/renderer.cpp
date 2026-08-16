@@ -137,7 +137,7 @@ auto VulkanRenderer::create_instance() -> vkb::Instance {
         return vk::False;
     };
 
-    constexpr array<uint32_t, 1> layer_setting_values = { 100 };
+    constexpr uint32_t duplicate_message_limit = 100;
 
     auto instance_result = vkb::InstanceBuilder()
             .set_app_name("Cinder")
@@ -151,8 +151,8 @@ auto VulkanRenderer::create_instance() -> vkb::Instance {
                 .pLayerName = "VK_LAYER_KHRONOS_validation",
                 .pSettingName = "duplicate_message_limit",
                 .type = vk::LayerSettingTypeEXT::eUint32,
-                .valueCount = static_cast<uint32_t>(layer_setting_values.size()),
-                .pValues = layer_setting_values.data(),
+                .valueCount = 1u,
+                .pValues = &duplicate_message_limit,
             })
             .build();
 
@@ -1257,10 +1257,6 @@ auto VulkanRenderer::get_node_target_handles(const RenderNodeHandle node_handle)
 
 // ==================== render loop ====================
 
-void VulkanRenderer::tick(const float delta_time) {
-    (void) delta_time;
-}
-
 void VulkanRenderer::add_frame_begin_action(FrameBeginCallback &&callback) {
     repeated_frame_begin_actions.emplace_back(std::move(callback));
 }
@@ -1321,6 +1317,8 @@ void VulkanRenderer::end_frame() {
     auto& frame = frame_resources[ctx.current_frame_idx];
     const auto& sync = frame.sync;
 
+    // submit the render graph's command buffer to the graphics queue
+
     ++(*sync.render_finished_timeline_sem);
 
     QueueSubmission submission = QueueSubmissionBuilder()
@@ -1329,6 +1327,8 @@ void VulkanRenderer::end_frame() {
         .with_command_buffers(std::span { &*frame.main_cmd_buffer, 1 })
         .create();
     ctx.graphics_queue->submit(std::move(submission));
+
+    // present and handle potential window resizing
 
     const vk::Result present_result = present_queue->present(*swap_chain, *sync.ready_to_present_sem);
 
@@ -1341,6 +1341,8 @@ void VulkanRenderer::end_frame() {
     } else if (present_result != vk::Result::eSuccess) {
         Logger::error("failed to present swap chain image!");
     }
+
+    // save node names from the render graph we ran in this frame
 
     frame.prev_node_names.clear();
     for (const auto& node : partitioned_nodes | views::join) {
