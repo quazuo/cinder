@@ -43,7 +43,7 @@ class Engine {
     glm::vec3 model_translate{};
     glm::quat model_rotation{1, 0, 0, 0};
 
-    glm::quat light_direction = glm::normalize(glm::vec3(0, 1, 0));
+    glm::quat light_direction = glm::normalize(glm::vec3(0.5, 0.25, 1));
     glm::vec3 light_color     = glm::normalize(glm::vec3(23.47, 21.31, 20.79));
     float light_intensity     = 20.0f;
 

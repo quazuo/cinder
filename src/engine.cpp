@@ -62,7 +62,6 @@ void Engine::tick() {
     curr_delta_time         = delta_time;
 
     input_manager->tick(delta_time);
-    renderer.tick(delta_time);
     camera->tick(delta_time);
 
     static bool is_first_frame = true;
@@ -545,6 +544,7 @@ auto Engine::get_light_pxv_matrix(const glm::mat4& model_mat, const float z_near
     // get the light view matrix (NOT texel snapped yet)
 
     const glm::vec3 light_direction_vec = glm::gtc::mat4_cast(light_direction) * glm::vec4(1, 0, 0, 0);
+    constexpr float light_dist = 50.0f;
     const glm::mat4 light_view = glm::gtc::lookAt(circumcenter + light_direction_vec * 50.0f, circumcenter, glm::vec3(0, 1, 0));
 
     // compute the radius of the circumcircle in the light's viewspace
@@ -558,12 +558,13 @@ auto Engine::get_light_pxv_matrix(const glm::mat4& model_mat, const float z_near
     const float texels_per_unit = static_cast<float>(SHADOWMAP_RESOLUTION) / (circumcircle_radius_lvspace * 2.0f);
     const glm::mat4 scalar_mat = glm::gtc::scale(glm::vec3(texels_per_unit));
 
-    glm::vec3 frustum_center = scalar_mat * light_view * glm::vec4(circumcenter, 1.0f);
+    const glm::mat4 light_view_rot_only = glm::gtc::lookAt(light_direction_vec * light_dist, glm::vec3(0), glm::vec3(0, 1, 0));
+    glm::vec3 frustum_center = scalar_mat * light_view_rot_only * glm::vec4(circumcenter, 1.0f);
     frustum_center.x = glm::floor(frustum_center.x);
     frustum_center.y = glm::floor(frustum_center.y);
-    frustum_center = glm::inverse(scalar_mat * light_view) * glm::vec4(frustum_center, 1.0f);
+    frustum_center = glm::inverse(scalar_mat * light_view_rot_only) * glm::vec4(frustum_center, 1.0f);
 
-    const glm::vec3 eye = frustum_center + light_direction_vec * 50.0f; // - (light_direction * circumcircle_radius_lvspace * 2.0f);
+    const glm::vec3 eye = frustum_center + light_direction_vec * light_dist; // - (light_direction * circumcircle_radius_lvspace * 2.0f);
     const glm::mat4 light_view_texel_snapped = glm::gtc::lookAt(eye, frustum_center, glm::vec3(0, 1, 0));
 
     // fit ortho projection matrix bbox (just the min/max z) to the scene's aabb
@@ -656,7 +657,7 @@ void Engine::update_graphics_uniform_buffer(const Buffer &buffer) {
         }
     };
 
-    constexpr array cascade_z_fars { 5.0f, 20.0f, 80.0f, 500.0f };
+    constexpr array cascade_z_fars { 2.0f, 5.0f, 20.0f, 500.0f };
     float curr_z_near = z_near;
 
     for (uint32_t i = 0; i < SHADOWMAP_CASCADE_COUNT; i++) {
