@@ -116,7 +116,7 @@ private:
 
     void update_graphics_uniform_buffer(const Buffer &buffer);
 
-    auto get_light_pxv_matrix(const glm::mat4& model_mat, float z_near, float z_far) -> glm::mat4;
+    auto get_light_pxv_and_texel_size(const glm::mat4& model_mat, float z_near, float z_far) -> pair<glm::mat4, float>;
 
     void bind_key_actions();
 

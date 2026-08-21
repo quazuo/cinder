@@ -42,11 +42,11 @@ class enum_map {
     std::array<std::optional<V>, K::Count> arr;
 
 public:
-    auto operator[](K key) -> ValueProxy {
+    auto operator[](const K& key) -> ValueProxy {
         return ValueProxy(arr[key]);
     }
 
-    auto operator[](K key) const -> ConstValueProxy {
+    auto operator[](const K& key) const -> ConstValueProxy {
         return ConstValueProxy(arr[key]);
     }
 };

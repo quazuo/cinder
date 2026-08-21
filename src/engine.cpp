@@ -516,7 +516,7 @@ static auto get_frustum_corners_world_space(const glm::mat4& view, const glm::ma
     return corners;
 }
 
-auto Engine::get_light_pxv_matrix(const glm::mat4& model_mat, const float z_near, const float z_far) -> glm::mat4 {
+auto Engine::get_light_pxv_and_texel_size(const glm::mat4& model_mat, const float z_near, const float z_far) -> pair<glm::mat4, float> {
     const auto camera_frustum_corners = get_frustum_corners_world_space(
         camera->get_view_matrix(),
         glm::gtc::perspective(glm::radians(camera->get_fov()), camera->get_aspect_ratio(), z_near, z_far)
@@ -606,7 +606,10 @@ auto Engine::get_light_pxv_matrix(const glm::mat4& model_mat, const float z_near
         -max_z, -min_z
     );
 
-    return light_proj * light_view_texel_snapped;
+    return {
+        light_proj * light_view_texel_snapped,
+        circumcircle_radius_lvspace / static_cast<float>(SHADOWMAP_RESOLUTION)
+    };
 }
 
 void Engine::update_graphics_uniform_buffer(const Buffer &buffer) {
@@ -663,8 +666,10 @@ void Engine::update_graphics_uniform_buffer(const Buffer &buffer) {
     for (uint32_t i = 0; i < SHADOWMAP_CASCADE_COUNT; i++) {
         const float curr_z_far = cascade_z_fars[i];
 
-        graphics_ubo.light.cascade_pxv_mats[i] = get_light_pxv_matrix(model, curr_z_near, curr_z_far);
-        graphics_ubo.light.cascade_z_fars[i].v = curr_z_far;
+        const auto [light_pxv, texel_size] = get_light_pxv_and_texel_size(model, curr_z_near, curr_z_far);
+        graphics_ubo.light.cascade_pxv_mats[i] = light_pxv;
+        graphics_ubo.light.cascade_infos[i].z_far = curr_z_far;
+        graphics_ubo.light.cascade_infos[i].texel_world_size = texel_size;
 
         curr_z_near = curr_z_far;
     }

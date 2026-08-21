@@ -88,7 +88,11 @@ float calc_shadow(vec2 texel_offset, uint layer) {
     vec3 light_direction = ubos[ubo_id].light.direction;
     float bias_weight_1  = ubos[ubo_id].misc.bias_weight_1;
     float bias_weight_2  = ubos[ubo_id].misc.bias_weight_2;
-    float bias = max(bias_weight_1 * (1.0 - dot(normal, light_direction)), bias_weight_2);
+    float texel_world_size = ubos[ubo_id].light.cascade_infos[layer].texel_world_size;
+    float bias = max(
+        bias_weight_1 * texel_world_size * (1.0 - dot(normal, light_direction)),
+        bias_weight_2 * texel_world_size
+    );
 
     float closest_depth = sample_texture_layer_with_fallback(constants.shadowmap_id, proj_coords.xy + tex_coord_offset, layer).r;
     float current_depth = proj_coords.z;
@@ -156,8 +160,8 @@ void main() {
     float lerp_alpha_with_upper = 0.0f;
 
     for (uint i = 0; i < CASCADE_COUNT; i++) {
-        const float lower_cascade_z_far = ubos[ubo_id].light.cascade_z_fars[i - 1].v;
-        const float cascade_z_far = ubos[ubo_id].light.cascade_z_fars[i].v;
+        const float lower_cascade_z_far = ubos[ubo_id].light.cascade_infos[i - 1].z_far;
+        const float cascade_z_far = ubos[ubo_id].light.cascade_infos[i].z_far;
         const float blend_threshold = ubos[ubo_id].light.cascade_blend_threshold;
 
         if (depth < cascade_z_far) {

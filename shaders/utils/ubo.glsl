@@ -8,9 +8,9 @@
 #define GLSL_ALIGN16
 #endif
 
-struct PaddedFloat {
-    float v;
-    float _pad0;
+struct CascadeInfo {
+    float z_far;
+    float texel_world_size;
     float _pad1;
     float _pad2;
 };
@@ -38,7 +38,7 @@ struct LightData {
     GLSL_ALIGN4  float intensity;
     GLSL_ALIGN4  float cascade_blend_threshold;
     GLSL_ALIGN16 mat4 cascade_pxv_mats[4];
-    GLSL_ALIGN16 PaddedFloat cascade_z_fars[4];
+    GLSL_ALIGN16 CascadeInfo cascade_infos[4];
 };
 
 struct MiscData {
